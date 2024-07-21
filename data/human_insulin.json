@@ -1,0 +1,189 @@
+{
+  "locus": "AH002844                4969 bp    DNA     linear   PRI 10-JUN-2016",
+  "definition": "Homo sapiens insulin (INS) gene, complete cds.",
+  "accession": "AH002844 J00265 J00268",
+  "version": "AH002844.2",
+  "keywords": "GC rich region; insulin; polymorphic variation; tandem repeat.",
+  "source": "Homo sapiens (human)\n  ORGANISM  Homo sapiens\n            Eukaryota; Metazoa; Chordata; Craniata; Vertebrata; Euteleostomi;\n            Mammalia; Eutheria; Euarchontoglires; Primates; Haplorrhini;\n            Catarrhini; Hominidae; Homo.",
+  "reference": "7  (bases 917 to 1428; 1828 to 2185; 3615 to 4044)\n  AUTHORS   Ullrich,A., Dull,T.J., Gray,A., Philips,J.A. III and Peter,S.\n  TITLE     Variation in the sequence and modification state of the human\n            insulin gene flanking regions\n  JOURNAL   Nucleic Acids Res. 10 (7), 2225-2240 (1982)\n   PUBMED   6283472",
+  "comment": "On or before Jun 10, 2016 this sequence version replaced J00265.1,\n            J00268.1, AH002844.1.",
+  "features": [
+    {
+      "type": "source",
+      "location": [
+        "1",
+        "4969"
+      ],
+      "information": {
+        "organism": "Homo sapiens",
+        "mol_type": "genomic DNA",
+        "db_xref": [
+          "taxon:9606"
+        ],
+        "map": "11p15.5",
+        "tissue_type": "liver",
+        "dev_stage": "foetus"
+      }
+    },
+    {
+      "type": "gene",
+      "location": [
+        "2186",
+        "4969"
+      ],
+      "information": {
+        "gene": "INS"
+      }
+    },
+    {
+      "type": "exon",
+      "location": [
+        "2186",
+        "2227"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "G00-119-349",
+        "number": "1"
+      }
+    },
+    {
+      "type": "intron",
+      "location": [
+        "2228",
+        "2406"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "G00-119-349",
+        "number": "1"
+      }
+    },
+    {
+      "type": "variation",
+      "location": [
+        "2401"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "a in alpha-allele; t in beta allele ([4])"
+      }
+    },
+    {
+      "type": "CDS",
+      "location": [
+        "2424",
+        "2610"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "precursor",
+        "codon_start": "1",
+        "product": "insulin",
+        "protein_id": "AAA59172.1",
+        "db_xref": [
+          "GDB:G00-119-349"
+        ],
+        "translation": "MALWMRLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCG ERGFFYTPKTRREAEDLQVGQVELGGGPGAGSLQPLALEGSLQKRGIVEQCCTSICSL YQLENYCN"
+      }
+    },
+    {
+      "type": "sig_peptide",
+      "location": [
+        "2424",
+        "2495"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "G00-119-349"
+      }
+    },
+    {
+      "type": "mat_peptide",
+      "location": [
+        "2496",
+        "2610"
+      ],
+      "information": {
+        "gene": "INS",
+        "product": "c peptide; G00-119-349"
+      }
+    },
+    {
+      "type": "intron",
+      "location": [
+        "2611",
+        "3396"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "G00-119-349",
+        "number": "2"
+      }
+    },
+    {
+      "type": "variation",
+      "location": [
+        "3229"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "c in alpha-allele; g in beta-allele ([4])"
+      }
+    },
+    {
+      "type": "exon",
+      "location": [
+        "3397",
+        ">3615"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "G00-119-349",
+        "number": "2"
+      }
+    },
+    {
+      "type": "variation",
+      "location": [
+        "3551"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "c in alpha-allele; t in beta-allele ([4])"
+      }
+    },
+    {
+      "type": "variation",
+      "location": [
+        "3564"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "c in alpha-allele; a in beta-allele ([4])"
+      }
+    },
+    {
+      "type": "gap",
+      "location": [
+        "4045",
+        "4144"
+      ],
+      "information": {
+        "estimated_length": "unknown"
+      }
+    },
+    {
+      "type": "misc_feature",
+      "location": [
+        "4145",
+        "4969"
+      ],
+      "information": {
+        "gene": "INS",
+        "note": "G00-119-349"
+      }
+    }
+  ],
+  "origin": "1 ctcgaggggc ctagacattg ccctccagag agagcaccca acaccctcca ggcttgaccg\n       61 gccagggtgt ccccttccta ccttggagag agcagcccca gggcatcctg cagggggtgc\n      121 tgggacacca gctggccttc aaggtctctg cctccctcca gccaccccac tacacgctgc\n      181 tgggatcctg gatctcagct ccctggccga caacactggc aaactcctac tcatccacga\n      241 aggccctcct gggcatggtg gtccttccca gcctggcagt ctgttcctca cacaccttgt\n      301 tagtgcccag cccctgaggt tgcagctggg ggtgtctctg aagggctgtg agcccccagg\n      361 aagccctggg gaagtgcctg ccttgcctcc ccccggccct gccagcgcct ggctctgccc\n      421 tcctacctgg gctcccccca tccagcctcc ctccctacac actcctctca aggaggcacc\n      481 catgtcctct ccagctgccg ggcctcagag cactgtggcg tcctggggca gccaccgcat\n      541 gtcctgctgt ggcatggctc agggtggaaa gggcggaagg gaggggtcct gcagatagct\n      601 ggtgcccact accaaacccg ctcggggcag gagagccaaa ggctgggtgt gtgcagagcg\n      661 gccccgagag gttccgaggc tgaggccagg gtgggacata gggatgcgag gggccggggc\n      721 acaggatact ccaacctgcc tgcccccatg gtctcatcct cctgcttctg ggacctcctg\n      781 atcctgcccc tggtgctaag aggcaggtaa ggggctgcag gcagcagggc tcggagccca\n      841 tgccccctca ccatgggtca ggctggacct ccaggtgcct gttctgggga gctgggaggg\n      901 ccggaggggt gtaccccagg ggctcagccc agatgacact atgggggtga tggtgtcatg\n      961 ggacctggcc aggagagggg agatgggctc ccagaagagg agtgggggct gagagggtgc\n     1021 ctggggggcc aggacggagc tgggccagtg cacagcttcc cacacctgcc cacccccaga\n     1081 gtcctgccgc cacccccaga tcacacggaa gatgaggtcc gagtggcctg ctgaggactt\n     1141 gctgcttgtc cccaggtccc caggtcatgc cctccttctg ccaccctggg gagctgaggg\n     1201 cctcagctgg ggctgctgtc ctaaggcagg gtgggaacta ggcagccagc agggagggga\n     1261 cccctccctc actcccactc tcccaccccc accaccttgg cccatccatg gcggcatctt\n     1321 gggccatccg ggactgggga caggggtcct ggggacaggg gtccggggac agggtcctgg\n     1381 ggacaggggt gtggggacag gggtctgggg acaggggtgt ggggacaggg gtgtggggac\n     1441 aggggtctgg ggacaggggt gtggggacag gggtccgggg acaggggtgt ggggacaggg\n     1501 gtctggggac aggggtgtgg ggacaggggt gtggggacag gggtctgggg acaggggtgt\n     1561 ggggacaggg gtcctgggga caggggtgtg gggacagggg tgtggggaca ggggtgtggg\n     1621 gacaggggtg tggggacagg ggtcctgggg ataggggtgt ggggacaggg gtgtggggac\n     1681 aggggtcccg gggacagggg tgtggggaca ggggtgtggg gacaggggtc ctggggacag\n     1741 gggtctgagg acaggggtgt gggcacaggg gtcctgggga caggggtcct ggggacaggg\n     1801 gtcctgggga caggggtctg gggacagcag cgcaaagagc cccgccctgc agcctccagc\n     1861 tctcctggtc taatgtggaa agtggcccag gtgagggctt tgctctcctg gagacatttg\n     1921 cccccagctg tgagcaggga caggtctggc caccgggccc ctggttaaga ctctaatgac\n     1981 ccgctggtcc tgaggaagag gtgctgacga ccaaggagat cttcccacag acccagcacc\n     2041 agggaaatgg tccggaaatt gcagcctcag cccccagcca tctgccgacc cccccacccc\n     2101 gccctaatgg gccaggcggc aggggttgac aggtagggga gatgggctct gagactataa\n     2161 agccagcggg ggcccagcag ccctcagccc tccaggacag gctgcatcag aagaggccat\n     2221 caagcaggtc tgttccaagg gcctttgcgt caggtgggct cagggttcca gggtggctgg\n     2281 accccaggcc ccagctctgc agcagggagg acgtggctgg gctcgtgaag catgtggggg\n     2341 tgagcccagg ggccccaagg cagggcacct ggccttcagc ctgcctcagc cctgcctgtc\n     2401 tcccagatca ctgtccttct gccatggccc tgtggatgcg cctcctgccc ctgctggcgc\n     2461 tgctggccct ctggggacct gacccagccg cagcctttgt gaaccaacac ctgtgcggct\n     2521 cacacctggt ggaagctctc tacctagtgt gcggggaacg aggcttcttc tacacaccca\n     2581 agacccgccg ggaggcagag gacctgcagg gtgagccaac cgcccattgc tgcccctggc\n     2641 cgcccccagc caccccctgc tcctggcgct cccacccagc atgggcagaa gggggcagga\n     2701 ggctgccacc cagcaggggg tcaggtgcac ttttttaaaa agaagttctc ttggtcacgt\n     2761 cctaaaagtg accagctccc tgtggcccag tcagaatctc agcctgagga cggtgttggc\n     2821 ttcggcagcc ccgagataca tcagagggtg ggcacgctcc tccctccact cgcccctcaa\n     2881 acaaatgccc cgcagcccat ttctccaccc tcatttgatg accgcagatt caagtgtttt\n     2941 gttaagtaaa gtcctgggtg acctggggtc acagggtgcc ccacgctgcc tgcctctggg\n     3001 cgaacacccc atcacgcccg gaggagggcg tggctgcctg cctgagtggg ccagacccct\n     3061 gtcgccagcc tcacggcagc tccatagtca ggagatgggg aagatgctgg ggacaggccc\n     3121 tggggagaag tactgggatc acctgttcag gctcccactg tgacgctgcc ccggggcggg\n     3181 ggaaggaggt gggacatgtg ggcgttgggg cctgtaggtc cacacccagt gtgggtgacc\n     3241 ctccctctaa cctgggtcca gcccggctgg agatgggtgg gagtgcgacc tagggctggc\n     3301 gggcaggcgg gcactgtgtc tccctgactg tgtcctcctg tgtccctctg cctcgccgct\n     3361 gttccggaac ctgctctgcg cggcacgtcc tggcagtggg gcaggtggag ctgggcgggg\n     3421 gccctggtgc aggcagcctg cagcccttgg ccctggaggg gtccctgcag aagcgtggca\n     3481 ttgtggaaca atgctgtacc agcatctgct ccctctacca gctggagaac tactgcaact\n     3541 agacgcagcc tgcaggcagc cccacacccg ccgcctcctg caccgagaga gatggaataa\n     3601 agcccttgaa ccagccctgc tgtgccgtct gtgtgtcttg ggggccctgg gccaagcccc\n     3661 acttcccggc actgttgtga gcccctccca gctctctcca cgctctctgg gtgcccacag\n     3721 gtgccaacgc cggccaggcc cagcatgcag tggctctccc caaagcggcc atgcctgttg\n     3781 gctgcctgct gcccccaccc tgtggctcag ggtccagtat gggagcttcg ggggtctctg\n     3841 aggggccagg gatggtgggg ccactgagaa gtgacttctt gttcagtagc tctggactct\n     3901 tggagtcccc agagaccttg ttcaggaaag ggaatgagaa cattccagca attttccccc\n     3961 cacctagccc tcccaggttc tatttttaga gttatttctg atggagtccc tgtggaggga\n     4021 ggaggctggg ctgagggagg gggtnnnnnn nnnnnnnnnn nnnnnnnnnn nnnnnnnnnn\n     4081 nnnnnnnnnn nnnnnnnnnn nnnnnnnnnn nnnnnnnnnn nnnnnnnnnn nnnnnnnnnn\n     4141 nnnnctcgag ggaggagccc ggggctgggg tacggaggcc tctgcacatc ttagagtaaa\n     4201 acaagcagga gaggctgggt gcggtggctc atgcctataa tcccagcact ttaggaggct\n     4261 gaggcgggca gatcacctga ggtcgggagt tcaagaccag cctgaccaac agggagaaac\n     4321 cccatcttta ctaaaactac aaaattagct gggtgtggtg gcacatgcct gtaatcccag\n     4381 atattcggga ggctgaggca ggagaatcgc ttgaacctgg gaagcagagg ttgcgctgag\n     4441 ccgagatggc accattgcac tccagcctgg gcaacgagag cgaaactccg tctcaaaaaa\n     4501 acaaaaacaa aaaaatcaaa acaatcaaaa aaacaagcag gaggggctct gaggtgcctg\n     4561 caacacccag gtacaatccg tggccctgag gcccatcaca gggaaggggt ctttgcagct\n     4621 ctttcaaccc ccagcccagc atccaaggaa gcccagggca gggagaaacc tcagctgcac\n     4681 catcagagct cagaacagag aaggcagaaa ttagcaggga gtggggctgg ggaggcttcc\n     4741 tagaagacgt gtctcccgcc ttgctggcac tgaggccttg aggatgggtc catactgggc\n     4801 ccccactgcc agggatgcag atccggccca ctgctgaaat ctgtgctcct ggagcctccc\n     4861 tcctgttcat gggccacagg ctgtgaaaac cccagagtcc tcccaggcag caagttttgt\n     4921 tttgtttttt gtttgtttgc ttgtttgttt tttgagagtc tgctcgtca\n//"
+}

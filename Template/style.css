@@ -1,0 +1,48 @@
+*{
+    margin:0;
+    padding:0;
+}
+
+#box-div{
+    position:absolute;
+    margin:auto;
+    top:50%;
+    left:50%;
+    transform:translate(-50%, -50%);
+}
+
+.domain{
+    stroke: black;
+    font-size: 8px;
+}
+
+#feature-area .source{
+    stroke: #FF2121;
+    stroke-width: 10px;
+}
+
+#feature-area .operon{
+    stroke: #C26600;
+    stroke-width: 10px;
+}
+
+#feature-area .cds{
+    stroke: #008B00;
+    stroke-width: 10px;
+}
+
+#feature-area .gene{
+    stroke: #0087A9;
+    stroke-width: 10px;
+}
+
+#feature-area .others{
+    stroke: #6C4E99;
+    stroke-width: 10px;
+}
+
+#feature-area .annotation{
+    text-anchor: middle;
+    fill: white;
+    font-size: 7px;
+}
