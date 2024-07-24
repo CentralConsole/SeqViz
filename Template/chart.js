@@ -1,4 +1,4 @@
-console.log(d3);
+//console.log(d3);
 
 const dms = {
     width: 1000,
@@ -15,14 +15,14 @@ const dms = {
 dms.contentWidth = dms.width - dms.margin.left - dms.margin.right;
 dms.contentHeight = dms.height - dms.margin.top - dms.margin.bottom;
 dms.unit = dms.contentHeight / 100;
-dms.boxHeight =  dms.unit * 2;
-dms.vSpace = dms.unit * 2;
-dms.fontSize = dms.unit * 2;
+dms.boxHeight = dms.unit * 2;
+dms.vSpace = dms.boxHeight * 2;
+dms.fontSize = dms.boxHeight;
 //set basic constant values
 const box = d3.select('#box-div').append('svg')
     .attr('id', 'box')
-    .attr('width',dms.width)
-    .attr('height',dms.height)
+    .attr('width', dms.width)
+    .attr('height', dms.height)
 
 const content = box.append('g')
     .attr('id', 'content')
@@ -31,18 +31,18 @@ const content = box.append('g')
 
 //The lines above can be reused.
 const axis = content.append('g')
-    .attr('id','axis');
-    //.style('transform',`translateY(${dms.contentHeight/2}px)`);
+    .attr('id', 'axis');
+//.style('transform',`translateY(${dms.contentHeight/2}px)`);
 
 const featureArea = content.append('g')
-    .attr('id','feature-area');
-    //.style('transform',`translateY(${dms.contentHeight/2}px)`);
+    .attr('id', 'feature-area');
+//.style('transform',`translateY(${dms.contentHeight/2}px)`);
 
-d3.json('../data/lac_operon_new.json')
+d3.json('../data/lac_operon.json')
     .then(drawLinear);
 
-function drawLinear(dataset){
-    console.log(dataset);
+function drawLinear(dataset) {
+    //console.log(dataset);
     //Test if the dataset is successfully read.
 
     const parselocus = d => d.split(/\s+/);
@@ -50,164 +50,196 @@ function drawLinear(dataset){
 
     const featureGet = d => d.features;
     const feature = featureGet(dataset);
-    
+
     const typeGet = d => d.type;
     const locationGet = d => d.location;
     const informationGet = d => d.information;
 
     const totalLength = locusGet(dataset)[1];
-    console.log(totalLength);
-    
+    //console.log(totalLength);
+
     const LengthScale = d3.scaleLinear()
-        .domain([0,totalLength])
-        .range([0,dms.contentWidth]);
-    
-    const AxisGen=d3.axisTop()
+        .domain([0, totalLength])
+        .range([0, dms.contentWidth]);
+
+    const AxisGen = d3.axisTop()
         .scale(LengthScale)
         .ticks(7);
-    
+
     axis.call(AxisGen);
     axis.selectAll('text')
-        .style("font-size",dms.fontSize);
-    
-    
-    var i = 1;//i is used to attribute the id of the features. IMORTANT!
-    var occupied = new Array();
+        .style("font-size", dms.fontSize);
+
     var row = 1;
-
+    var i = 1;//i is used to attribute the id of the features. IMORTANT!
+    var intervals = new Array();
+    var occupied = {};
+    intervals[0] = [0,0];
+    occupied[row] = intervals;
+    //console.log(`intervals:${intervals[1][1]}`);
     feature.forEach(d => {
-        const start = Number(locationGet(d)[0]);
-        const end = Number(locationGet(d)[1]);
-        const interval = [start,end];
-        occupied.push(interval);
-        occupied = merge(occupied);
+        var row = 1;
+        const location = locationGet(d)
+        const start = Number(location[0][0]);
+        const end = Number(location[location.length - 1][1]);
+        interval = [start, end];
+        
+        while (checkOccupation(row, interval, occupied)) {
+            row++;
+        }
+        occupied[row].push(interval);
         const featureDisplay = featureArea.append('g')
-            .attr('id','id',`${"feature"+i}`)
-            .attr('class',"feature"); //Create a group for each feature.
+            .attr('id', 'id', `${"feature" + i}`)
+            .attr('class', "feature"); //Create a group for each feature.
 
-        if (typeGet(d) == 'source'){
+        if (typeGet(d) == 'source') {
             featureDisplay.append('line')
-                .attr('id',`${"feature-box"+i}`)
-                .attr('class','box source')
-                .attr('x1',LengthScale(start))
-                .attr('y1',0)
-                .attr('x2',LengthScale(end))
-                .attr('y2',0)
-                .style('transform',`translateY(${dms.vSpace}px)`);
+                .attr('id', `${"feature-box" + i}`)
+                .attr('class', 'box source')
+                .attr('x1', LengthScale(start))
+                .attr('y1', 0)
+                .attr('x2', LengthScale(end))
+                .attr('y2', 0)
+                .style('transform', `translateY(${dms.vSpace * row}px)`);
             i++;
         }//Display source.
-        else if (typeGet(d) == 'operon'){
+        else if (typeGet(d) == 'operon') {
             featureDisplay.append('line')
-                .attr('id',`${"feature-box"+i}`)
-                .attr('class','box operon')
-                .attr('x1',LengthScale(start))
-                .attr('y1',0)
-                .attr('x2',LengthScale(end))
-                .attr('y2',0)
-                .style('transform',`translateY(${dms.vSpace * 3}px)`);
-            
+                .attr('id', `${"feature-box" + i}`)
+                .attr('class', 'box operon')
+                .attr('x1', LengthScale(start))
+                .attr('y1', 0)
+                .attr('x2', LengthScale(end))
+                .attr('y2', 0)
+                .style('transform', `translateY(${dms.vSpace * row}px)`);
+
             featureDisplay.append('text')
-                .attr('id',`${"feature-annotation"+i}`)
-                .attr('class','annotation')
-                .attr('x',`${LengthScale((start+end)/2)}`)
-                .attr('y',`${dms.vSpace * 3 + dms.unit * 0.5}`)
+                .attr('id', `${"feature-annotation" + i}`)
+                .attr('class', 'annotation')
+                .attr('x', `${LengthScale((start + end) / 2)}`)
+                .attr('y', `${dms.vSpace * row + dms.unit * 0.5}`)
                 .text(`${informationGet(d).operon + '(operon)'}`)
-            trimText(featureDisplay,i);
+            trimText(featureDisplay, i);
             i++;
         }//Display operon.
-        else if (typeGet(d) == 'CDS'){
+        else if (typeGet(d) == 'CDS') {
             featureDisplay.append('line')
-                .attr('id',`${"feature-box"+i}`)
-                .attr('class','box cds')
-                .attr('x1',LengthScale(start))
-                .attr('y1',0)
-                .attr('x2',LengthScale(end))
-                .attr('y2',0)
-                .style('transform',`translateY(${dms.vSpace * 5}px)`);
-
-           featureDisplay.append('text')
-                .attr('id',`${"feature-annotation"+i}`)
-                .attr('class','box annotation')
-                .attr('x',`${LengthScale((start+end)/2)}`)
-                .attr('y',`${dms.vSpace * 5 + dms.unit * 0.5}`)
-                .text(`${informationGet(d).product}`)
-                //.attr('textLength',`${LengthScale(end-start)}`);
-            trimText(featureDisplay,i);
-            i++;
-        }//Display CDS.
-        else if (typeGet(d) == 'gene'){
-            featureDisplay.append('line')
-                .attr('id',`${"feature-box"+i}`)
-                .attr('class','box gene')
-                .attr('x1',LengthScale(start))
-                .attr('y1',0)
-                .attr('x2',LengthScale(end))
-                .attr('y2',0)
-                .style('transform',`translateY(${dms.vSpace * 7}px)`);
-
-           featureDisplay.append('text')
-                .attr('id',`${"feature-annotation"+i}`)
-                .attr('class','box annotation')
-                .attr('x',`${LengthScale((start+end)/2)}`)
-                .attr('y',`${dms.vSpace * 7 + dms.unit * 0.5}`)
-                .text(`${informationGet(d).gene}`);
-            trimText(featureDisplay,i);
-            i++;
-        }//Display gene.
-        else{
-            featureDisplay.append('line')
-                .attr('id',`${"feature-box"+i}`)
-                .attr('class','box  others')
-                .attr('x1',LengthScale(start))
-                .attr('y1',0)
-                .attr('x2',LengthScale(end))
-                .attr('y2',0)
-                .style('transform',`translateY(${dms.unit * 20}px)`);
+                .attr('id', `${"feature-box" + i}`)
+                .attr('class', 'box cds')
+                .attr('x1', LengthScale(start))
+                .attr('y1', 0)
+                .attr('x2', LengthScale(end))
+                .attr('y2', 0)
+                .style('transform', `translateY(${dms.vSpace * row}px)`);
 
             featureDisplay.append('text')
-                .attr('id',`${"feature-annotation"+i}`)
-                .attr('class','annotation')
-                .attr('x',`${LengthScale((start+end)/2)}`)
-                .attr('y',`${dms.unit * 20 + dms.unit * 0.5}`)
+                .attr('id', `${"feature-annotation" + i}`)
+                .attr('class', 'box annotation')
+                .attr('x', `${LengthScale((start + end) / 2)}`)
+                .attr('y', `${dms.vSpace * row + dms.unit * 0.5}`)
+                .text(`${informationGet(d).product}`)
+            //.attr('textLength',`${LengthScale(end-start)}`);
+            trimText(featureDisplay, i);
+            i++;
+        }//Display CDS.
+        else if (typeGet(d) == 'gene') {
+            featureDisplay.append('line')
+                .attr('id', `${"feature-box" + i}`)
+                .attr('class', 'box gene')
+                .attr('x1', LengthScale(start))
+                .attr('y1', 0)
+                .attr('x2', LengthScale(end))
+                .attr('y2', 0)
+                .style('transform', `translateY(${dms.vSpace * row}px)`);
+
+            featureDisplay.append('text')
+                .attr('id', `${"feature-annotation" + i}`)
+                .attr('class', 'box annotation')
+                .attr('x', `${LengthScale((start + end) / 2)}`)
+                .attr('y', `${dms.vSpace * row + dms.unit * 0.5}`)
                 .text(`${informationGet(d).gene}`);
-            trimText(featureDisplay,i);
+            trimText(featureDisplay, i);
+            i++;
+        }//Display gene.
+        else {
+            featureDisplay.append('line')
+                .attr('id', `${"feature-box" + i}`)
+                .attr('class', 'box  others')
+                .attr('x1', LengthScale(start))
+                .attr('y1', 0)
+                .attr('x2', LengthScale(end))
+                .attr('y2', 0)
+                .style('transform', `translateY(${dms.vSpace * row}px)`);
+
+            featureDisplay.append('text')
+                .attr('id', `${"feature-annotation" + i}`)
+                .attr('class', 'annotation')
+                .attr('x', `${LengthScale((start + end) / 2)}`)
+                .attr('y', `${dms.vSpace * row + dms.unit * 0.5}`)
+                .text(`${informationGet(d).gene}`);
+            trimText(featureDisplay, i);
             i++;
         }
     });
     beautify(featureArea);
-    console.log(occupied);
+    //console.log(occupied[2]);
 }
 
-function trimText(element,i){
-    var BBox = document.querySelector(`${'#'+"feature-box"+i}`);
+function trimText(element, i) {
+    var BBox = document.querySelector(`${'#' + "feature-box" + i}`);
     const maxWidth = BBox.getBBox().width * 1.5;
-    var annotation = document.querySelector(`${'#'+"feature-annotation"+i}`);
+    var annotation = document.querySelector(`${'#' + "feature-annotation" + i}`);
     const textWidth = annotation.getBBox().width;
 
-    if (textWidth > maxWidth){
+    if (textWidth > maxWidth) {
         text = annotation.textContent;
         fontSize = dms.fontSize;
         maxChar = maxWidth / fontSize;
-        text = text.substring(0,maxChar);
-        console.log(maxChar);
+        text = text.substring(0, maxChar);
+        //console.log(maxChar);
         text = text + "...";
-        console.log(text);
-        element.select(`${'#'+"feature-annotation"+i}`)
+        //console.log(text);
+        element.select(`${'#' + "feature-annotation" + i}`)
             .text(text);
     }
 } //Trim texts that are too long.
 
-function beautify(element){
+function beautify(element) {
     element.selectAll('.box')
-        .style('stroke-width',dms.boxHeight);
+        .style('stroke-width', dms.boxHeight);
 
     element.selectAll('.annotation')
-        .style('font-size',dms.fontSize);
+        .style('font-size', dms.fontSize);
+}
+
+function compareNumbers(a, b) {
+    return a - b;
+  }
+
+function checkOccupation(row, interval, occupied){
+    //interval.sort(compareNumbers);
+    console.log(`row:${row}`);
+    intervalStart = interval[0];
+    intervalEnd = interval[1];
+    console.log(`intervalStart, intervalEnd: ${intervalStart}, ${intervalEnd}`);
+    if (!Array.isArray(occupied[row])) {
+        occupied[row] = [];
+    }
+    for (let element of occupied[row]) {
+        let occupiedStart = element[0];
+        let occupiedEnd = element[1];
+        console.log(`occupiedStart, occupiedEnd: ${occupiedStart}, ${occupiedEnd}`);
+        if ((intervalStart >= occupiedStart && intervalStart < occupiedEnd) ||
+            (intervalEnd > occupiedStart && intervalEnd <= occupiedEnd)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function merge(intervals) {
-    if (intervals.length < 2) return intervals
-    intervals.sort((a, b) => a[0] - b[0])  //先进行排序
+    if (intervals.length < 2) return intervals;
+    intervals.sort(compareNumbers);  //先进行排序
     let curr = intervals[0]  //存储数组内的一个集合
     let result = []
     for (let interval of intervals) {
@@ -224,16 +256,16 @@ function merge(intervals) {
     return result
 };
 
-    /*
-    featureArea.selectAll('line')
-        .data(featureGet(dataset))
-        .join('line')
-        .attr('x1',d=>LengthScale(Number(locationGet(d)[0])))
-        .attr('y1',0)
-        .attr('x2',d=>LengthScale(Number(locationGet(d)[1])))
-        .attr('y2',0)
-        .style('transform',`translateY(${dms.contentHeight/2 * Math.random()}px)`);
-    */
+/*
+featureArea.selectAll('line')
+    .data(featureGet(dataset))
+    .join('line')
+    .attr('x1',d=>LengthScale(Number(locationGet(d)[0])))
+    .attr('y1',0)
+    .attr('x2',d=>LengthScale(Number(locationGet(d)[1])))
+    .attr('y2',0)
+    .style('transform',`translateY(${dms.contentHeight/2 * Math.random()}px)`);
+*/
 
 
 
