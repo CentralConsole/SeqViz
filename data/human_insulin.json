@@ -11,8 +11,10 @@
     {
       "type": "source",
       "location": [
-        "1",
-        "4969"
+        [
+          "1",
+          "4969"
+        ]
       ],
       "information": {
         "organism": "Homo sapiens",
@@ -28,8 +30,10 @@
     {
       "type": "gene",
       "location": [
-        "2186",
-        "4969"
+        [
+          "2186",
+          "4969"
+        ]
       ],
       "information": {
         "gene": "INS"
@@ -38,8 +42,10 @@
     {
       "type": "exon",
       "location": [
-        "2186",
-        "2227"
+        [
+          "2186",
+          "2227"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -50,8 +56,10 @@
     {
       "type": "intron",
       "location": [
-        "2228",
-        "2406"
+        [
+          "2228",
+          "2406"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -62,7 +70,9 @@
     {
       "type": "variation",
       "location": [
-        "2401"
+        [
+          "2401"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -72,8 +82,14 @@
     {
       "type": "CDS",
       "location": [
-        "2424",
-        "2610"
+        [
+          "2424",
+          "2610"
+        ],
+        [
+          "3397",
+          "3542"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -90,8 +106,10 @@
     {
       "type": "sig_peptide",
       "location": [
-        "2424",
-        "2495"
+        [
+          "2424",
+          "2495"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -101,8 +119,14 @@
     {
       "type": "mat_peptide",
       "location": [
-        "2496",
-        "2610"
+        [
+          "2496",
+          "2610"
+        ],
+        [
+          "3397",
+          "3539"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -112,8 +136,10 @@
     {
       "type": "intron",
       "location": [
-        "2611",
-        "3396"
+        [
+          "2611",
+          "3396"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -124,7 +150,9 @@
     {
       "type": "variation",
       "location": [
-        "3229"
+        [
+          "3229"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -134,8 +162,10 @@
     {
       "type": "exon",
       "location": [
-        "3397",
-        ">3615"
+        [
+          "3397",
+          ">3615"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -146,7 +176,9 @@
     {
       "type": "variation",
       "location": [
-        "3551"
+        [
+          "3551"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -156,7 +188,9 @@
     {
       "type": "variation",
       "location": [
-        "3564"
+        [
+          "3564"
+        ]
       ],
       "information": {
         "gene": "INS",
@@ -166,8 +200,10 @@
     {
       "type": "gap",
       "location": [
-        "4045",
-        "4144"
+        [
+          "4045",
+          "4144"
+        ]
       ],
       "information": {
         "estimated_length": "unknown"
@@ -176,8 +212,10 @@
     {
       "type": "misc_feature",
       "location": [
-        "4145",
-        "4969"
+        [
+          "4145",
+          "4969"
+        ]
       ],
       "information": {
         "gene": "INS",

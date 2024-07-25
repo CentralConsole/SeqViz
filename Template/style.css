@@ -17,26 +17,45 @@
 }
 
 #feature-area .source{
-    stroke: #FF2121;
+    stroke: #ffaaa5;
 }
 
 #feature-area .operon{
-    stroke: #C26600;
+    stroke: #ffd3b6;
 }
 
-#feature-area .cds{
-    stroke: #008B00;
+#feature-area .CDS{
+    stroke: #30e3ca;
 }
 
 #feature-area .gene{
-    stroke: #0087A9;
+    stroke: #00e0ff;
+}
+
+#feature-area .exon{
+    stroke: #a5dee5;
+}
+#feature-area .intron{
+    stroke: #e0f9b5;
+}
+#feature-area .misc_feature{
+    stroke: #dde7f2;
+}
+
+#feature-area .variation{
+    stroke: #FF2121;
+}
+
+#feature-area .gap{
+    stroke: #FF2121;
+    opacity: 0.9;
 }
 
 #feature-area .others{
-    stroke: #6C4E99;
+    stroke: #dde7f2;
 }
 
 #feature-area .annotation{
     text-anchor: middle;
-    fill: white;
+    fill: black;
 }
