@@ -15,6 +15,15 @@
     stroke: black;
     font-size: 8px;
 }
+#feature-area .location .location-mark{
+    stroke: black;
+}
+
+#feature-area .location .location-text{
+    text-anchor: middle;
+    font-size: 4px;
+    font-family: sans-serif;
+}
 
 #feature-area .source{
     stroke: #ffaaa5;
@@ -58,4 +67,9 @@
 #feature-area .annotation{
     text-anchor: middle;
     fill: black;
+}
+
+#feature-area .annotationg-bg{
+    stroke: #ffc93c;
+    opacity: 0.9;
 }
