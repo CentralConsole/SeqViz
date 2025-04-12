@@ -40,6 +40,23 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
 
   // 添加特征元素
   const addFeatureElements = (group, type, location, row, information) => {
+    // 保存当前行的占用信息
+    if (!occupiedRef.current[row]) {
+      occupiedRef.current[row] = [];
+    }
+
+    const [start, end] = getFeatureBounds(location);
+    // 将当前特征的范围添加到占用记录中
+    occupiedRef.current[row].push([start, end]);
+    // 同时在LayoutUtils中添加记录，确保两个系统保持同步
+    LayoutUtils.addOccupationRecord(
+      row,
+      0,
+      start,
+      end,
+      information.gene || information.product || type
+    );
+
     addBoxElements(group, type, location, row, information);
     addAnnotation(group, type, location, row, information);
   };
@@ -106,14 +123,19 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
       CONFIG.fonts.primary.family
     );
 
+    // 计算文本的水平中心位置
+    const textCenterX = lengthScaleRef.current(start) + width / 2;
+
     annotationRef.current = group
       .append("text")
       .attr("class", "annotation")
-      .attr("x", lengthScaleRef.current(start))
-      .attr("y", dimensions.vSpace * row + dimensions.unit * 0.5)
+      .attr("x", textCenterX) // 使用计算出的中心位置
+      .attr("y", dimensions.vSpace * row)
       .text(truncatedText)
       .style("font-family", CONFIG.fonts.primary.family)
       .style("font-size", `${dimensions.fontSize}px`)
+      .style("dominant-baseline", "middle")
+      .style("text-anchor", "middle") // 添加这行，使文本水平居中
       .style("pointer-events", "none"); // 防止文本干扰鼠标事件
   };
 
@@ -150,15 +172,19 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
 
   // 显示完整注释
   const showFullAnnotation = (group, type, location, row, information) => {
-    const [start] = getFeatureBounds(location);
+    const [start, end] = getFeatureBounds(location);
     const text = getAnnotationText(type, information);
 
     // 创建背景
     const textWidth = measureTextWidth(text, dimensions.fontSize);
+    const textCenterX =
+      lengthScaleRef.current(start) +
+      (lengthScaleRef.current(end) - lengthScaleRef.current(start)) / 2;
+
     group
       .append("rect")
       .attr("class", "annotation-bg")
-      .attr("x", lengthScaleRef.current(start) - 5)
+      .attr("x", textCenterX - textWidth / 2 - 5)
       .attr("y", dimensions.vSpace * row - dimensions.boxHeight / 2)
       .attr("width", textWidth + 10)
       .attr("height", dimensions.boxHeight)
@@ -170,7 +196,7 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
     // 更新文本为完整版本
     if (annotationRef.current) {
       annotationRef.current
-        .attr("x", lengthScaleRef.current(start))
+        .attr("x", textCenterX) // 修改这里，使文本水平居中
         .text(text)
         .raise();
     }
@@ -187,6 +213,7 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
     const [start, end] = getFeatureBounds(location);
     const text = getAnnotationText(type, information);
     const width = lengthScaleRef.current(end) - lengthScaleRef.current(start);
+    const textCenterX = lengthScaleRef.current(start) + width / 2;
 
     // 移除背景
     group.selectAll(".annotation-bg").remove();
@@ -199,9 +226,7 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
         dimensions.fontSize,
         CONFIG.fonts.primary.family
       );
-      annotationRef.current
-        .attr("x", lengthScaleRef.current(start))
-        .text(truncatedText);
+      annotationRef.current.attr("x", textCenterX).text(truncatedText);
     }
   };
 
@@ -272,10 +297,13 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
     if (!container || !dimensions || !feature) return;
 
     const { type, location, information } = feature;
+    const [start, end] = getFeatureBounds(location);
+
+    // 使用LayoutUtils找到可用行
     const row = LayoutUtils.findAvailableRow(
       occupiedRef.current,
-      getFeatureBounds(location)[0],
-      getFeatureBounds(location)[1],
+      start,
+      end,
       dimensions.vSpace
     );
 
@@ -283,6 +311,12 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
     applyStyles();
 
     featureCounterRef.current++;
+
+    // 调试输出当前占用情况
+    console.log(
+      `Feature #${featureCounterRef.current - 1} (${type}) 放置在行 ${row}`
+    );
+    console.log("当前占用行情况:", JSON.stringify(occupiedRef.current));
   }, [container, dimensions, feature]);
 
   return null;

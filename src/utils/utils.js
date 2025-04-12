@@ -11,60 +11,6 @@ export const DataUtils = {
   formatNumber: (num) => d3.format(",")(num),
 };
 
-// 布局工具函数
-export const LayoutUtils = {
-  // 检查区间是否被占用
-  checkOccupation: (occupied, start, end) => {
-    if (!Array.isArray(occupied)) {
-      return false;
-    }
-
-    return occupied.some(
-      ([occupiedStart, occupiedEnd]) =>
-        (start >= occupiedStart && start < occupiedEnd) ||
-        (end > occupiedStart && end <= occupiedEnd) ||
-        (start <= occupiedStart && end >= occupiedEnd)
-    );
-  },
-
-  // 查找可用行
-  findAvailableRow: (occupied, start, end, vSpace) => {
-    if (!occupied) {
-      occupied = {};
-    }
-
-    let row = 1;
-    while (
-      occupied[row] &&
-      LayoutUtils.checkOccupation(occupied[row], start, end)
-    ) {
-      row++;
-    }
-
-    // 确保行存在
-    if (!occupied[row]) {
-      occupied[row] = [];
-    }
-
-    return row;
-  },
-
-  // 获取特征边界
-  getFeatureBounds: (location) => {
-    let minPos = Infinity;
-    let maxPos = -Infinity;
-
-    for (const interval of location) {
-      const start = Number(DataUtils.cleanString(interval[0]));
-      const end = Number(DataUtils.cleanString(interval[interval.length - 1]));
-      minPos = Math.min(minPos, start);
-      maxPos = Math.max(maxPos, end);
-    }
-
-    return [minPos, maxPos];
-  },
-};
-
 // 文本处理工具函数
 export const TextUtils = {
   // 测量文本宽度
@@ -96,6 +42,11 @@ export const TextUtils = {
     const maxCharsWithEllipsis = Math.floor(
       (maxWidth - ellipsisWidth) / charWidth
     );
+
+    // 如果空间不足以显示任何文字（包括省略号），返回空字符串
+    if (maxCharsWithEllipsis <= 0) {
+      return "";
+    }
 
     // 截断文本并添加省略号
     return text.substring(0, maxCharsWithEllipsis) + "...";

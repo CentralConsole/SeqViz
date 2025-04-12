@@ -8,9 +8,9 @@ export const CONFIG = {
       left: 0.1,
     },
     unit: 20,
-    boxHeightMultiplier: 0.8,
-    vSpaceMultiplier: 2.5,
-    fontSizeMultiplier: 0.6,
+    boxHeightMultiplier: 0.5,
+    vSpaceMultiplier: 1.8,
+    fontSizeMultiplier: 0.35,
   },
   styles: {
     box: {
@@ -20,6 +20,8 @@ export const CONFIG = {
     bone: {
       strokeLinecap: "round",
       strokeWidth: 1,
+      opacity: 0.7,
+      strokeDasharray: "0",
     },
     gap: {
       strokeLinecap: "round",
@@ -47,7 +49,7 @@ export const CONFIG = {
   },
   fonts: {
     primary: {
-      family: "Maple Mono, monospace",
+      family: "'Maple Mono CN', 'Maple Mono', monospace",
       size: {
         small: 12,
         medium: 14,

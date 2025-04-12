@@ -111,7 +111,6 @@
 
 /* 注释文本样式 */
 .annotation {
-  font-size: 12px;
   fill: #ffffff;
   pointer-events: none;
 }

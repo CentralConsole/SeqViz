@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
-import { DataUtils, LayoutUtils, TextUtils, debounce } from "../../utils/utils";
+import { DataUtils, TextUtils, debounce } from "../../utils/utils";
+import { LayoutUtils } from "../../utils/LayoutUtils";
 import "./GenomeVisualizer.css";
 
 const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
@@ -15,6 +16,7 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
   const lengthScaleRef = useRef(null);
   const annotationRefs = useRef({});
   const hoverTimeoutRef = useRef(null);
+  const [hoveredFeature, setHoveredFeature] = useState(null);
 
   // 移除所有悬停内容
   const removeAllHoverContent = useCallback(() => {
@@ -42,6 +44,17 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
     const contentWidth = width - margin.left - margin.right;
     const contentHeight = height - margin.top - margin.bottom;
 
+    // 计算字体大小和行高
+    const fontSize =
+      CONFIG.dimensions.unit * CONFIG.dimensions.fontSizeMultiplier;
+    const textLineHeight = fontSize * 1.2; // 文字行高，使用字体大小的1.2倍
+    const textSpaceHeight = textLineHeight * 3; // 3行文字的高度
+
+    // 计算Box高度和垂直间距
+    const boxHeight =
+      CONFIG.dimensions.unit * CONFIG.dimensions.boxHeightMultiplier;
+    const vSpace = boxHeight + textSpaceHeight; // Box高度加上文字空间高度
+
     setDimensions({
       width,
       height,
@@ -49,9 +62,11 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       contentWidth,
       contentHeight,
       unit: CONFIG.dimensions.unit,
-      boxHeight: CONFIG.dimensions.unit * CONFIG.dimensions.boxHeightMultiplier,
-      vSpace: CONFIG.dimensions.unit * CONFIG.dimensions.vSpaceMultiplier,
-      fontSize: CONFIG.dimensions.unit * CONFIG.dimensions.fontSizeMultiplier,
+      boxHeight,
+      vSpace,
+      fontSize,
+      textLineHeight,
+      textSpaceHeight,
       totalLength,
     });
   }, [width, height, data]);
@@ -82,71 +97,97 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
   // 处理鼠标悬停
   const handleMouseOver = useCallback(
     (featureId, feature, row, event) => {
-      // 阻止事件冒泡
-      event.stopPropagation();
-
-      // 先移除所有现有的悬停内容
+      // 清除之前的悬停内容
       removeAllHoverContent();
 
-      if (!annotationRefs.current[featureId]) return;
+      // 设置当前悬停项
+      setHoveredFeature(feature);
 
-      const [start] = LayoutUtils.getFeatureBounds(feature.location);
+      // 获取特征边界
+      const [start, end] = LayoutUtils.getFeatureBounds(feature.location);
+      const width = lengthScaleRef.current(end) - lengthScaleRef.current(start);
+
+      // 提取特征文本和特征组
+      const featureGroup = d3.select(`#feature-${featureId}`);
       const text =
         feature.information.gene ||
         feature.information.product ||
         feature.information.note ||
         feature.type;
 
-      // 创建背景
-      const textWidth = TextUtils.measureTextWidth(
-        text,
-        dimensions.fontSize,
-        CONFIG.fonts.primary.family
-      );
+      // 高亮特征
+      featureGroup.raise();
+      featureGroup.selectAll(".box").style("stroke-width", 2);
 
-      // 获取SVG根元素
-      const svgRoot = d3.select(svgRef.current);
+      // 位置标记
+      feature.location.forEach((loc) => {
+        const position = Number(DataUtils.cleanString(loc[0]));
+        featureGroup
+          .append("line")
+          .attr("class", "hover-location-mark")
+          .attr("x1", lengthScaleRef.current(position))
+          .attr("y1", dimensions.vSpace * row - dimensions.boxHeight)
+          .attr("x2", lengthScaleRef.current(position))
+          .attr("y2", dimensions.vSpace * row + dimensions.boxHeight)
+          .style("stroke", "#000")
+          .style("stroke-width", 1)
+          .style("stroke-dasharray", "2,2");
 
-      // 创建一个新的顶层组用于显示悬停内容
-      const hoverGroup = svgRoot
-        .append("g")
-        .attr("class", "hover-content")
-        .attr(
-          "transform",
-          `translate(${dimensions.margin.left},${dimensions.margin.top})`
-        )
-        .style("pointer-events", "none");
+        // 添加坐标文本
+        featureGroup
+          .append("text")
+          .attr("class", "hover-location-text")
+          .attr("x", lengthScaleRef.current(position))
+          .attr("y", dimensions.vSpace * row - dimensions.boxHeight - 5)
+          .text(DataUtils.formatNumber(position))
+          .style("font-size", `${dimensions.fontSize * 0.8}px`)
+          .style("font-family", CONFIG.fonts.primary.family)
+          .style("text-anchor", "middle")
+          .style("fill", "#000");
+      });
 
-      // 添加背景到顶层组
-      hoverGroup
-        .append("rect")
-        .attr("class", "annotation-bg")
-        .attr("x", lengthScaleRef.current(start) - 5)
-        .attr("y", dimensions.vSpace * row - dimensions.boxHeight / 2)
-        .attr("width", textWidth + 10)
-        .attr("height", dimensions.boxHeight)
-        .style("fill", "rgba(50, 50, 50, 0.85)")
-        .style("stroke", "#333")
-        .style("stroke-width", 1)
-        .style("pointer-events", "none");
+      // 文本背景和完整文本
+      if (text) {
+        // 计算文本中心位置
+        const textCenterX = lengthScaleRef.current(start) + width / 2;
 
-      // 添加文本到顶层组
-      hoverGroup
-        .append("text")
-        .attr("class", "annotation")
-        .attr("x", lengthScaleRef.current(start))
-        .attr("y", dimensions.vSpace * row)
-        .text(text)
-        .style("dominant-baseline", "middle")
-        .style("font-family", CONFIG.fonts.primary.family)
-        .style("font-size", `${dimensions.fontSize}px`)
-        .style("fill", "#FFFFFF")
-        .style("pointer-events", "none");
+        // 移除现有文本
+        featureGroup.select(".annotation").remove();
 
-      // 存储引用以便后续移除
-      annotationRefs.current[`hover-${featureId}`] = hoverGroup.node();
+        // 添加背景
+        const textWidth = TextUtils.measureTextWidth(
+          text,
+          dimensions.fontSize,
+          CONFIG.fonts.primary.family
+        );
+
+        // 创建文本背景
+        featureGroup
+          .append("rect")
+          .attr("class", "hover-text-bg")
+          .attr("x", textCenterX - textWidth / 2 - 5)
+          .attr("y", dimensions.vSpace * row - dimensions.boxHeight / 2)
+          .attr("width", textWidth + 10)
+          .attr("height", dimensions.boxHeight)
+          .style("fill", "white")
+          .style("stroke", "#ddd")
+          .style("opacity", 0.9);
+
+        // 添加完整文本
+        featureGroup
+          .append("text")
+          .attr("class", "hover-text annotation") // 添加annotation类，确保应用同样的字体
+          .attr("x", textCenterX)
+          .attr("y", dimensions.vSpace * row)
+          .text(text)
+          .style("font-size", `${dimensions.fontSize}px`)
+          .style("font-family", CONFIG.fonts.primary.family)
+          .style("text-anchor", "middle")
+          .style("dominant-baseline", "middle")
+          .style("user-select", "none");
+      }
     },
-    [dimensions, removeAllHoverContent]
+    [dimensions, lengthScaleRef, removeAllHoverContent]
   );
 
   // 处理鼠标移出
@@ -252,6 +293,16 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
     occupiedRowsRef.current = {};
     annotationRefs.current = {};
 
+    // 重置布局系统
+    LayoutUtils.resetLayout();
+
+    // 添加避让文字统计
+    const avoidanceStats = {
+      needsAvoidance: 0,
+      rendered: 0,
+      noPosition: 0,
+    };
+
     // 确保移除之前的所有悬停内容
     removeAllHoverContent();
 
@@ -275,6 +326,15 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       .top-axis text {
         fill: #e0e0e0;
         font-size: ${dimensions.fontSize * 0.9}px;
+        font-family: ${CONFIG.fonts.primary.family};
+      }
+      .annotation {
+        fill: #e0e0e0;
+        font-size: ${dimensions.fontSize}px;
+        font-family: ${CONFIG.fonts.primary.family};
+      }
+      .annotation-avoided {
+        fill: #6bff7d;
       }
     `);
 
@@ -285,6 +345,17 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       .ticks(10);
 
     container.append("g").attr("class", "top-axis").call(topAxis);
+
+    // 渲染特征前打印记录
+    console.log(
+      "%c=== 渲染特征前占用记录 ===",
+      "color: yellow; font-weight: bold; font-size: 14px"
+    );
+    console.log(
+      "occupiedRowsRef.current:",
+      JSON.stringify(occupiedRowsRef.current)
+    );
+    LayoutUtils.printOccupationRecords();
 
     // 渲染所有特征
     features.forEach((feature, index) => {
@@ -307,13 +378,9 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
         dimensions.vSpace
       );
 
-      // 渲染骨架线 - 只在特征框之外的区域显示
+      // 渲染骨架线
       if (feature.location.length > 1) {
-        // 特征有多个位置时才显示骨架线
-        // 对每个特征框的间隙添加骨架线
         let lastEnd = start;
-
-        // 按起始位置排序特征位置
         const sortedLocations = [...feature.location].sort((a, b) => {
           return (
             Number(DataUtils.cleanString(a[0])) -
@@ -325,7 +392,6 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
           const boxStart = Number(DataUtils.cleanString(loc[0]));
           const boxEnd = Number(DataUtils.cleanString(loc[loc.length - 1]));
 
-          // 如果有间隙，添加骨架线
           if (boxStart > lastEnd) {
             featureGroup
               .append("line")
@@ -360,12 +426,12 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
           .attr("width", width)
           .attr("height", height)
           .style("fill", CONFIG.colors[feature.type] || CONFIG.colors.others)
-          .style("stroke", "#222") // 添加深色边框
-          .style("stroke-width", 1) // 设置边框宽度
-          .style("opacity", 1); // 设置为完全不透明
+          .style("stroke", "#222")
+          .style("stroke-width", 1)
+          .style("opacity", 1);
       });
 
-      // 将鼠标事件绑定到整个特征组，而不是单个框
+      // 将鼠标事件绑定到整个特征组
       featureGroup
         .on("mouseenter", (event) =>
           handleMouseOver(featureId, feature, row, event)
@@ -381,23 +447,84 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
         feature.information.note ||
         feature.type;
 
-      const truncatedText = TextUtils.truncateText(
+      const maxWidth =
+        lengthScaleRef.current(end) - lengthScaleRef.current(start);
+      const needsAvoidance = LayoutUtils.needsAvoidance(
         text,
-        lengthScaleRef.current(end) - lengthScaleRef.current(start),
+        maxWidth,
         dimensions.fontSize,
         CONFIG.fonts.primary.family
       );
 
-      // 删除文本背景，只在鼠标悬停时显示
+      if (needsAvoidance) {
+        // 记录需要避让的文字
+        avoidanceStats.needsAvoidance++;
 
-      featureGroup
-        .append("text")
-        .attr("class", "annotation")
-        .attr("x", lengthScaleRef.current(start))
-        .attr("y", dimensions.vSpace * row)
-        .text(truncatedText)
-        .style("dominant-baseline", "middle")
-        .style("user-select", "none"); // 防止文本被选中
+        // 需要避让，查找可用的文字行位置
+        const textLinePosition = LayoutUtils.findAvailableTextLine(
+          start,
+          end,
+          row,
+          maxWidth,
+          dimensions.fontSize,
+          CONFIG.fonts.primary.family,
+          text
+        );
+
+        // 如果找到了可用位置，则显示文字
+        if (textLinePosition !== null) {
+          // 计算文字的垂直位置 (向下避让)
+          const baseY = dimensions.vSpace * row;
+          const textY = baseY + dimensions.boxHeight / 2 + textLinePosition;
+
+          // 更新统计信息
+          avoidanceStats.rendered++;
+
+          // 渲染避让的文字
+          featureGroup
+            .append("text")
+            .attr("class", "annotation annotation-avoided")
+            .attr("x", lengthScaleRef.current(start) + maxWidth / 2)
+            .attr("y", textY)
+            .text(text)
+            .style("dominant-baseline", "middle")
+            .style("text-anchor", "middle")
+            .style("user-select", "none");
+
+          console.log(
+            `%c成功渲染避让文字: "${text}"`,
+            "color: #6bff7d; font-weight: bold"
+          );
+        } else {
+          // 更新统计信息
+          avoidanceStats.noPosition++;
+          console.log(
+            `%c文字需要避让但没有可用位置: "${text}" [${start}, ${end}]`,
+            "color: orange; font-weight: bold"
+          );
+        }
+      } else {
+        // 不需要避让，直接在box内显示
+        const truncatedText = TextUtils.truncateText(
+          text,
+          maxWidth,
+          dimensions.fontSize,
+          CONFIG.fonts.primary.family
+        );
+
+        // 记录box内的文字占用，确保避让系统正常工作
+        LayoutUtils.addOccupationRecord(row, 0, start, end);
+
+        featureGroup
+          .append("text")
+          .attr("class", "annotation")
+          .attr("x", lengthScaleRef.current(start) + maxWidth / 2)
+          .attr("y", dimensions.vSpace * row)
+          .text(truncatedText)
+          .style("dominant-baseline", "middle")
+          .style("text-anchor", "middle")
+          .style("user-select", "none");
+      }
 
       // 更新占用行
       if (!occupiedRowsRef.current[row]) {
@@ -409,18 +536,43 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
     // 标记渲染完成
     setIsRendered(true);
 
+    // 渲染特征后打印记录
+    console.log(
+      "%c=== 渲染特征后占用记录 ===",
+      "color: yellow; font-weight: bold; font-size: 14px"
+    );
+    console.log(
+      "occupiedRowsRef.current:",
+      JSON.stringify(occupiedRowsRef.current)
+    );
+    LayoutUtils.printOccupationRecords();
+
+    // 输出避让文字统计信息
+    console.log(
+      "%c=== 避让文字统计 ===",
+      "color: #6bff7d; font-weight: bold; font-size: 14px"
+    );
+    console.log(
+      `%c需要避让的文字总数: ${avoidanceStats.needsAvoidance}`,
+      "color: #6bff7d"
+    );
+    console.log(
+      `%c成功渲染的避让文字: ${avoidanceStats.rendered}`,
+      "color: #6bff7d"
+    );
+    console.log(
+      `%c没有找到可用位置的文字: ${avoidanceStats.noPosition}`,
+      "color: orange"
+    );
+    console.log(
+      "%c===================",
+      "color: #6bff7d; font-weight: bold; font-size: 14px"
+    );
+
     // 解决浏览器渲染优化导致的SVG不可见问题
-    // 问题描述：在某些浏览器中，当页面首次加载时，由于浏览器的渲染优化策略，
-    // SVG元素可能不会被立即渲染，导致图谱不可见。但打开开发者工具时会触发重绘，
-    // 使图谱突然变得可见。
-    // 解决方案：使用requestAnimationFrame在下一帧触发一个resize事件，
-    // 强制浏览器重新评估渲染策略，确保SVG元素被正确渲染。
     requestAnimationFrame(() => {
-      // 获取SVG元素
       const svgElement = svgRef.current;
       if (!svgElement) return;
-
-      // 触发重绘
       const event = new Event("resize");
       window.dispatchEvent(event);
     });
