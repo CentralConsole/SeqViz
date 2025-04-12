@@ -1,11 +1,11 @@
 import React from "react";
-import Example from "./components/GenomeVisualizer/Example";
+import GenomeViewer from "./components/GenomeVisualizer/GenomeViewer";
 import "./App.css";
 
 function App() {
   return (
     <div className="App">
-      <Example />
+      <GenomeViewer data="/test.json" style={{ flex: 1, height: "100vh" }} />
     </div>
   );
 }

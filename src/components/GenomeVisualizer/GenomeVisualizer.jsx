@@ -10,10 +10,21 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
   const [features, setFeatures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isRendered, setIsRendered] = useState(false);
   const occupiedRowsRef = useRef({});
   const lengthScaleRef = useRef(null);
   const annotationRefs = useRef({});
   const hoverTimeoutRef = useRef(null);
+
+  // 移除所有悬停内容
+  const removeAllHoverContent = useCallback(() => {
+    Object.keys(annotationRefs.current).forEach((key) => {
+      if (key.startsWith("hover-")) {
+        d3.select(annotationRefs.current[key]).remove();
+        annotationRefs.current[key] = null;
+      }
+    });
+  }, []);
 
   // 初始化尺寸
   useEffect(() => {
@@ -74,16 +85,10 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       // 阻止事件冒泡
       event.stopPropagation();
 
+      // 先移除所有现有的悬停内容
+      removeAllHoverContent();
+
       if (!annotationRefs.current[featureId]) return;
-
-      // 清除之前的超时
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = null;
-      }
-
-      // 如果已经有悬停内容，不重复创建
-      if (annotationRefs.current[`hover-${featureId}`]) return;
 
       const [start] = LayoutUtils.getFeatureBounds(feature.location);
       const text =
@@ -110,7 +115,7 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
           "transform",
           `translate(${dimensions.margin.left},${dimensions.margin.top})`
         )
-        .style("pointer-events", "none"); // 防止悬停内容接收鼠标事件
+        .style("pointer-events", "none");
 
       // 添加背景到顶层组
       hoverGroup
@@ -123,7 +128,7 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
         .style("fill", "rgba(50, 50, 50, 0.85)")
         .style("stroke", "#333")
         .style("stroke-width", 1)
-        .style("pointer-events", "none"); // 防止背景接收鼠标事件
+        .style("pointer-events", "none");
 
       // 添加文本到顶层组
       hoverGroup
@@ -136,49 +141,24 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
         .style("font-family", CONFIG.fonts.primary.family)
         .style("font-size", `${dimensions.fontSize}px`)
         .style("fill", "#FFFFFF")
-        .style("pointer-events", "none"); // 防止文本接收鼠标事件
+        .style("pointer-events", "none");
 
       // 存储引用以便后续移除
       annotationRefs.current[`hover-${featureId}`] = hoverGroup.node();
     },
-    [dimensions]
+    [dimensions, removeAllHoverContent]
   );
 
   // 处理鼠标移出
-  const handleMouseOut = useCallback(
-    (featureId, feature, row, event) => {
-      // 阻止事件冒泡
-      event.stopPropagation();
+  const handleMouseOut = useCallback((featureId, feature, row, event) => {
+    // 阻止事件冒泡
+    event.stopPropagation();
 
-      if (!annotationRefs.current[featureId]) return;
-
-      // 清除之前的超时
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = null;
-      }
-
-      // 使用防抖处理鼠标移出
-      hoverTimeoutRef.current = setTimeout(() => {
-        // 移除顶层悬停内容
-        if (annotationRefs.current[`hover-${featureId}`]) {
-          d3.select(annotationRefs.current[`hover-${featureId}`]).remove();
-          annotationRefs.current[`hover-${featureId}`] = null;
-        }
-      }, 100); // 增加防抖延迟到100ms
-    },
-    [dimensions]
-  );
-
-  // 移除所有悬停内容
-  const removeAllHoverContent = useCallback(() => {
-    // 查找并移除所有悬停内容
-    Object.keys(annotationRefs.current).forEach((key) => {
-      if (key.startsWith("hover-")) {
-        d3.select(annotationRefs.current[key]).remove();
-        annotationRefs.current[key] = null;
-      }
-    });
+    // 直接移除悬停内容，不使用setTimeout
+    if (annotationRefs.current[`hover-${featureId}`]) {
+      d3.select(annotationRefs.current[`hover-${featureId}`]).remove();
+      annotationRefs.current[`hover-${featureId}`] = null;
+    }
   }, []);
 
   // 添加全局鼠标移动监听
@@ -188,7 +168,7 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
     const svg = d3.select(svgRef.current);
 
     // 监听SVG容器上的鼠标移动
-    const handleSvgMouseMove = (event) => {
+    const handleSvgMouseMove = debounce((event) => {
       // 获取鼠标下的元素
       const targetElement = document.elementFromPoint(
         event.clientX,
@@ -206,7 +186,7 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       if (!isOverFeature) {
         removeAllHoverContent();
       }
-    };
+    }, 50); // 使用50ms的防抖时间
 
     // 添加监听器
     svg.on("mousemove", handleSvgMouseMove);
@@ -228,6 +208,27 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
     };
   }, [removeAllHoverContent]);
 
+  // 强制重绘
+  const forceRedraw = useCallback(() => {
+    if (!svgRef.current) return;
+
+    // 触发重绘
+    const svg = d3.select(svgRef.current);
+    const currentWidth = svg.attr("width");
+    const currentHeight = svg.attr("height");
+
+    // 临时改变尺寸触发重绘
+    svg.attr("width", currentWidth + 1);
+    svg.attr("height", currentHeight + 1);
+
+    // 立即恢复尺寸
+    setTimeout(() => {
+      svg.attr("width", currentWidth);
+      svg.attr("height", currentHeight);
+      setIsRendered(true);
+    }, 0);
+  }, []);
+
   // 渲染可视化
   useEffect(() => {
     if (
@@ -238,6 +239,12 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       !lengthScaleRef.current
     )
       return;
+
+    // 确保SVG元素存在
+    if (!svgRef.current) {
+      console.error("SVG element not found");
+      return;
+    }
 
     // 清理之前的内容
     const svg = d3.select(svgRef.current);
@@ -398,6 +405,25 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       }
       occupiedRowsRef.current[row].push([start, end]);
     });
+
+    // 标记渲染完成
+    setIsRendered(true);
+
+    // 解决浏览器渲染优化导致的SVG不可见问题
+    // 问题描述：在某些浏览器中，当页面首次加载时，由于浏览器的渲染优化策略，
+    // SVG元素可能不会被立即渲染，导致图谱不可见。但打开开发者工具时会触发重绘，
+    // 使图谱突然变得可见。
+    // 解决方案：使用requestAnimationFrame在下一帧触发一个resize事件，
+    // 强制浏览器重新评估渲染策略，确保SVG元素被正确渲染。
+    requestAnimationFrame(() => {
+      // 获取SVG元素
+      const svgElement = svgRef.current;
+      if (!svgElement) return;
+
+      // 触发重绘
+      const event = new Event("resize");
+      window.dispatchEvent(event);
+    });
   }, [
     dimensions,
     features,
@@ -407,6 +433,18 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
     handleMouseOut,
     removeAllHoverContent,
   ]);
+
+  // 添加窗口大小变化监听
+  useEffect(() => {
+    const handleResize = debounce(() => {
+      if (isRendered) {
+        forceRedraw();
+      }
+    }, 200);
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isRendered, forceRedraw]);
 
   if (loading) {
     return <div className="loading">加载中...</div>;
@@ -418,15 +456,19 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
 
   return (
     <div className="genome-visualizer">
-      <svg
-        ref={svgRef}
-        width={dimensions?.width || width}
-        height={dimensions?.height || height}
-        style={{
-          fontFamily: CONFIG.fonts.primary.family,
-          fontSize: `${dimensions?.fontSize || 12}px`,
-        }}
-      />
+      {!loading && !error && dimensions && (
+        <svg
+          ref={svgRef}
+          width={dimensions.width || width}
+          height={dimensions.height || height}
+          style={{
+            fontFamily: CONFIG.fonts.primary.family,
+            fontSize: `${dimensions.fontSize || 12}px`,
+            display: "block", // 确保SVG元素显示为块级元素
+            backgroundColor: "#121212", // 添加背景色以便于调试
+          }}
+        />
+      )}
     </div>
   );
 };
