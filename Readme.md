@@ -1,4 +1,4 @@
-# GenomeViewer
+# SeqViewerLinear
 
 一个基于 React.js 和 D3.js 的基因可视化组件，用于展示基因组序列、基因位置和注释信息。
 
@@ -14,15 +14,15 @@
 ## 安装
 
 ```bash
-npm install genome-viewer
+npm install seq-viewer-linear
 # 或
-yarn add genome-viewer
+yarn add seq-viewer-linear
 ```
 
 ## 快速开始
 
 ```jsx
-import { GenomeViewer } from "genome-viewer";
+import { SeqViewerLinear } from "seq-viewer-linear";
 
 function App() {
   const data = {
@@ -41,7 +41,7 @@ function App() {
   };
   // 或直接输入JSON文件路径
 
-  return <GenomeViewer data={data} width={800} height={600} />;
+  return <SeqViewerLinear data={data} width={800} height={600} />;
 }
 ```
 
@@ -87,13 +87,13 @@ function App() {
 
 ```jsx
 // 深色主题
-<GenomeViewer
+<SeqViewerLinear
   data={data}
   theme="dark"
 />
 
 // 浅色主题
-<GenomeViewer
+<SeqViewerLinear
   data={data}
   theme="light"
 />
@@ -105,7 +105,7 @@ const customColors = {
   others: '#0000FF'
 };
 
-<GenomeViewer
+<SeqViewerLinear
   data={data}
   customColors={customColors}
 />
@@ -122,7 +122,7 @@ function handleFeatureHover(feature) {
   console.log("Hovered feature:", feature);
 }
 
-<GenomeViewer
+<SeqViewerLinear
   data={data}
   onFeatureClick={handleFeatureClick}
   onFeatureHover={handleFeatureHover}

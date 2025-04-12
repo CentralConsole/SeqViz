@@ -2,12 +2,12 @@ import React, { useEffect, useState, useRef } from "react";
 import GenomeVisualizer from "./GenomeVisualizer";
 
 /**
- * GenomeViewer组件 - 一个用于可视化基因组数据的可复用组件
+ * SeqViewerLinear组件 - 一个用于可视化基因组数据的可复用组件
  * @param {Object} props
  * @param {Object} props.data - 基因组数据对象
  * @param {Object} [props.style] - 可选的容器样式
  */
-const GenomeViewer = ({ data, style = {} }) => {
+const SeqViewerLinear = ({ data, style = {} }) => {
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [genomeData, setGenomeData] = useState(null);
@@ -81,4 +81,4 @@ const GenomeViewer = ({ data, style = {} }) => {
   );
 };
 
-export default GenomeViewer;
+export default SeqViewerLinear;
