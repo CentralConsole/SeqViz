@@ -1,8 +1,19 @@
+/**
+ * @file GenomeVisualizer.jsx
+ * @description 基因组可视化主组件
+ * 主要职责：
+ * 1. 管理基因组数据的可视化渲染
+ * 2. 处理特征（features）的布局和显示
+ * 3. 实现交互功能（如悬停、缩放等）
+ * 4. 协调子组件（如坐标轴、特征框、文本标注等）的渲染
+ * 5. 处理性能优化（如防抖、懒加载等）
+ */
+
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
 import { DataUtils, TextUtils, debounce } from "../../utils/utils";
-import { LayoutUtils } from "../../utils/LayoutUtils";
+import SimpleLayoutManager from "../../utils/SimpleLayoutManager";
 import "./GenomeVisualizer.css";
 
 const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
@@ -12,11 +23,30 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRendered, setIsRendered] = useState(false);
-  const occupiedRowsRef = useRef({});
   const lengthScaleRef = useRef(null);
   const annotationRefs = useRef({});
   const hoverTimeoutRef = useRef(null);
   const [hoveredFeature, setHoveredFeature] = useState(null);
+  const layoutManager = useRef(
+    new SimpleLayoutManager({
+      rowHeight: CONFIG.dimensions.boxHeight,
+      rowSpacing: CONFIG.dimensions.vSpace,
+      textHeight: CONFIG.dimensions.fontSize,
+      safetyMargin: CONFIG.dimensions.safetyMargin,
+    })
+  );
+
+  // 添加 dimensions 变化时的配置更新
+  useEffect(() => {
+    if (dimensions) {
+      layoutManager.current = new SimpleLayoutManager({
+        rowHeight: dimensions.boxHeight,
+        rowSpacing: dimensions.vSpace,
+        textHeight: dimensions.fontSize,
+        safetyMargin: CONFIG.dimensions.safetyMargin,
+      });
+    }
+  }, [dimensions]);
 
   // 移除所有悬停内容
   const removeAllHoverContent = useCallback(() => {
@@ -27,6 +57,21 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       }
     });
   }, []);
+
+  // 获取特征边界
+  const getFeatureBounds = (locations) => {
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+
+    locations.forEach((loc) => {
+      const start = Number(DataUtils.cleanString(loc[0]));
+      const end = Number(DataUtils.cleanString(loc[loc.length - 1]));
+      minStart = Math.min(minStart, start);
+      maxEnd = Math.max(maxEnd, end);
+    });
+
+    return [minStart, maxEnd];
+  };
 
   // 初始化尺寸
   useEffect(() => {
@@ -53,9 +98,9 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
     // 计算Box高度和垂直间距
     const boxHeight =
       CONFIG.dimensions.unit * CONFIG.dimensions.boxHeightMultiplier;
-    const vSpace = boxHeight + textSpaceHeight; // Box高度加上文字空间高度
+    const vSpace = CONFIG.dimensions.vSpace; // 使用配置中的固定值
 
-    setDimensions({
+    const newDimensions = {
       width,
       height,
       margin,
@@ -68,21 +113,12 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       textLineHeight,
       textSpaceHeight,
       totalLength,
-    });
-  }, [width, height, data]);
+    };
 
-  // 处理数据
-  useEffect(() => {
-    if (!data || !data.features) return;
-
-    try {
-      setFeatures(data.features);
-      setLoading(false);
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
-    }
-  }, [data]);
+    setDimensions(newDimensions);
+    setFeatures(data.features || []);
+    setLoading(false);
+  }, [data, width, height]);
 
   // 创建比例尺
   useEffect(() => {
@@ -104,7 +140,7 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
       setHoveredFeature(feature);
 
       // 获取特征边界
-      const [start, end] = LayoutUtils.getFeatureBounds(feature.location);
+      const [start, end] = getFeatureBounds(feature.location);
       const width = lengthScaleRef.current(end) - lengthScaleRef.current(start);
 
       // 提取特征文本和特征组
@@ -270,41 +306,210 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
     }, 0);
   }, []);
 
+  // 渲染特征
+  const renderFeatures = useCallback(
+    (container) => {
+      if (!container || !features.length) return;
+
+      // 重置布局管理器
+      layoutManager.current.reset();
+
+      // 设置长度比例尺
+      lengthScaleRef.current = d3
+        .scaleLinear()
+        .domain([0, dimensions.totalLength])
+        .range([0, dimensions.contentWidth]);
+
+      // 创建行组
+      const rowGroups = new Map();
+
+      // 1. 预分配行号和box高度（不渲染）
+      features.forEach((feature, index) => {
+        const [start, end] = getFeatureBounds(feature.location);
+        const row = layoutManager.current.findAvailableRow(start, end);
+        feature._row = row; // 记录分配的row，后续使用
+        // 预计算所有box位置，保证行高和y坐标初始化
+        feature.location.forEach((loc) => {
+          const [boxStart, boxEnd] = [
+            Number(DataUtils.cleanString(loc[0])),
+            Number(DataUtils.cleanString(loc[loc.length - 1])),
+          ];
+          layoutManager.current.calculatePosition(
+            lengthScaleRef.current(boxStart),
+            lengthScaleRef.current(boxEnd),
+            row,
+            dimensions.boxHeight
+          );
+        });
+      });
+      // 2. 锁定box布局，渲染所有box和骨架线
+      layoutManager.current.lockBoxLayout();
+      features.forEach((feature, index) => {
+        const featureId = `feature-${index}`;
+        const row = feature._row;
+        // 获取或创建行组
+        let rowGroup = rowGroups.get(row);
+        if (!rowGroup) {
+          rowGroup = container.append("g").attr("class", `row-${row}`);
+          rowGroups.set(row, rowGroup);
+        }
+        const featureGroup = rowGroup
+          .append("g")
+          .attr("class", "feature")
+          .attr("id", featureId);
+        // 渲染骨架线
+        const [start, end] = getFeatureBounds(feature.location);
+        if (feature.location.length > 1) {
+          let lastEnd = start;
+          const sortedLocations = [...feature.location].sort((a, b) => {
+            return (
+              Number(DataUtils.cleanString(a[0])) -
+              Number(DataUtils.cleanString(b[0]))
+            );
+          });
+          sortedLocations.forEach((loc) => {
+            const boxStart = Number(DataUtils.cleanString(loc[0]));
+            const boxEnd = Number(DataUtils.cleanString(loc[loc.length - 1]));
+            if (boxStart > lastEnd) {
+              const bonePosition = layoutManager.current.calculatePosition(
+                lengthScaleRef.current(lastEnd),
+                lengthScaleRef.current(boxStart),
+                row,
+                dimensions.boxHeight
+              );
+              featureGroup
+                .append("line")
+                .attr("class", `box bone ${feature.type}`)
+                .attr("x1", bonePosition.x)
+                .attr("y1", bonePosition.y + bonePosition.height / 2)
+                .attr("x2", bonePosition.x + bonePosition.width)
+                .attr("y2", bonePosition.y + bonePosition.height / 2)
+                .style("stroke-width", bonePosition.height / 4)
+                .style(
+                  "stroke",
+                  CONFIG.colors[feature.type] || CONFIG.colors.others
+                );
+            }
+            lastEnd = Math.max(lastEnd, boxEnd);
+          });
+        }
+        // 渲染特征框
+        feature.location.forEach((loc) => {
+          const [boxStart, boxEnd] = [
+            Number(DataUtils.cleanString(loc[0])),
+            Number(DataUtils.cleanString(loc[loc.length - 1])),
+          ];
+          const position = layoutManager.current.calculatePosition(
+            lengthScaleRef.current(boxStart),
+            lengthScaleRef.current(boxEnd),
+            row,
+            dimensions.boxHeight
+          );
+          featureGroup
+            .append("rect")
+            .attr("class", `box ${feature.type}`)
+            .attr("x", position.x)
+            .attr("y", position.y)
+            .attr("width", position.width)
+            .attr("height", position.height)
+            .style("fill", CONFIG.colors[feature.type] || CONFIG.colors.others)
+            .style("stroke", "none");
+        });
+      });
+      layoutManager.current.unlockBoxLayout();
+      // 3. 渲染所有annotation
+      features.forEach((feature, index) => {
+        const row = feature._row;
+        let rowGroup = rowGroups.get(row);
+        if (!rowGroup) return;
+        const featureGroup = rowGroup.select(`#feature-${index}`);
+        feature.location.forEach((loc) => {
+          const [boxStart, boxEnd] = [
+            Number(DataUtils.cleanString(loc[0])),
+            Number(DataUtils.cleanString(loc[loc.length - 1])),
+          ];
+          const position = layoutManager.current.calculatePosition(
+            lengthScaleRef.current(boxStart),
+            lengthScaleRef.current(boxEnd),
+            row,
+            dimensions.boxHeight
+          );
+          // 修正：优先显示gene、product、note，没有则显示type
+          const text =
+            feature.information.gene ||
+            feature.information.product ||
+            feature.information.note ||
+            feature.type;
+          if (text) {
+            const charWidth = dimensions.fontSize * 0.6;
+            const textWidth = text.length * charWidth;
+            const availableWidth = position.width - 10;
+            const isTruncated = textWidth > availableWidth;
+            let displayText = text;
+            if (isTruncated) {
+              displayText = text;
+            }
+            const textPosition = layoutManager.current.calculateTextPosition(
+              { ...position, row },
+              displayText,
+              isTruncated
+            );
+            featureGroup
+              .append("text")
+              .attr("class", `annotation ${isTruncated ? "truncated" : ""}`)
+              .attr("x", textPosition.x)
+              .attr("y", textPosition.y)
+              .text(displayText)
+              .style("font-family", CONFIG.fonts.primary.family)
+              .style("font-size", `${dimensions.fontSize}px`)
+              .style("dominant-baseline", "middle")
+              .style("text-anchor", "middle")
+              .style("pointer-events", "none");
+          }
+        });
+      });
+    },
+    [features, dimensions]
+  );
+
+  // 计算内容实际高度
+  const getContentHeight = () => {
+    if (
+      !layoutManager.current ||
+      !layoutManager.current.rowYs ||
+      !layoutManager.current.rowHeights
+    )
+      return dimensions?.height || height;
+    const rowYs = Array.from(layoutManager.current.rowYs.values());
+    const rowHeights = Array.from(layoutManager.current.rowHeights.values());
+    if (!rowYs.length || !rowHeights.length)
+      return dimensions?.height || height;
+    const lastRowY = rowYs[rowYs.length - 1];
+    const lastRowHeight = rowHeights[rowHeights.length - 1];
+    return lastRowY + lastRowHeight + (dimensions?.margin?.bottom || 0);
+  };
+
   // 渲染可视化
   useEffect(() => {
     if (
       !dimensions ||
-      !features.length ||
+      !features?.length ||
       loading ||
       error ||
       !lengthScaleRef.current
-    )
+    ) {
       return;
+    }
 
     // 确保SVG元素存在
     if (!svgRef.current) {
-      console.error("SVG element not found");
       return;
     }
 
     // 清理之前的内容
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
-    occupiedRowsRef.current = {};
     annotationRefs.current = {};
-
-    // 重置布局系统
-    LayoutUtils.resetLayout();
-
-    // 添加避让文字统计
-    const avoidanceStats = {
-      needsAvoidance: 0,
-      rendered: 0,
-      noPosition: 0,
-    };
-
-    // 确保移除之前的所有悬停内容
-    removeAllHoverContent();
 
     // 创建主容器
     const container = svg
@@ -346,228 +551,11 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
 
     container.append("g").attr("class", "top-axis").call(topAxis);
 
-    // 渲染特征前打印记录
-    console.log(
-      "%c=== 渲染特征前占用记录 ===",
-      "color: yellow; font-weight: bold; font-size: 14px"
-    );
-    console.log(
-      "occupiedRowsRef.current:",
-      JSON.stringify(occupiedRowsRef.current)
-    );
-    LayoutUtils.printOccupationRecords();
-
     // 渲染所有特征
-    features.forEach((feature, index) => {
-      const featureId = `feature-${index}`;
-      const featureGroup = container
-        .append("g")
-        .attr("class", "feature")
-        .attr("id", featureId);
-
-      annotationRefs.current[featureId] = featureGroup.node();
-
-      // 获取特征边界
-      const [start, end] = LayoutUtils.getFeatureBounds(feature.location);
-
-      // 找到可用的行
-      const row = LayoutUtils.findAvailableRow(
-        occupiedRowsRef.current,
-        start,
-        end,
-        dimensions.vSpace
-      );
-
-      // 渲染骨架线
-      if (feature.location.length > 1) {
-        let lastEnd = start;
-        const sortedLocations = [...feature.location].sort((a, b) => {
-          return (
-            Number(DataUtils.cleanString(a[0])) -
-            Number(DataUtils.cleanString(b[0]))
-          );
-        });
-
-        sortedLocations.forEach((loc) => {
-          const boxStart = Number(DataUtils.cleanString(loc[0]));
-          const boxEnd = Number(DataUtils.cleanString(loc[loc.length - 1]));
-
-          if (boxStart > lastEnd) {
-            featureGroup
-              .append("line")
-              .attr("class", `box bone ${feature.type}`)
-              .attr("x1", lengthScaleRef.current(lastEnd))
-              .attr("y1", 0)
-              .attr("x2", lengthScaleRef.current(boxStart))
-              .attr("y2", 0)
-              .style("transform", `translateY(${dimensions.vSpace * row}px)`);
-          }
-
-          lastEnd = Math.max(lastEnd, boxEnd);
-        });
-      }
-
-      // 渲染特征框
-      feature.location.forEach((loc) => {
-        const [boxStart, boxEnd] = [
-          Number(DataUtils.cleanString(loc[0])),
-          Number(DataUtils.cleanString(loc[loc.length - 1])),
-        ];
-
-        const width =
-          lengthScaleRef.current(boxEnd) - lengthScaleRef.current(boxStart);
-        const height = dimensions.boxHeight;
-
-        featureGroup
-          .append("rect")
-          .attr("class", `box ${feature.type}`)
-          .attr("x", lengthScaleRef.current(boxStart))
-          .attr("y", dimensions.vSpace * row - height / 2)
-          .attr("width", width)
-          .attr("height", height)
-          .style("fill", CONFIG.colors[feature.type] || CONFIG.colors.others)
-          .style("stroke", "#222")
-          .style("stroke-width", 1)
-          .style("opacity", 1);
-      });
-
-      // 将鼠标事件绑定到整个特征组
-      featureGroup
-        .on("mouseenter", (event) =>
-          handleMouseOver(featureId, feature, row, event)
-        )
-        .on("mouseleave", (event) =>
-          handleMouseOut(featureId, feature, row, event)
-        );
-
-      // 渲染注释
-      const text =
-        feature.information.gene ||
-        feature.information.product ||
-        feature.information.note ||
-        feature.type;
-
-      const maxWidth =
-        lengthScaleRef.current(end) - lengthScaleRef.current(start);
-      const needsAvoidance = LayoutUtils.needsAvoidance(
-        text,
-        maxWidth,
-        dimensions.fontSize,
-        CONFIG.fonts.primary.family
-      );
-
-      if (needsAvoidance) {
-        // 记录需要避让的文字
-        avoidanceStats.needsAvoidance++;
-
-        // 需要避让，查找可用的文字行位置
-        const textLinePosition = LayoutUtils.findAvailableTextLine(
-          start,
-          end,
-          row,
-          maxWidth,
-          dimensions.fontSize,
-          CONFIG.fonts.primary.family,
-          text
-        );
-
-        // 如果找到了可用位置，则显示文字
-        if (textLinePosition !== null) {
-          // 计算文字的垂直位置 (向下避让)
-          const baseY = dimensions.vSpace * row;
-          const textY = baseY + dimensions.boxHeight / 2 + textLinePosition;
-
-          // 更新统计信息
-          avoidanceStats.rendered++;
-
-          // 渲染避让的文字
-          featureGroup
-            .append("text")
-            .attr("class", "annotation annotation-avoided")
-            .attr("x", lengthScaleRef.current(start) + maxWidth / 2)
-            .attr("y", textY)
-            .text(text)
-            .style("dominant-baseline", "middle")
-            .style("text-anchor", "middle")
-            .style("user-select", "none");
-
-          console.log(
-            `%c成功渲染避让文字: "${text}"`,
-            "color: #6bff7d; font-weight: bold"
-          );
-        } else {
-          // 更新统计信息
-          avoidanceStats.noPosition++;
-          console.log(
-            `%c文字需要避让但没有可用位置: "${text}" [${start}, ${end}]`,
-            "color: orange; font-weight: bold"
-          );
-        }
-      } else {
-        // 不需要避让，直接在box内显示
-        const truncatedText = TextUtils.truncateText(
-          text,
-          maxWidth,
-          dimensions.fontSize,
-          CONFIG.fonts.primary.family
-        );
-
-        // 记录box内的文字占用，确保避让系统正常工作
-        LayoutUtils.addOccupationRecord(row, 0, start, end);
-
-        featureGroup
-          .append("text")
-          .attr("class", "annotation")
-          .attr("x", lengthScaleRef.current(start) + maxWidth / 2)
-          .attr("y", dimensions.vSpace * row)
-          .text(truncatedText)
-          .style("dominant-baseline", "middle")
-          .style("text-anchor", "middle")
-          .style("user-select", "none");
-      }
-
-      // 更新占用行
-      if (!occupiedRowsRef.current[row]) {
-        occupiedRowsRef.current[row] = [];
-      }
-      occupiedRowsRef.current[row].push([start, end]);
-    });
+    renderFeatures(container);
 
     // 标记渲染完成
     setIsRendered(true);
-
-    // 渲染特征后打印记录
-    console.log(
-      "%c=== 渲染特征后占用记录 ===",
-      "color: yellow; font-weight: bold; font-size: 14px"
-    );
-    console.log(
-      "occupiedRowsRef.current:",
-      JSON.stringify(occupiedRowsRef.current)
-    );
-    LayoutUtils.printOccupationRecords();
-
-    // 输出避让文字统计信息
-    console.log(
-      "%c=== 避让文字统计 ===",
-      "color: #6bff7d; font-weight: bold; font-size: 14px"
-    );
-    console.log(
-      `%c需要避让的文字总数: ${avoidanceStats.needsAvoidance}`,
-      "color: #6bff7d"
-    );
-    console.log(
-      `%c成功渲染的避让文字: ${avoidanceStats.rendered}`,
-      "color: #6bff7d"
-    );
-    console.log(
-      `%c没有找到可用位置的文字: ${avoidanceStats.noPosition}`,
-      "color: orange"
-    );
-    console.log(
-      "%c===================",
-      "color: #6bff7d; font-weight: bold; font-size: 14px"
-    );
 
     // 解决浏览器渲染优化导致的SVG不可见问题
     requestAnimationFrame(() => {
@@ -584,6 +572,7 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
     handleMouseOver,
     handleMouseOut,
     removeAllHoverContent,
+    renderFeatures,
   ]);
 
   // 添加窗口大小变化监听
@@ -612,12 +601,12 @@ const GenomeVisualizer = ({ data, width = 800, height = 600 }) => {
         <svg
           ref={svgRef}
           width={dimensions.width || width}
-          height={dimensions.height || height}
+          height={getContentHeight()}
           style={{
             fontFamily: CONFIG.fonts.primary.family,
             fontSize: `${dimensions.fontSize || 12}px`,
-            display: "block", // 确保SVG元素显示为块级元素
-            backgroundColor: "#121212", // 添加背景色以便于调试
+            display: "block",
+            backgroundColor: "#121212",
           }}
         />
       )}

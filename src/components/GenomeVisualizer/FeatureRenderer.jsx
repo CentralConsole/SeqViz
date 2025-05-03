@@ -1,16 +1,41 @@
+/**
+ * @file FeatureRenderer.jsx
+ * @description 特征渲染组件
+ * 主要职责：
+ * 1. 负责单个基因组特征的渲染（如基因、CDS等）
+ * 2. 处理特征的视觉表现（颜色、形状等）
+ * 3. 实现特征的交互效果（悬停、点击等）
+ * 4. 管理特征的文本标注
+ * 5. 与布局管理器协作确定特征位置
+ */
+
 import React, { useRef, useEffect } from "react";
 import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
-import { DataUtils, LayoutUtils, TextUtils } from "../../utils/utils";
+import { DataUtils, TextUtils } from "../../utils/utils";
+import SimpleLayoutManager from "../../utils/SimpleLayoutManager";
 
 const FeatureRenderer = ({ container, dimensions, feature }) => {
   const featureCounterRef = useRef(1);
-  const occupiedRef = useRef({ 1: [] });
   const lengthScaleRef = useRef(null);
   const annotationRef = useRef(null);
+  const layoutManager = useRef(null);
+
+  // dimensions 变化时初始化 layoutManager
+  useEffect(() => {
+    if (dimensions) {
+      layoutManager.current = new SimpleLayoutManager({
+        rowHeight: dimensions.boxHeight,
+        rowSpacing: dimensions.vSpace,
+        textHeight: dimensions.fontSize,
+        safetyMargin: CONFIG.dimensions.safetyMargin,
+      });
+    }
+  }, [dimensions]);
 
   // 设置长度比例尺
   useEffect(() => {
+    if (!dimensions) return;
     lengthScaleRef.current = d3
       .scaleLinear()
       .domain([0, dimensions.totalLength])
@@ -32,33 +57,17 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
     return [minPos, maxPos];
   };
 
-  // 计算文本宽度（针对等宽字体优化）
+  // 计算文本宽度
   const measureTextWidth = (text, fontSize) => {
-    const charWidth = fontSize * 0.6; // 等宽字体中字符宽度与字体大小的比例
+    const charWidth = fontSize * 0.6;
     return text.length * charWidth;
   };
 
   // 添加特征元素
-  const addFeatureElements = (group, type, location, row, information) => {
-    // 保存当前行的占用信息
-    if (!occupiedRef.current[row]) {
-      occupiedRef.current[row] = [];
-    }
-
+  const addFeatureElements = (group, type, location, information) => {
     const [start, end] = getFeatureBounds(location);
-    // 将当前特征的范围添加到占用记录中
-    occupiedRef.current[row].push([start, end]);
-    // 同时在LayoutUtils中添加记录，确保两个系统保持同步
-    LayoutUtils.addOccupationRecord(
-      row,
-      0,
-      start,
-      end,
-      information.gene || information.product || type
-    );
-
+    const row = layoutManager.current.findAvailableRow(start, end);
     addBoxElements(group, type, location, row, information);
-    addAnnotation(group, type, location, row, information);
   };
 
   // 添加框元素
@@ -69,37 +78,69 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
       .attr("class", "box-group");
 
     const [start, end] = getFeatureBounds(location);
+    const position = layoutManager.current.calculatePosition(
+      lengthScaleRef.current(start),
+      lengthScaleRef.current(end),
+      row
+    );
+
+    // 添加骨架线
     boxGroup
       .append("line")
       .attr("class", `box bone ${type}`)
-      .attr("x1", lengthScaleRef.current(start))
-      .attr("y1", 0)
-      .attr("x2", lengthScaleRef.current(end))
-      .attr("y2", 0)
-      .style("transform", `translateY(${dimensions.vSpace * row}px)`);
+      .attr("x1", position.x)
+      .attr("y1", position.y + position.height / 2)
+      .attr("x2", position.x + position.width)
+      .attr("y2", position.y + position.height / 2)
+      .style("stroke-width", position.height / 2)
+      .style("stroke", CONFIG.colors[type] || CONFIG.colors.others);
 
+    // 添加特征框
     location.forEach((loc) => {
       const [boxStart, boxEnd] = [
         Number(DataUtils.cleanString(loc[0])),
         Number(DataUtils.cleanString(loc[loc.length - 1])),
       ];
 
-      const width =
-        lengthScaleRef.current(boxEnd) - lengthScaleRef.current(boxStart);
-      const height = dimensions.boxHeight;
+      const boxPosition = layoutManager.current.calculatePosition(
+        lengthScaleRef.current(boxStart),
+        lengthScaleRef.current(boxEnd),
+        row
+      );
 
       boxGroup
         .append("rect")
         .attr("class", `box ${type}`)
-        .attr("x", lengthScaleRef.current(boxStart))
-        .attr("y", dimensions.vSpace * row - height / 2)
-        .attr("width", width)
-        .attr("height", height)
+        .attr("x", boxPosition.x)
+        .attr("y", boxPosition.y)
+        .attr("width", boxPosition.width)
+        .attr("height", boxPosition.height)
         .style("fill", CONFIG.colors[type] || CONFIG.colors.others)
         .style("stroke", "none");
     });
 
-    // 为框组添加鼠标事件
+    // 添加文本
+    const text = getAnnotationText(type, information);
+    if (text) {
+      const textPosition = layoutManager.current.calculateTextPosition(
+        position,
+        text
+      );
+
+      boxGroup
+        .append("text")
+        .attr("class", "annotation")
+        .attr("x", textPosition.x)
+        .attr("y", textPosition.y)
+        .text(textPosition.text)
+        .style("font-family", CONFIG.fonts.primary.family)
+        .style("font-size", `${dimensions.fontSize}px`)
+        .style("dominant-baseline", "middle")
+        .style("text-anchor", "middle")
+        .style("pointer-events", "none");
+    }
+
+    // 添加鼠标事件
     boxGroup
       .on("mouseover", () =>
         handleMouseOver(group, type, location, row, information)
@@ -107,36 +148,6 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
       .on("mouseout", () =>
         handleMouseOut(group, type, location, row, information)
       );
-  };
-
-  // 添加注释
-  const addAnnotation = (group, type, location, row, information) => {
-    const [start, end] = getFeatureBounds(location);
-    const text = getAnnotationText(type, information);
-    const width = lengthScaleRef.current(end) - lengthScaleRef.current(start);
-
-    // 确保初始状态下文本是截断的
-    const truncatedText = TextUtils.truncateText(
-      text,
-      width,
-      dimensions.fontSize,
-      CONFIG.fonts.primary.family
-    );
-
-    // 计算文本的水平中心位置
-    const textCenterX = lengthScaleRef.current(start) + width / 2;
-
-    annotationRef.current = group
-      .append("text")
-      .attr("class", "annotation")
-      .attr("x", textCenterX) // 使用计算出的中心位置
-      .attr("y", dimensions.vSpace * row)
-      .text(truncatedText)
-      .style("font-family", CONFIG.fonts.primary.family)
-      .style("font-size", `${dimensions.fontSize}px`)
-      .style("dominant-baseline", "middle")
-      .style("text-anchor", "middle") // 添加这行，使文本水平居中
-      .style("pointer-events", "none"); // 防止文本干扰鼠标事件
   };
 
   // 获取注释文本
@@ -174,29 +185,36 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
   const showFullAnnotation = (group, type, location, row, information) => {
     const [start, end] = getFeatureBounds(location);
     const text = getAnnotationText(type, information);
+    const position = layoutManager.current.calculatePosition(
+      lengthScaleRef.current(start),
+      lengthScaleRef.current(end),
+      row
+    );
 
     // 创建背景
     const textWidth = measureTextWidth(text, dimensions.fontSize);
-    const textCenterX =
-      lengthScaleRef.current(start) +
-      (lengthScaleRef.current(end) - lengthScaleRef.current(start)) / 2;
+    const textPosition = layoutManager.current.calculateTextPosition(
+      position,
+      text
+    );
 
     group
       .append("rect")
       .attr("class", "annotation-bg")
-      .attr("x", textCenterX - textWidth / 2 - 5)
-      .attr("y", dimensions.vSpace * row - dimensions.boxHeight / 2)
+      .attr("x", textPosition.x - textWidth / 2 - 5)
+      .attr("y", textPosition.y - dimensions.fontSize / 2 - 5)
       .attr("width", textWidth + 10)
-      .attr("height", dimensions.boxHeight)
+      .attr("height", dimensions.fontSize + 10)
       .style("fill", "white")
       .style("stroke", "#ddd")
       .style("stroke-width", 1)
       .raise();
 
-    // 更新文本为完整版本
+    // 更新文本
     if (annotationRef.current) {
       annotationRef.current
-        .attr("x", textCenterX) // 修改这里，使文本水平居中
+        .attr("x", textPosition.x)
+        .attr("y", textPosition.y)
         .text(text)
         .raise();
     }
@@ -211,22 +229,26 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
     information
   ) => {
     const [start, end] = getFeatureBounds(location);
+    const position = layoutManager.current.calculatePosition(
+      lengthScaleRef.current(start),
+      lengthScaleRef.current(end),
+      row
+    );
     const text = getAnnotationText(type, information);
-    const width = lengthScaleRef.current(end) - lengthScaleRef.current(start);
-    const textCenterX = lengthScaleRef.current(start) + width / 2;
+    const textPosition = layoutManager.current.calculateTextPosition(
+      position,
+      text
+    );
 
     // 移除背景
     group.selectAll(".annotation-bg").remove();
 
-    // 恢复截断文本
+    // 恢复文本
     if (annotationRef.current) {
-      const truncatedText = TextUtils.truncateText(
-        text,
-        width,
-        dimensions.fontSize,
-        CONFIG.fonts.primary.family
-      );
-      annotationRef.current.attr("x", textCenterX).text(truncatedText);
+      annotationRef.current
+        .attr("x", textPosition.x)
+        .attr("y", textPosition.y)
+        .text(text);
     }
   };
 
@@ -269,7 +291,6 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
       .selectAll(".bone")
       .style("opacity", CONFIG.styles.bone.opacity)
       .style("stroke-linecap", CONFIG.styles.bone.strokeLinecap)
-      .style("stroke-width", dimensions.boxHeight / 2)
       .style("stroke-dasharray", CONFIG.styles.bone.strokeDasharray);
 
     container
@@ -279,13 +300,11 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
 
     container
       .selectAll(".gap")
-      .style("stroke-linecap", CONFIG.styles.gap.strokeLinecap)
-      .style("stroke-width", dimensions.boxHeight / 2);
+      .style("stroke-linecap", CONFIG.styles.gap.strokeLinecap);
 
     container
       .selectAll(".variation")
-      .style("stroke-linecap", CONFIG.styles.variation.strokeLinecap)
-      .style("stroke-width", dimensions.boxHeight / 5);
+      .style("stroke-linecap", CONFIG.styles.variation.strokeLinecap);
 
     container
       .selectAll(".location-text")
@@ -294,29 +313,13 @@ const FeatureRenderer = ({ container, dimensions, feature }) => {
 
   // 渲染特征
   useEffect(() => {
-    if (!container || !dimensions || !feature) return;
+    if (!container || !dimensions || !feature || !layoutManager.current) return;
 
     const { type, location, information } = feature;
-    const [start, end] = getFeatureBounds(location);
-
-    // 使用LayoutUtils找到可用行
-    const row = LayoutUtils.findAvailableRow(
-      occupiedRef.current,
-      start,
-      end,
-      dimensions.vSpace
-    );
-
-    addFeatureElements(container, type, location, row, information);
+    addFeatureElements(container, type, location, information);
     applyStyles();
 
     featureCounterRef.current++;
-
-    // 调试输出当前占用情况
-    console.log(
-      `Feature #${featureCounterRef.current - 1} (${type}) 放置在行 ${row}`
-    );
-    console.log("当前占用行情况:", JSON.stringify(occupiedRef.current));
   }, [container, dimensions, feature]);
 
   return null;

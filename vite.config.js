@@ -14,10 +14,29 @@ export default defineConfig({
     alias: {
       "@": resolve(__dirname, "./src"),
     },
+    extensions: [".js", ".jsx", ".json"],
   },
   publicDir: "public",
   build: {
     outDir: "dist",
     assetsDir: "assets",
+  },
+  server: {
+    headers: {
+      "Content-Security-Policy":
+        "script-src 'self' 'unsafe-eval' 'unsafe-inline';",
+    },
+    hmr: {
+      overlay: true,
+      timeout: 30000,
+    },
+    watch: {
+      usePolling: true,
+      interval: 1000,
+    },
+  },
+  optimizeDeps: {
+    force: true,
+    include: ["react", "react-dom", "d3"],
   },
 });

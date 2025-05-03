@@ -1,3 +1,14 @@
+/**
+ * @file SeqViewerLinear.jsx
+ * @description 线性序列查看器组件
+ * 主要职责：
+ * 1. 作为基因组可视化的包装组件
+ * 2. 处理数据加载和预处理
+ * 3. 提供序列查看的基本功能（如缩放、平移等）
+ * 4. 管理查看器的尺寸和响应式布局
+ * 5. 作为 GenomeVisualizer 的容器组件
+ */
+
 import React, { useEffect, useState, useRef } from "react";
 import GenomeVisualizer from "./GenomeVisualizer";
 

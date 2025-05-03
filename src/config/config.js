@@ -2,60 +2,82 @@
 export const CONFIG = {
   dimensions: {
     margin: {
-      top: 0.1,
-      right: 0.1,
-      bottom: 0.1,
-      left: 0.1,
+      top: 0.05,
+      right: 0.05,
+      bottom: 0.05,
+      left: 0.05,
     },
-    unit: 20,
-    boxHeightMultiplier: 0.5,
-    vSpaceMultiplier: 1.8,
-    fontSizeMultiplier: 0.35,
+    unit: 10,
+    boxHeightMultiplier: 1.0,
+    fontSizeMultiplier: 0.7,
+    vSpace: 20,
+    safetyMargin: 10,
   },
   styles: {
     box: {
-      strokeLinecap: "round",
       strokeWidth: 1,
+      strokeColor: "#000",
+      fillOpacity: 0.8,
     },
     bone: {
+      opacity: 0.5,
       strokeLinecap: "round",
-      strokeWidth: 1,
-      opacity: 0.7,
-      strokeDasharray: "0",
+      strokeDasharray: "5,5",
     },
     gap: {
-      strokeLinecap: "round",
-      strokeWidth: 1,
+      strokeLinecap: "butt",
     },
     variation: {
       strokeLinecap: "round",
-      strokeWidth: 1,
+    },
+    annotation: {
+      fontSize: 12,
+      fontFamily: "Arial, sans-serif",
+      fill: "#333",
     },
   },
   colors: {
     // 深色主题灰暗配色
     source: "#4A7A6C", // 灰绿色
     operon: "#3C6C8C", // 灰蓝色
-    CDS: "#8A7940", // 灰黄色
-    gene: "#456A8C", // 暗蓝色
+    CDS: "#287733",
+    gene: "#333377",
     tRNA: "#614D7C", // 灰紫色
     rRNA: "#7E4450", // 暗红色
-    misc_feature: "#535953", // 深灰绿色
+    misc_feature: "#607D8B",
     regulatory: "#475A66", // 深灰蓝色
     STS: "#7D5A40", // 灰褐色
-    variation: "#6A3D5B", // 暗紫色
-    gap: "#4D4D4D", // 深灰色
-    others: "#5A5A5A", // 中灰色
+    mRNA: "#FF9800",
+    exon: "#9C27B0",
+    intron: "#E91E63",
+    promoter: "#FF5722",
+    terminator: "#F44336",
+    variation: "#00BCD4",
+    gap: "#9E9E9E",
+    others: "#757575",
   },
   fonts: {
     primary: {
-      family: "'Maple Mono CN', 'Maple Mono', monospace",
-      size: {
-        small: 12,
-        medium: 14,
-        large: 16,
-      },
-      fallback: "monospace",
+      family: "Arial, sans-serif",
+      weight: "normal",
     },
+    secondary: {
+      family: "Courier New, monospace",
+      weight: "normal",
+    },
+  },
+  interaction: {
+    hoverDelay: 200,
+    tooltipOffset: 10,
+    highlightOpacity: 0.7,
+  },
+  animation: {
+    duration: 300,
+    easing: "ease-in-out",
+  },
+  performance: {
+    maxFeatures: 1000,
+    batchSize: 100,
+    debounceTime: 100,
   },
 };
