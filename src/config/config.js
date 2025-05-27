@@ -80,4 +80,7 @@ export const CONFIG = {
     batchSize: 100,
     debounceTime: 100,
   },
+  svgWidthRatio: 0.8, // SVG宽度占首次加载时窗口宽度的比例
+  svgWidthPaddingRatio: 1.2, // SVG宽度padding比例（内容宽度的倍数）
+  svgHeightPaddingRatio: 1.2, // SVG高度padding比例（内容高度的倍数）
 };

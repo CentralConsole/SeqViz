@@ -1,87 +1,93 @@
-.genome-visualizer {
-  position: relative;
+/* 基础容器样式 */
+.sequence-container {
   width: 100%;
-  height: 100vh;
+  height: 100%;
+  position: relative;
   background-color: #121212;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  overflow-y: auto;
 }
 
-.genome-visualizer .controls {
+/* 渲染器容器样式 */
+.sequence-renderer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+.sequence-renderer svg {
+  display: block;
+  overflow: visible;
+}
+
+.sequence-renderer .controls {
   position: absolute;
   top: 10px;
   right: 10px;
-  display: flex;
-  gap: 10px;
-  z-index: 10;
-}
-
-.genome-visualizer .control-button {
-  padding: 6px 12px;
-  border: 1px solid #333;
-  border-radius: 4px;
-  background-color: #1e1e1e;
-  color: #e0e0e0;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.genome-visualizer .control-button:hover {
-  background-color: #2a2a2a;
-}
-
-.genome-visualizer .control-button:active {
-  background-color: #333;
-}
-
-.genome-visualizer .tooltip {
-  position: absolute;
-  background-color: rgba(40, 40, 40, 0.9);
-  color: #e0e0e0;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  pointer-events: none;
   z-index: 100;
 }
 
-.genome-visualizer .loading {
+.sequence-renderer .control-button {
+  padding: 6px 12px;
+  border: 1px solid #333;
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+  cursor: pointer;
+  margin-left: 5px;
+  border-radius: 4px;
+}
+
+.sequence-renderer .control-button:hover {
+  background-color: #2a2a2a;
+}
+
+.sequence-renderer .control-button:active {
+  background-color: #333;
+}
+
+.sequence-renderer .tooltip {
+  position: absolute;
+  background-color: rgba(40, 40, 40, 0.9);
+  color: #e0e0e0;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.sequence-renderer .loading {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 16px;
   color: #e0e0e0;
 }
 
-.genome-visualizer .error {
+.sequence-renderer .error {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   color: #ff6b6b;
-  text-align: center;
-  padding: 20px;
 }
 
-.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  font-size: 1.2em;
-  color: #e0e0e0;
+/* 滚动条样式 */
+.sequence-renderer::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-.error {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  color: #ff6b6b;
-  font-size: 1.2em;
+.sequence-renderer::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.sequence-renderer::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+.sequence-renderer::-webkit-scrollbar-thumb:hover {
+  background: #444;
 }
 
 /* 特征样式 */

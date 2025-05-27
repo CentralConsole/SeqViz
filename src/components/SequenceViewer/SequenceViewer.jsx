@@ -1,24 +1,24 @@
 /**
- * @file SeqViewerLinear.jsx
- * @description 线性序列查看器组件
+ * @file SequenceViewer.jsx
+ * @description 序列查看器组件
  * 主要职责：
- * 1. 作为基因组可视化的包装组件
+ * 1. 作为序列可视化的包装组件
  * 2. 处理数据加载和预处理
- * 3. 提供序列查看的基本功能（如缩放、平移等）
- * 4. 管理查看器的尺寸和响应式布局
- * 5. 作为 GenomeVisualizer 的容器组件
+ * 3. 管理查看器的尺寸和响应式布局
+ * 4. 作为渲染器的容器组件
  */
 
 import React, { useEffect, useState, useRef } from "react";
-import GenomeVisualizer from "./GenomeVisualizer";
+import LinearSequenceRenderer from "./LinearSequenceRenderer";
 
 /**
- * SeqViewerLinear组件 - 一个用于可视化基因组数据的可复用组件
+ * SequenceViewer组件 - 一个用于可视化DNA/RNA序列的可复用组件
  * @param {Object} props
- * @param {Object} props.data - 基因组数据对象
+ * @param {Object} props.data - 序列数据对象
  * @param {Object} [props.style] - 可选的容器样式
+ * @param {Function} [props.onFeatureClick] - 特征点击事件处理函数
  */
-const SeqViewerLinear = ({ data, style = {} }) => {
+const SequenceViewer = ({ data, style = {}, onFeatureClick }) => {
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [genomeData, setGenomeData] = useState(null);
@@ -69,27 +69,19 @@ const SeqViewerLinear = ({ data, style = {} }) => {
   }
 
   if (!genomeData) {
-    return <div>未提供基因组数据</div>;
+    return <div>未提供序列数据</div>;
   }
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        position: "relative",
-        backgroundColor: "#121212",
-        ...style,
-      }}
-    >
-      <GenomeVisualizer
+    <div ref={containerRef} className="sequence-container">
+      <LinearSequenceRenderer
         data={genomeData}
         width={dimensions.width}
         height={dimensions.height}
+        onFeatureClick={onFeatureClick}
       />
     </div>
   );
 };
 
-export default SeqViewerLinear;
+export default SequenceViewer;

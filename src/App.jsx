@@ -9,13 +9,22 @@
  */
 
 import React from "react";
-import SeqViewerLinear from "./components/GenomeVisualizer/SeqViewerLinear";
+import SequenceViewer from "./components/SequenceViewer/SequenceViewer";
 import "./App.css";
 
 function App() {
+  const handleFeatureClick = (feature) => {
+    console.log("点击的特征数据：", feature);
+    // 这里可以添加更多的处理逻辑，比如显示在界面上
+  };
+
   return (
     <div className="App">
-      <SeqViewerLinear data="/test.json" style={{ flex: 1, height: "100vh" }} />
+      <SequenceViewer
+        data="/test.json"
+        style={{ width: "100%", height: "100vh" }}
+        onFeatureClick={handleFeatureClick}
+      />
     </div>
   );
 }
