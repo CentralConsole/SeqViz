@@ -351,7 +351,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                 .attr("stroke", CONFIG.styles.box.strokeColor)
                 .attr("stroke-width", CONFIG.styles.box.strokeWidth);
             })
-            .each(function (segmentPathData) {
+            .each(function () {
               // 使用不同的参数名避免冲突
               // 为第一个实际可视化段创建文本路径
               if (segment.isTextSegment) {
@@ -451,29 +451,46 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .enter()
       .append("g")
       .attr("transform", (d) => {
-        const angle = angleScale(d);
+        const angle = angleScale(d) + Math.PI / 2;
         return `rotate(${(angle * 180) / Math.PI})`;
       })
       .each(function (d) {
         d3.select(this)
           .append("line")
-          .attr("x1", innerRadius - 5)
-          .attr("y1", 0)
-          .attr("x2", innerRadius + 5)
-          .attr("y2", 0)
+          .attr("x1", innerRadius)
+          .attr("y1", -5)
+          .attr("x2", innerRadius)
+          .attr("y2", 5)
           .attr("stroke", CONFIG.colors.others)
           .attr("stroke-width", 1);
 
-        d3.select(this)
+        // 创建文本组并绘制刻度值文本
+        const textGroup = d3
+          .select(this)
+          .append("g")
+          .attr("transform", `translate(${innerRadius - 20}, 0)`); // 将组径向平移到文本位置
+
+        textGroup
           .append("text")
-          .attr("x", innerRadius - 20)
+          .attr("x", 0) // 文本在组内的相对位置
           .attr("y", 0)
-          .attr("text-anchor", "middle")
+          .attr("text-anchor", "middle") // 文本锚点在其自身中心
           .attr("fill", CONFIG.styles.annotation.fillDark)
           .attr("font-family", CONFIG.styles.annotation.fontFamily)
           .attr("font-size", `${CONFIG.styles.annotation.fontSize}px`)
-          .attr("transform", "rotate(90)")
-          .text(Math.floor(d));
+          .attr("transform", (d) => {
+            const angle = angleScale(d); // 当前刻度的角度 (-PI 到 PI)
+
+            // 根据角度调整文本组的自转，使其始终保持正向朝外
+            // 如果角度在左半边 (90度到270度), 旋转 180 度
+            // 否则 (右半边), 旋转 0 度
+            if (angle > 0 && angle < Math.PI) {
+              return "rotate(180)";
+            } else {
+              return "rotate(0)";
+            }
+          })
+          .text(Math.floor(d)); // 显示刻度值
       });
   }, [data, width, height, onFeatureClick]);
 
