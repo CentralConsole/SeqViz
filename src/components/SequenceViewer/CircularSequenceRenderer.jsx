@@ -486,6 +486,12 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             // 否则 (右半边), 旋转 0 度
             if (angle > 0 && angle < Math.PI) {
               return "rotate(180)";
+            } else if (Math.abs(angle) === 0) {
+              // 最下方
+              return "rotate(-90)";
+            } else if (Math.abs(angle) === Math.PI) {
+              // 最上方
+              return "rotate(90)";
             } else {
               return "rotate(0)";
             }
