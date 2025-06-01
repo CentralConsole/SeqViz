@@ -28,6 +28,7 @@
     "react-dom": "^18.2.0"
   },
   "dependencies": {
+    "cgview": "^1.6.0",
     "d3": "^7.8.5",
     "lodash": "^4.17.21"
   },

@@ -10,6 +10,8 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import LinearSequenceRenderer from "./LinearSequenceRenderer";
+import CircularSequenceRenderer from "./CircularSequenceRenderer.jsx";
+import ViewModeToggle from "./ViewModeToggle";
 
 /**
  * SequenceViewer组件 - 一个用于可视化DNA/RNA序列的可复用组件
@@ -17,13 +19,20 @@ import LinearSequenceRenderer from "./LinearSequenceRenderer";
  * @param {Object} props.data - 序列数据对象
  * @param {Object} [props.style] - 可选的容器样式
  * @param {Function} [props.onFeatureClick] - 特征点击事件处理函数
+ * @param {string} [props.viewMode="linear"] - 视图模式："linear" 或 "circular"
  */
-const SequenceViewer = ({ data, style = {}, onFeatureClick }) => {
+const SequenceViewer = ({
+  data,
+  style = {},
+  onFeatureClick,
+  viewMode: initialViewMode = "linear",
+}) => {
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [genomeData, setGenomeData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState(initialViewMode);
 
   // 更新尺寸的函数
   const updateDimensions = () => {
@@ -60,6 +69,11 @@ const SequenceViewer = ({ data, style = {}, onFeatureClick }) => {
     }
   }, [data]);
 
+  // 处理视图模式切换
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode);
+  };
+
   if (loading) {
     return <div>加载中...</div>;
   }
@@ -73,13 +87,36 @@ const SequenceViewer = ({ data, style = {}, onFeatureClick }) => {
   }
 
   return (
-    <div ref={containerRef} className="sequence-container">
-      <LinearSequenceRenderer
-        data={genomeData}
-        width={dimensions.width}
-        height={dimensions.height}
-        onFeatureClick={onFeatureClick}
+    <div
+      ref={containerRef}
+      className="sequence-container"
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        overflow: "auto",
+        ...style,
+      }}
+    >
+      <ViewModeToggle
+        currentMode={viewMode}
+        onModeChange={handleViewModeChange}
       />
+      {viewMode === "linear" ? (
+        <LinearSequenceRenderer
+          data={genomeData}
+          width={dimensions.width}
+          height={dimensions.height}
+          onFeatureClick={onFeatureClick}
+        />
+      ) : (
+        <CircularSequenceRenderer
+          data={genomeData}
+          width={dimensions.width}
+          height={dimensions.height}
+          onFeatureClick={onFeatureClick}
+        />
+      )}
     </div>
   );
 };

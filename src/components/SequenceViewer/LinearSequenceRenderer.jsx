@@ -623,12 +623,12 @@ const LinearSequenceRenderer = ({
       }
       .top-axis text {
         fill: #e0e0e0;
-        font-size: ${dimensions.fontSize * 0.9}px;
+        font-size: ${CONFIG.styles.annotation.fontSize}px;
         font-family: ${CONFIG.fonts.primary.family};
       }
       .annotation {
         fill: #e0e0e0;
-        font-size: ${dimensions.fontSize}px;
+        font-size: ${CONFIG.styles.annotation.fontSize}px;
         font-family: ${CONFIG.fonts.primary.family};
       }
       .annotation-avoided {
@@ -731,7 +731,7 @@ const LinearSequenceRenderer = ({
         height={svgHeight}
         style={{
           fontFamily: CONFIG.fonts.primary.family,
-          fontSize: `${dimensions?.fontSize || 12}px`,
+          fontSize: `${CONFIG.styles.annotation.fontSize}px`,
           display: "block",
           backgroundColor: "#121212",
         }}

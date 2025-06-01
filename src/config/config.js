@@ -31,9 +31,10 @@ export const CONFIG = {
       strokeLinecap: "round",
     },
     annotation: {
-      fontSize: 12,
+      fontSize: 7,
       fontFamily: "Arial, sans-serif",
       fill: "#333",
+      fillDark: "#e0e0e0", // 深色主题下的文本颜色
     },
   },
   colors: {
