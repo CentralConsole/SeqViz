@@ -368,7 +368,11 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                   const pathLength = pathNode ? pathNode.getTotalLength() : 0;
 
                   // 估算文本长度（每个字符约6像素）
-                  const textContent = d.information?.gene || d.type; // 使用不同的变量名
+                  const textContent =
+                    d.information?.gene ||
+                    d.information?.product ||
+                    d.information?.note ||
+                    d.type; // 使用不同的变量名
                   const estimatedTextLength =
                     textContent.length *
                     CONFIG.styles.annotation.fontSize *
@@ -401,7 +405,11 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         const textSegment = d.segments.find((s) => s.isTextSegment); // 找到用于文本的段
 
         if (textSegment) {
-          const text = d.information?.gene || d.type;
+          const text =
+            d.information?.gene ||
+            d.information?.product ||
+            d.information?.note ||
+            d.type;
           // 查找对应的文本路径
           const textPathId = `text-path-${featureIndex}-${d.segments.indexOf(
             textSegment

@@ -17,7 +17,7 @@ export const CONFIG = {
     box: {
       strokeWidth: 1,
       strokeColor: "#000",
-      fillOpacity: 0.8,
+      fillOpacity: 1.0,
     },
     bone: {
       opacity: 0.5,
@@ -32,7 +32,7 @@ export const CONFIG = {
     },
     annotation: {
       fontSize: 7,
-      fontFamily: "Arial, sans-serif",
+      fontFamily: "Maple Mono CN, Maple Mono, Arial, sans-serif",
       fill: "#333",
       fillDark: "#e0e0e0", // 深色主题下的文本颜色
     },

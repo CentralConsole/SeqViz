@@ -1,4 +1,4 @@
-@import url("https://chinese-fonts-cdn.deno.dev/packages/maple-mono-cn/dist/MapleMono-CN-Regular/result.css");
+@import url("https://chinese-fonts-cdn.deno.dev/packages/maple-mono-cn/dist/MapleMono-CN-Regular/result.css"); /* 引入Maple font字体 */
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
