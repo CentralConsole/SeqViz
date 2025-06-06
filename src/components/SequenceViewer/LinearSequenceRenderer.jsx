@@ -524,8 +524,15 @@ const LinearSequenceRenderer = ({
             .attr("y", position.y)
             .attr("width", width)
             .attr("height", position.height)
-            .style("fill", CONFIG.colors[feature.type] || CONFIG.colors.others)
-            .style("stroke", "none");
+            .style(
+              "fill",
+              (CONFIG.colors[feature.type] || CONFIG.colors.others).fill
+            )
+            .style(
+              "stroke",
+              (CONFIG.colors[feature.type] || CONFIG.colors.others).stroke
+            )
+            .style("stroke-width", CONFIG.styles.box.strokeWidth);
         });
       });
       layoutManager.current.unlockBoxLayout();

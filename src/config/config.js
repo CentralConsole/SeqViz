@@ -18,6 +18,8 @@ export const CONFIG = {
       strokeWidth: 1,
       strokeColor: "#000",
       fillOpacity: 1.0,
+      stroke: "#000", // 边框颜色
+      strokeWidth: 1, // 边框宽度
     },
     bone: {
       opacity: 0.5,
@@ -39,23 +41,74 @@ export const CONFIG = {
   },
   colors: {
     // 深色主题灰暗配色
-    source: "#4A7A6C", // 灰绿色
-    operon: "#3C6C8C", // 灰蓝色
-    CDS: "#287733",
-    gene: "#333377",
-    tRNA: "#614D7C", // 灰紫色
-    rRNA: "#7E4450", // 暗红色
-    misc_feature: "#607D8B",
-    regulatory: "#475A66", // 深灰蓝色
-    STS: "#7D5A40", // 灰褐色
-    mRNA: "#FF9800",
-    exon: "#9C27B0",
-    intron: "#E91E63",
-    promoter: "#FF5722",
-    terminator: "#F44336",
-    variation: "#00BCD4",
-    gap: "#9E9E9E",
-    others: "#757575",
+    source: {
+      fill: "#4A7A6C",
+      stroke: "rgb(142, 209, 189)",
+    },
+    operon: {
+      fill: "#3C6C8C",
+      stroke: "rgb(169, 146, 227)",
+    },
+    CDS: {
+      fill: "#287733",
+      stroke: "rgb(165, 216, 76)",
+    },
+    gene: {
+      fill: "#333377",
+      stroke: "rgb(143, 175, 211)",
+    },
+    tRNA: {
+      fill: "#614D7C",
+      stroke: "rgb(187, 156, 210)",
+    },
+    rRNA: {
+      fill: "#7E4450",
+      stroke: "rgb(213, 112, 112)",
+    },
+    misc_feature: {
+      fill: "#607D8B",
+      stroke: "#405D6B",
+    },
+    regulatory: {
+      fill: "#475A66",
+      stroke: "rgb(98, 195, 255)",
+    },
+    STS: {
+      fill: "#7D5A40",
+      stroke: "rgb(204, 137, 66)",
+    },
+    mRNA: {
+      fill: "#FF9800",
+      stroke: "#DF7800",
+    },
+    exon: {
+      fill: "#9C27B0",
+      stroke: "#7C0790",
+    },
+    intron: {
+      fill: "#E91E63",
+      stroke: "#C90E43",
+    },
+    promoter: {
+      fill: "#FF5722",
+      stroke: "#DF3702",
+    },
+    terminator: {
+      fill: "#F44336",
+      stroke: "#D42326",
+    },
+    variation: {
+      fill: "#00BCD4",
+      stroke: "#009CB4",
+    },
+    gap: {
+      fill: "#9E9E9E",
+      stroke: "#7E7E7E",
+    },
+    others: {
+      fill: "#757575",
+      stroke: "rgb(185, 185, 185)",
+    },
   },
   fonts: {
     primary: {

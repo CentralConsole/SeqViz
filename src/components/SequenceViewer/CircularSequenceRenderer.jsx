@@ -333,8 +333,11 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             .append("path")
             .attr("d", segmentD)
             // 根据特征类型设置填充颜色
-            .attr("fill", CONFIG.colors[d.type] || CONFIG.colors.others)
-            .attr("stroke", CONFIG.styles.box.strokeColor)
+            .attr("fill", (CONFIG.colors[d.type] || CONFIG.colors.others).fill)
+            .attr(
+              "stroke",
+              (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+            )
             .attr("stroke-width", CONFIG.styles.box.strokeWidth)
             .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
             .style("cursor", "pointer")
@@ -342,13 +345,19 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             .on("mouseover", function () {
               featureElement
                 .selectAll("path") // 高亮整个特征的所有段
-                .attr("stroke", CONFIG.colors.others)
+                .attr(
+                  "stroke",
+                  (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                )
                 .attr("stroke-width", CONFIG.styles.box.strokeWidth * 2);
             })
             .on("mouseout", function () {
               featureElement
                 .selectAll("path")
-                .attr("stroke", CONFIG.styles.box.strokeColor)
+                .attr(
+                  "stroke",
+                  (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                )
                 .attr("stroke-width", CONFIG.styles.box.strokeWidth);
             })
             .each(function () {
