@@ -57,6 +57,8 @@ const LinearSequenceRenderer = ({
       rowSpacing: CONFIG.dimensions.vSpace,
       textHeight: CONFIG.dimensions.fontSize,
       safetyMargin: CONFIG.dimensions.safetyMargin,
+      textSpacing: CONFIG.dimensions.textSpacing || 5,
+      minAnnotationHeight: CONFIG.dimensions.minAnnotationHeight || 20,
     })
   );
   // 初始宽度引用
@@ -78,6 +80,8 @@ const LinearSequenceRenderer = ({
         rowSpacing: dimensions.vSpace,
         textHeight: dimensions.fontSize,
         safetyMargin: CONFIG.dimensions.safetyMargin,
+        textSpacing: CONFIG.dimensions.textSpacing || 5,
+        minAnnotationHeight: CONFIG.dimensions.minAnnotationHeight || 20,
       });
     }
   }, [dimensions]);
@@ -392,13 +396,31 @@ const LinearSequenceRenderer = ({
         .domain([0, dimensions.totalLength])
         .range([0, dimensions.contentWidth]);
 
+      // 初始化 rowGroups，避免未定义报错
       const rowGroups = new Map();
 
-      // 预分配行号和box高度
-      features.forEach((feature, index) => {
-        const [start, end] = getFeatureBounds(feature.location);
-        const row = layoutManager.current.findAvailableRow(start, end);
-        feature._row = row;
+      // 1. 按跨度贪心分配行号
+      SimpleLayoutManager.assignRowsBySpan(
+        features,
+        (f) => {
+          // 取所有location的最小start
+          return Math.min(
+            ...f.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
+          );
+        },
+        (f) => {
+          // 取所有location的最大end
+          return Math.max(
+            ...f.location.map((loc) =>
+              Number(DataUtils.cleanString(loc[loc.length - 1]))
+            )
+          );
+        }
+      );
+
+      // 2. 预分配box高度（保持原有逻辑，遍历features，调用calculatePosition）
+      features.forEach((feature) => {
+        const row = feature._row;
         feature.location.forEach((loc) => {
           const [boxStart, boxEnd] = [
             Number(DataUtils.cleanString(loc[0])),
@@ -413,7 +435,7 @@ const LinearSequenceRenderer = ({
         });
       });
 
-      // 锁定box布局，渲染所有box和骨架线
+      // 3. 锁定box布局，渲染所有box和骨架线
       layoutManager.current.lockBoxLayout();
       features.forEach((feature, index) => {
         const featureId = `feature-${index}`;
@@ -493,7 +515,120 @@ const LinearSequenceRenderer = ({
       });
       layoutManager.current.unlockBoxLayout();
 
-      // 渲染所有annotation
+      // 4. 集中收集每行的textNodes
+      const rowTextNodes = new Map();
+      features.forEach((feature, index) => {
+        const row = feature._row;
+        feature.location.forEach((loc) => {
+          const [boxStart, boxEnd] = [
+            Number(DataUtils.cleanString(loc[0])),
+            Number(DataUtils.cleanString(loc[loc.length - 1])),
+          ];
+          const position = layoutManager.current.calculatePosition(
+            lengthScaleRef.current(boxStart),
+            lengthScaleRef.current(boxEnd),
+            row,
+            dimensions.boxHeight
+          );
+          const text =
+            feature.information.gene ||
+            feature.information.product ||
+            feature.information.note ||
+            feature.type;
+          if (text) {
+            const textWidth = TextUtils.measureTextWidth(
+              text,
+              dimensions.fontSize,
+              CONFIG.fonts.primary.family
+            );
+            const availableWidth = position.width - 10;
+            const isTruncated = textWidth > availableWidth;
+            if (isTruncated) {
+              if (!rowTextNodes.has(row)) rowTextNodes.set(row, []);
+              rowTextNodes.get(row).push({
+                text,
+                width: position.width,
+                height: dimensions.fontSize,
+                x: position.x + position.width / 2,
+                y: position.y + position.height + dimensions.fontSize / 2,
+                targetX: position.x + position.width / 2,
+                targetY: position.y + position.height + dimensions.fontSize / 2,
+                box: { ...position, row },
+                isTruncated: true,
+              });
+            }
+          }
+        });
+      });
+
+      // 5. 对每行做力导向模拟
+      const rowHeights = new Map();
+      rowTextNodes.forEach((textNodes, row) => {
+        // 使用d3.forceSimulation对每行textNodes做力导向模拟
+        const simulation = d3
+          .forceSimulation(textNodes)
+          .force(
+            "repel",
+            d3.forceManyBody().strength(-5).distanceMax(50).distanceMin(0)
+          )
+          .force(
+            "attract",
+            d3.forceManyBody().strength(2).distanceMax(100).distanceMin(50)
+          )
+          .force("x", d3.forceX((d) => d.targetX).strength(1))
+          .force("y", d3.forceY((d) => d.targetY).strength(1))
+          .force(
+            "collide",
+            d3
+              .forceCollide()
+              .radius((d) => d.width + 10)
+              .iterations(4)
+          )
+          .on("tick", () => {
+            textNodes.forEach((node) => {
+              node.y = Math.max(
+                node.y,
+                node.box.y + node.box.height + CONFIG.linearLayout.textBoxMargin
+              ); // 不可穿越box底部
+            });
+          })
+          .stop();
+        // tick多次收敛
+        for (let i = 0; i < 100; ++i) {
+          simulation.tick();
+        }
+        // tick后再全量修正一次，确保所有节点都在box底部之下
+        textNodes.forEach((node) => {
+          node.y = Math.max(
+            node.y,
+            node.box.y + node.box.height + CONFIG.linearLayout.textBoxMargin
+          );
+        });
+        // 力模拟后，计算该行最大y+height/2，作为行高
+        let maxY =
+          textNodes.length > 0
+            ? Math.max(...textNodes.map((node) => node.y + node.height / 2))
+            : 0;
+        let minY =
+          textNodes.length > 0
+            ? Math.min(...textNodes.map((node) => node.box.y))
+            : 0;
+        let rowHeight = maxY - minY;
+        rowHeights.set(row, rowHeight);
+        console.log(`行 ${row} 的最终高度:`, rowHeight);
+      });
+
+      // === 只输出一次所有行的textNodes ===
+      const maxRow =
+        rowTextNodes.size > 0
+          ? Math.max(...Array.from(rowTextNodes.keys()))
+          : -1;
+      for (let row = 0; row <= maxRow; row++) {
+        const nodes = rowTextNodes.get(row) || [];
+        console.log(`行 ${row} 的 textNodes 列表:`, nodes);
+      }
+
+      // 5. 渲染所有annotation
       features.forEach((feature, index) => {
         const row = feature._row;
         let rowGroup = rowGroups.get(row);
@@ -516,30 +651,72 @@ const LinearSequenceRenderer = ({
             feature.information.note ||
             feature.type;
           if (text) {
-            const charWidth = dimensions.fontSize * 0.6;
-            const textWidth = text.length * charWidth;
+            const textWidth = TextUtils.measureTextWidth(
+              text,
+              dimensions.fontSize,
+              CONFIG.fonts.primary.family
+            );
             const availableWidth = position.width - 10;
             const isTruncated = textWidth > availableWidth;
-            let displayText = text;
+
             if (isTruncated) {
-              displayText = text;
+              // 从rowTextNodes获取最新力导向后的节点
+              const textNodes = rowTextNodes.get(row) || [];
+              const textNode = textNodes.find(
+                (n) =>
+                  n.text === text &&
+                  n.box.x === position.x &&
+                  n.box.y === position.y
+              );
+              if (textNode) {
+                // 插入引导线：一端指向textNode中心，一端指向box底部中心
+                featureGroup
+                  .append("line")
+                  .attr("class", "annotation-leader")
+                  .attr("x1", textNode.x)
+                  .attr("y1", textNode.y)
+                  .attr("x2", textNode.box.x + textNode.box.width / 2)
+                  .attr("y2", textNode.box.y + textNode.box.height)
+                  .attr("stroke", "#aaa")
+                  .attr("stroke-width", 1)
+                  .attr("stroke-dasharray", "2,2");
+
+                featureGroup
+                  .append("rect")
+                  .attr("class", "text-bg")
+                  .attr("x", textNode.x - textNode.width / 2 - 5)
+                  .attr("y", textNode.y - textNode.height / 2)
+                  .attr("width", textNode.width + 10)
+                  .attr("height", textNode.height)
+                  .style("fill", "#121212")
+                  .style("opacity", 0.8);
+
+                featureGroup
+                  .append("text")
+                  .attr("class", "annotation truncated")
+                  .attr("x", textNode.x)
+                  .attr("y", textNode.y)
+                  .text(textNode.text)
+                  .style("font-family", CONFIG.fonts.primary.family)
+                  .style("font-size", `${dimensions.fontSize}px`)
+                  .style("dominant-baseline", "middle")
+                  .style("text-anchor", "middle")
+                  .style("pointer-events", "none");
+              }
+            } else {
+              // 普通文本直接渲染
+              featureGroup
+                .append("text")
+                .attr("class", "annotation")
+                .attr("x", position.x + position.width / 2)
+                .attr("y", position.y + position.height / 2)
+                .text(text)
+                .style("font-family", CONFIG.fonts.primary.family)
+                .style("font-size", `${dimensions.fontSize}px`)
+                .style("dominant-baseline", "middle")
+                .style("text-anchor", "middle")
+                .style("pointer-events", "none");
             }
-            const textPosition = layoutManager.current.calculateTextPosition(
-              { ...position, row },
-              displayText,
-              isTruncated
-            );
-            featureGroup
-              .append("text")
-              .attr("class", `annotation ${isTruncated ? "truncated" : ""}`)
-              .attr("x", textPosition.x)
-              .attr("y", textPosition.y)
-              .text(displayText)
-              .style("font-family", CONFIG.fonts.primary.family)
-              .style("font-size", `${dimensions.fontSize}px`)
-              .style("dominant-baseline", "middle")
-              .style("text-anchor", "middle")
-              .style("pointer-events", "none");
           }
         });
       });
@@ -687,17 +864,28 @@ const LinearSequenceRenderer = ({
 
   useEffect(() => {
     if (svgRef.current) {
-      setTimeout(() => {
+      const calculateSvgDimensions = () => {
         try {
           const bbox = svgRef.current.getBBox();
-          setSvgWidth(bbox.width * CONFIG.svgWidthPaddingRatio); // 用配置的宽度padding比例
-          setSvgHeight(bbox.height * CONFIG.svgHeightPaddingRatio); // 用配置的高度padding比例
+          const contentHeight = getContentHeight();
+          setSvgWidth(bbox.width * CONFIG.svgWidthPaddingRatio);
+          setSvgHeight(
+            Math.max(contentHeight, bbox.height * CONFIG.svgHeightPaddingRatio)
+          );
         } catch (e) {
-          // getBBox 可能在SVG为空时抛错
+          console.warn("SVG dimensions calculation failed:", e);
         }
-      }, 100);
+      };
+
+      // 立即计算一次
+      calculateSvgDimensions();
+
+      // 使用 requestAnimationFrame 确保在下一帧再次计算
+      requestAnimationFrame(() => {
+        calculateSvgDimensions();
+      });
     }
-  }, [features, dimensions]);
+  }, [features, dimensions, getContentHeight]);
 
   // 只在首次加载时记录窗口宽度的比例（从CONFIG读取）
   if (initialSvgWidthRef.current === null) {
@@ -720,9 +908,7 @@ const LinearSequenceRenderer = ({
       style={{
         height: "100vh",
         overflowY: "auto",
-        overflowX: "auto",
         position: "relative",
-        background: "#121212",
       }}
     >
       <svg
@@ -730,10 +916,8 @@ const LinearSequenceRenderer = ({
         width={svgWidth}
         height={svgHeight}
         style={{
-          fontFamily: CONFIG.fonts.primary.family,
-          fontSize: `${CONFIG.styles.annotation.fontSize}px`,
           display: "block",
-          backgroundColor: "#121212",
+          margin: "0 auto",
         }}
       />
     </div>

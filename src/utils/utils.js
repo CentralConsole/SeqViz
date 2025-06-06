@@ -1,5 +1,3 @@
-import * as d3 from "d3";
-
 // 数据处理工具函数
 export const DataUtils = {
   parseLocus: (locus) => locus.split(/\s+/),

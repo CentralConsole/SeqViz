@@ -84,4 +84,12 @@ export const CONFIG = {
   svgWidthRatio: 0.8, // SVG宽度占首次加载时窗口宽度的比例
   svgWidthPaddingRatio: 1.2, // SVG宽度padding比例（内容宽度的倍数）
   svgHeightPaddingRatio: 1.2, // SVG高度padding比例（内容高度的倍数）
+  linearLayout: {
+    rowSpacing: 30, // 行间距
+    textHeight: 20, // 文本高度
+    safetyMargin: 20, // 安全边距
+    textSpacing: 5, // 文本间距
+    minAnnotationHeight: 20, // 最小注释高度
+    textBoxMargin: 10, // 文本与框之间的边距
+  },
 };
