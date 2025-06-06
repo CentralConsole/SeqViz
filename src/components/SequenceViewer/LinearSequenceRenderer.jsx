@@ -110,7 +110,11 @@ const LinearSequenceRenderer = ({
 
     locations.forEach((loc) => {
       const start = Number(DataUtils.cleanString(loc[0]));
-      const end = Number(DataUtils.cleanString(loc[loc.length - 1]));
+      // 如果是单个坐标，则结束位置等于起始位置
+      const end =
+        loc.length > 1
+          ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+          : start;
       minStart = Math.min(minStart, start);
       maxEnd = Math.max(maxEnd, end);
     });
@@ -203,10 +207,7 @@ const LinearSequenceRenderer = ({
 
       const featureGroup = d3.select(`#feature-${featureId}`);
       const text =
-        feature.information.gene ||
-        feature.information.product ||
-        feature.information.note ||
-        feature.type;
+        feature.information.gene || feature.information.product || feature.type;
 
       featureGroup.raise();
       featureGroup.selectAll(".box").style("stroke-width", 2);
@@ -411,9 +412,13 @@ const LinearSequenceRenderer = ({
         (f) => {
           // 取所有location的最大end
           return Math.max(
-            ...f.location.map((loc) =>
-              Number(DataUtils.cleanString(loc[loc.length - 1]))
-            )
+            ...f.location.map((loc) => {
+              const start = Number(DataUtils.cleanString(loc[0]));
+              // 如果是单个坐标，则结束位置等于起始位置
+              return loc.length > 1
+                ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+                : start;
+            })
           );
         }
       );
@@ -422,13 +427,15 @@ const LinearSequenceRenderer = ({
       features.forEach((feature) => {
         const row = feature._row;
         feature.location.forEach((loc) => {
-          const [boxStart, boxEnd] = [
-            Number(DataUtils.cleanString(loc[0])),
-            Number(DataUtils.cleanString(loc[loc.length - 1])),
-          ];
+          const start = Number(DataUtils.cleanString(loc[0]));
+          // 如果是单个坐标，则结束位置等于起始位置
+          const end =
+            loc.length > 1
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : start;
           layoutManager.current.calculatePosition(
-            lengthScaleRef.current(boxStart),
-            lengthScaleRef.current(boxEnd),
+            lengthScaleRef.current(start),
+            lengthScaleRef.current(end),
             row,
             dimensions.boxHeight
           );
@@ -466,7 +473,10 @@ const LinearSequenceRenderer = ({
           });
           sortedLocations.forEach((loc) => {
             const boxStart = Number(DataUtils.cleanString(loc[0]));
-            const boxEnd = Number(DataUtils.cleanString(loc[loc.length - 1]));
+            const boxEnd =
+              loc.length > 1
+                ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+                : boxStart;
             if (boxStart > lastEnd) {
               const bonePosition = layoutManager.current.calculatePosition(
                 lengthScaleRef.current(lastEnd),
@@ -492,22 +502,27 @@ const LinearSequenceRenderer = ({
         }
 
         feature.location.forEach((loc) => {
-          const [boxStart, boxEnd] = [
-            Number(DataUtils.cleanString(loc[0])),
-            Number(DataUtils.cleanString(loc[loc.length - 1])),
-          ];
+          const start = Number(DataUtils.cleanString(loc[0]));
+          // 如果是单个坐标，则结束位置等于起始位置
+          const end =
+            loc.length > 1
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : start;
           const position = layoutManager.current.calculatePosition(
-            lengthScaleRef.current(boxStart),
-            lengthScaleRef.current(boxEnd),
+            lengthScaleRef.current(start),
+            lengthScaleRef.current(end),
             row,
             dimensions.boxHeight
           );
+          // 对于单个坐标的特征，使用一个最小宽度的矩形
+          const width =
+            loc.length === 1 ? Math.max(2, position.width) : position.width;
           featureGroup
             .append("rect")
             .attr("class", `box ${feature.type}`)
             .attr("x", position.x)
             .attr("y", position.y)
-            .attr("width", position.width)
+            .attr("width", width)
             .attr("height", position.height)
             .style("fill", CONFIG.colors[feature.type] || CONFIG.colors.others)
             .style("stroke", "none");
@@ -533,7 +548,6 @@ const LinearSequenceRenderer = ({
           const text =
             feature.information.gene ||
             feature.information.product ||
-            feature.information.note ||
             feature.type;
           if (text) {
             const textWidth = TextUtils.measureTextWidth(
@@ -567,6 +581,7 @@ const LinearSequenceRenderer = ({
         // 使用d3.forceSimulation对每行textNodes做力导向模拟
         const simulation = d3
           .forceSimulation(textNodes)
+          .velocityDecay(0.5)
           .force(
             "repel",
             d3.forceManyBody().strength(-5).distanceMax(50).distanceMin(0)
@@ -581,7 +596,7 @@ const LinearSequenceRenderer = ({
             "collide",
             d3
               .forceCollide()
-              .radius((d) => d.width + 10)
+              .radius((d) => 2 * d.width + 10)
               .iterations(4)
           )
           .on("tick", () => {
@@ -648,7 +663,6 @@ const LinearSequenceRenderer = ({
           const text =
             feature.information.gene ||
             feature.information.product ||
-            feature.information.note ||
             feature.type;
           if (text) {
             const textWidth = TextUtils.measureTextWidth(
