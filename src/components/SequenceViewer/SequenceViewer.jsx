@@ -99,8 +99,8 @@ const SequenceViewer = ({
       }}
     >
       <ViewModeToggle
-        currentMode={viewMode}
-        onModeChange={handleViewModeChange}
+        currentView={viewMode}
+        onViewChange={handleViewModeChange}
       />
       {viewMode === "linear" ? (
         <LinearSequenceRenderer

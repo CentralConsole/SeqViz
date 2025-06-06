@@ -14,6 +14,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
   const svgRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const { sequenceViewer } = CONFIG;
 
   useEffect(() => {
     if (!svgRef.current || !data) return;
@@ -79,8 +80,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .append("circle")
       .attr("r", innerRadius)
       .attr("fill", "none")
-      .attr("stroke", CONFIG.colors.others)
-      .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+      .attr("stroke", CONFIG.styles.axis.stroke)
+      .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
 
     // 绘制特征
     if (data.features && Array.isArray(data.features)) {
@@ -99,7 +100,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             return null;
           }
 
-          // 处理特征的所有段，拆分跨越0弧度的段
+          // 处理特征的所有段
           const processedSegments = [];
           let firstSegmentMidAngle = null; // 用于确定特征的主角度
 
@@ -121,41 +122,17 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             const startAngle = angleScale(start);
             const stopAngle = angleScale(stop);
 
-            // 处理跨越0弧度的段
-            if (stop < start) {
-              // 跨越0弧度的段，拆分成两段
-              processedSegments.push({
-                start: start,
-                stop: totalLength,
-                isFirst: locIndex === 0,
-                isTextSegment: locIndex === 0,
-              });
-              processedSegments.push({
-                start: 0,
-                stop: stop,
-                isFirst: false,
-                isTextSegment: false,
-              }); // 第二段不用于文本
+            // 正常段
+            processedSegments.push({
+              start,
+              stop,
+              isFirst: locIndex === 0,
+              isTextSegment: locIndex === 0,
+            });
 
-              // 计算原始段的中点角度（用于确定特征的主角度）
-              if (locIndex === 0 && firstSegmentMidAngle === null) {
-                // 对于跨越0弧度的第一段，特殊计算中点角度
-                const mid = (startAngle + stopAngle) / 2;
-                firstSegmentMidAngle = mid < 0 ? mid + 2 * Math.PI : mid; // 确保角度为正
-              }
-            } else {
-              // 正常段
-              processedSegments.push({
-                start,
-                stop,
-                isFirst: locIndex === 0,
-                isTextSegment: locIndex === 0,
-              });
-
-              // 计算原始段的中点角度（用于确定特征的主角度）
-              if (locIndex === 0 && firstSegmentMidAngle === null) {
-                firstSegmentMidAngle = (startAngle + stopAngle) / 2;
-              }
+            // 计算原始段的中点角度（用于确定特征的主角度）
+            if (locIndex === 0 && firstSegmentMidAngle === null) {
+              firstSegmentMidAngle = (startAngle + stopAngle) / 2;
             }
           });
 
@@ -171,29 +148,13 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           // 计算特征的整体角度范围（用于重叠检测）
           let minAngle = Math.PI;
           let maxAngle = -Math.PI;
-          let hasCrossZeroSpan = false;
 
           processedSegments.forEach(({ start, stop }) => {
             const startAngle = angleScale(start);
             const stopAngle = angleScale(stop);
-
-            if (stopAngle < startAngle) {
-              // 这是拆分后跨越0的段（不应该发生，因为我们已经拆分了），或原始数据中的单段跨越0（应该在上面处理了）
-              // 但是为了健壮性，还是检查一下
-              hasCrossZeroSpan = true;
-              minAngle = Math.min(minAngle, stopAngle);
-              maxAngle = Math.max(maxAngle, startAngle);
-            } else {
-              minAngle = Math.min(minAngle, startAngle);
-              maxAngle = Math.max(maxAngle, stopAngle);
-            }
+            minAngle = Math.min(minAngle, startAngle);
+            maxAngle = Math.max(maxAngle, stopAngle);
           });
-
-          // 如果整体跨越了0（例如一个特征包含两段，一段在末尾，一段在开头），特殊处理角度范围
-          if (maxAngle - minAngle > Math.PI) {
-            // 如果角度跨度大于180度，可能跨越了0
-            hasCrossZeroSpan = true;
-          }
 
           // 返回处理后的特征对象
           return {
@@ -208,14 +169,12 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
               const start = parseInt(loc[0], 10);
               const stop = parseInt(loc[loc.length - 1], 10);
               if (isNaN(start) || isNaN(stop)) return sum;
-              if (stop < start) return sum + (totalLength - start + stop); // 跨越0
               return sum + (stop - start);
             }, 0), // 计算原始总长度
             angleRange: {
               // 用于重叠检测的整体角度范围
               min: minAngle,
               max: maxAngle,
-              hasCrossZero: hasCrossZeroSpan,
             },
           };
         })
@@ -475,11 +434,11 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         d3.select(this)
           .append("line")
           .attr("x1", innerRadius)
-          .attr("y1", -5)
-          .attr("x2", innerRadius)
-          .attr("y2", 5)
-          .attr("stroke", CONFIG.colors.others)
-          .attr("stroke-width", 1);
+          .attr("y1", 0)
+          .attr("x2", innerRadius + CONFIG.styles.axis.tickLength)
+          .attr("y2", 0)
+          .attr("stroke", CONFIG.styles.axis.stroke)
+          .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
 
         // 创建文本组并绘制刻度值文本
         const textGroup = d3
@@ -517,103 +476,16 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       });
   }, [data, width, height, onFeatureClick]);
 
-  // 重置视图
-  const resetView = () => {
-    if (svgRef.current) {
-      d3.select(svgRef.current)
-        .transition()
-        .duration(750)
-        .call(d3.zoom().transform, d3.zoomIdentity);
-    }
-  };
-
-  // 缩放控制
-  const zoomIn = () => {
-    if (svgRef.current) {
-      d3.select(svgRef.current)
-        .transition()
-        .duration(750)
-        .call(d3.zoom().scaleBy, 1.5);
-    }
-  };
-
-  const zoomOut = () => {
-    if (svgRef.current) {
-      d3.select(svgRef.current)
-        .transition()
-        .duration(750)
-        .call(d3.zoom().scaleBy, 0.75);
-    }
-  };
-
   return (
-    <div
-      style={{
-        position: "relative",
-        width: "100%",
-        height: "100%",
-        backgroundColor: "#121212",
-      }}
-    >
+    <div style={sequenceViewer.renderer}>
       <svg
         ref={svgRef}
         style={{
-          width: "100%",
-          height: "100%",
-          backgroundColor: "#121212",
+          ...sequenceViewer.svg,
+          backgroundColor: sequenceViewer.renderer.backgroundColor,
           fontSize: `${CONFIG.styles.annotation.fontSize}px`,
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          bottom: "20px",
-          left: "20px",
-          display: "flex",
-          gap: "10px",
-          zIndex: 1000,
-        }}
-      >
-        <button
-          onClick={zoomIn}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: CONFIG.colors.others,
-            border: "none",
-            borderRadius: "4px",
-            color: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          +
-        </button>
-        <button
-          onClick={zoomOut}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: CONFIG.colors.others,
-            border: "none",
-            borderRadius: "4px",
-            color: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          -
-        </button>
-        <button
-          onClick={resetView}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: CONFIG.colors.others,
-            border: "none",
-            borderRadius: "4px",
-            color: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          重置
-        </button>
-      </div>
     </div>
   );
 };

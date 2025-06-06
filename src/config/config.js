@@ -21,6 +21,11 @@ export const CONFIG = {
       stroke: "#000", // 边框颜色
       strokeWidth: 1, // 边框宽度
     },
+    axis: {
+      stroke: "#e0e0e0", // 坐标轴和刻度线的颜色
+      strokeWidth: 1, // 坐标轴和刻度线的宽度
+      tickLength: 2, // 刻度线长度
+    },
     bone: {
       opacity: 0.5,
       strokeLinecap: "round",
@@ -144,5 +149,135 @@ export const CONFIG = {
     textSpacing: 5, // 文本间距
     minAnnotationHeight: 20, // 最小注释高度
     textBoxMargin: 10, // 文本与框之间的边距
+  },
+  // 序列查看器样式配置
+  sequenceViewer: {
+    container: {
+      width: "100%",
+      height: "100%",
+      position: "relative",
+      overflow: "auto",
+      backgroundColor: "#121212",
+    },
+    renderer: {
+      position: "relative",
+      width: "100%",
+      height: "100%",
+      overflow: "auto",
+    },
+    svg: {
+      display: "block",
+      overflow: "visible",
+    },
+    tooltip: {
+      position: "absolute",
+      background: "#282828",
+      padding: "8px",
+      borderRadius: "4px",
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.5)",
+      color: "#e0e0e0",
+      fontSize: "12px",
+      pointerEvents: "none",
+      zIndex: 1000,
+    },
+    loading: {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      color: "#e0e0e0",
+    },
+    error: {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      color: "#ff6b6b",
+    },
+    scrollbar: {
+      width: "8px",
+      height: "8px",
+      track: {
+        background: "#1a1a1a",
+      },
+      thumb: {
+        background: "#333",
+        borderRadius: "4px",
+        hover: {
+          background: "#444",
+        },
+      },
+    },
+    feature: {
+      pointerEvents: "all",
+      cursor: "pointer",
+      hover: {
+        opacity: 0.9,
+      },
+    },
+    bone: {
+      stroke: "#444",
+      strokeWidth: "1px",
+    },
+    box: {
+      shapeRendering: "crispEdges",
+      transition: "opacity 0.2s",
+      hover: {
+        opacity: 0.8,
+      },
+    },
+    annotation: {
+      fill: "#ffffff",
+      pointerEvents: "none",
+    },
+    annotationBg: {
+      fill: "rgba(50, 50, 50, 0.85)",
+      stroke: "#333",
+      strokeWidth: "1px",
+      rx: "2px",
+      ry: "2px",
+    },
+    responsive: {
+      controls: {
+        position: "static",
+        margin: "10px",
+      },
+    },
+  },
+  // 视图切换按钮配置
+  viewModeToggle: {
+    container: {
+      position: "absolute",
+      top: "20px",
+      right: "20px",
+      zIndex: 1000,
+      display: "flex",
+      gap: "10px",
+    },
+    button: {
+      color: "white",
+      border: "none",
+      padding: "8px 16px",
+      borderRadius: "4px",
+      cursor: "pointer",
+      fontSize: "14px",
+      transition: "background-color 0.3s",
+    },
+    active: {
+      backgroundColor: "#4caf50",
+    },
+    inactive: {
+      backgroundColor: "#ccc",
+    },
+    hover: {
+      opacity: 0.9,
+    },
+    responsive: {
+      container: {
+        position: "static",
+        margin: "10px",
+        justifyContent: "center",
+      },
+    },
   },
 };

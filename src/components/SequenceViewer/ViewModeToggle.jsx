@@ -1,50 +1,35 @@
 import React from "react";
+import { CONFIG } from "../../config/config";
 
 /**
  * ViewModeToggle组件 - 用于切换序列视图模式
  * @param {Object} props
- * @param {string} props.currentMode - 当前视图模式
- * @param {Function} props.onModeChange - 模式切换回调函数
+ * @param {string} props.currentView - 当前视图模式
+ * @param {Function} props.onViewChange - 模式切换回调函数
  */
-const ViewModeToggle = ({ currentMode, onModeChange }) => {
+const ViewModeToggle = ({ currentView, onViewChange }) => {
+  const { container, button, active, inactive, hover } = CONFIG.viewModeToggle;
+
+  const getButtonStyle = (viewType) => ({
+    ...button,
+    ...(currentView === viewType ? active : inactive),
+  });
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: "20px",
-        right: "20px",
-        zIndex: 1000,
-        display: "flex",
-        gap: "10px",
-      }}
-    >
+    <div style={container}>
       <button
-        onClick={() => onModeChange("linear")}
-        style={{
-          backgroundColor: currentMode === "linear" ? "#4caf50" : "#ccc",
-          color: "white",
-          border: "none",
-          padding: "8px 16px",
-          borderRadius: "4px",
-          cursor: "pointer",
-          fontSize: "14px",
-          transition: "background-color 0.3s",
-        }}
+        style={getButtonStyle("linear")}
+        onClick={() => onViewChange("linear")}
+        onMouseOver={(e) => (e.currentTarget.style.opacity = hover.opacity)}
+        onMouseOut={(e) => (e.currentTarget.style.opacity = 1)}
       >
         线性视图
       </button>
       <button
-        onClick={() => onModeChange("circular")}
-        style={{
-          backgroundColor: currentMode === "circular" ? "#4caf50" : "#ccc",
-          color: "white",
-          border: "none",
-          padding: "8px 16px",
-          borderRadius: "4px",
-          cursor: "pointer",
-          fontSize: "14px",
-          transition: "background-color 0.3s",
-        }}
+        style={getButtonStyle("circular")}
+        onClick={() => onViewChange("circular")}
+        onMouseOver={(e) => (e.currentTarget.style.opacity = hover.opacity)}
+        onMouseOut={(e) => (e.currentTarget.style.opacity = 1)}
       >
         环形视图
       </button>

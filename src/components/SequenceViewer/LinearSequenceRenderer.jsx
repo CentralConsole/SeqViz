@@ -13,8 +13,6 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
 import { DataUtils, TextUtils, debounce } from "../../utils/utils";
-import SimpleLayoutManager from "../../utils/SimpleLayoutManager";
-import "./LinearSequenceRenderer.css";
 
 /**
  * 直线序列渲染组件
@@ -30,8 +28,8 @@ const LinearSequenceRenderer = ({
   height = 600,
   onFeatureClick,
 }) => {
-  // SVG容器引用
   const svgRef = useRef(null);
+  const { sequenceViewer } = CONFIG;
   // 渲染区域尺寸状态
   const [dimensions, setDimensions] = useState(null);
   // 特征数据状态
@@ -50,17 +48,14 @@ const LinearSequenceRenderer = ({
   const hoverTimeoutRef = useRef(null);
   // 当前悬停的特征
   const [hoveredFeature, setHoveredFeature] = useState(null);
-  // 布局管理器实例
-  const layoutManager = useRef(
-    new SimpleLayoutManager({
-      rowHeight: CONFIG.dimensions.boxHeight,
-      rowSpacing: CONFIG.dimensions.vSpace,
-      textHeight: CONFIG.dimensions.fontSize,
-      safetyMargin: CONFIG.dimensions.safetyMargin,
-      textSpacing: CONFIG.dimensions.textSpacing || 5,
-      minAnnotationHeight: CONFIG.dimensions.minAnnotationHeight || 20,
-    })
-  );
+  // 布局状态
+  const layoutState = useRef({
+    rowBoxInfo: new Map(),
+    rowYs: new Map(),
+    rowHeights: new Map(),
+    lockedRowYs: new Map(),
+    boxLayoutLocked: false,
+  });
   // 初始宽度引用
   const initialWidthRef = useRef(null);
   // 新增：用于动态设置SVG宽度和高度
@@ -69,20 +64,128 @@ const LinearSequenceRenderer = ({
   // 只在首次加载时记录窗口宽度的比例（从CONFIG读取）
   const initialSvgWidthRef = useRef(null);
 
+  // 计算所有行的y坐标
+  const recalcRowYs = useCallback(() => {
+    let y = 0;
+    for (let row = 0; layoutState.current.rowHeights.has(row); row++) {
+      layoutState.current.rowYs.set(row, y);
+      y +=
+        layoutState.current.rowHeights.get(row) +
+        CONFIG.linearLayout.rowSpacing;
+    }
+    // 如果未锁定，更新lockedRowYs
+    if (!layoutState.current.boxLayoutLocked) {
+      layoutState.current.lockedRowYs = new Map(layoutState.current.rowYs);
+    }
+  }, []);
+
+  // 计算元素位置
+  const calculatePosition = useCallback(
+    (start, end, row, rowHeight) => {
+      // 更新行高
+      const prevBoxInfo = layoutState.current.rowBoxInfo.get(row) || {
+        height: 0,
+      };
+      const boxHeight = Math.max(prevBoxInfo.height, rowHeight);
+      layoutState.current.rowBoxInfo.set(row, { height: boxHeight });
+
+      // 计算最小行高
+      const minRowHeight =
+        boxHeight +
+        CONFIG.linearLayout.minAnnotationHeight +
+        CONFIG.linearLayout.textSpacing;
+      const prevRowHeight = layoutState.current.rowHeights.get(row) || 0;
+
+      // 更新行高
+      if (
+        !layoutState.current.rowHeights.has(row) ||
+        prevRowHeight < minRowHeight
+      ) {
+        layoutState.current.rowHeights.set(row, minRowHeight);
+        recalcRowYs();
+      }
+
+      // 使用锁定的y坐标（如果已锁定）
+      const y = layoutState.current.boxLayoutLocked
+        ? layoutState.current.lockedRowYs.get(row) || 0
+        : layoutState.current.rowYs.get(row) || 0;
+
+      return {
+        x: start,
+        y: y,
+        width: end - start,
+        height: boxHeight,
+        row: row,
+      };
+    },
+    [recalcRowYs]
+  );
+
+  // 锁定布局
+  const lockBoxLayout = useCallback(() => {
+    layoutState.current.boxLayoutLocked = true;
+    layoutState.current.lockedRowYs = new Map(layoutState.current.rowYs);
+  }, []);
+
+  // 解锁布局
+  const unlockBoxLayout = useCallback(() => {
+    layoutState.current.boxLayoutLocked = false;
+  }, []);
+
+  // 重置布局
+  const resetLayout = useCallback(() => {
+    layoutState.current.rowBoxInfo.clear();
+    layoutState.current.rowYs.clear();
+    layoutState.current.rowHeights.clear();
+    layoutState.current.lockedRowYs.clear();
+    layoutState.current.boxLayoutLocked = false;
+  }, []);
+
+  // 按跨度贪心分配行号
+  const assignRowsBySpan = useCallback((items, getStart, getEnd) => {
+    // 1. 按跨度降序排序
+    const sorted = [...items].sort(
+      (a, b) => getEnd(b) - getStart(b) - (getEnd(a) - getStart(a))
+    );
+    const rows = []; // 每行存放已分配的区间
+
+    sorted.forEach((item) => {
+      let assigned = false;
+      for (let row = 0; ; row++) {
+        if (!rows[row]) rows[row] = [];
+        // 检查该行是否有重叠
+        const overlap = rows[row].some(
+          (other) =>
+            !(getEnd(item) < getStart(other) || getStart(item) > getEnd(other))
+        );
+        if (!overlap) {
+          item._row = row;
+          rows[row].push(item);
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        item._row = rows.length;
+        rows.push([item]);
+      }
+    });
+    return sorted;
+  }, []);
+
   /**
    * 更新布局管理器配置
    * 当尺寸变化时，重新创建布局管理器实例
    */
   useEffect(() => {
     if (dimensions) {
-      layoutManager.current = new SimpleLayoutManager({
-        rowHeight: dimensions.boxHeight,
-        rowSpacing: dimensions.vSpace,
-        textHeight: dimensions.fontSize,
-        safetyMargin: CONFIG.dimensions.safetyMargin,
-        textSpacing: CONFIG.dimensions.textSpacing || 5,
-        minAnnotationHeight: CONFIG.dimensions.minAnnotationHeight || 20,
-      });
+      layoutState.current = {
+        rowBoxInfo: new Map(),
+        rowYs: new Map(),
+        rowHeights: new Map(),
+        lockedRowYs: new Map(),
+        boxLayoutLocked: false,
+      };
     }
   }, [dimensions]);
 
@@ -390,7 +493,7 @@ const LinearSequenceRenderer = ({
     (container) => {
       if (!container || !features.length) return;
 
-      layoutManager.current.reset();
+      resetLayout();
 
       lengthScaleRef.current = d3
         .scaleLinear()
@@ -401,7 +504,7 @@ const LinearSequenceRenderer = ({
       const rowGroups = new Map();
 
       // 1. 按跨度贪心分配行号
-      SimpleLayoutManager.assignRowsBySpan(
+      assignRowsBySpan(
         features,
         (f) => {
           // 取所有location的最小start
@@ -423,7 +526,7 @@ const LinearSequenceRenderer = ({
         }
       );
 
-      // 2. 预分配box高度（保持原有逻辑，遍历features，调用calculatePosition）
+      // 2. 预分配box高度
       features.forEach((feature) => {
         const row = feature._row;
         feature.location.forEach((loc) => {
@@ -433,7 +536,7 @@ const LinearSequenceRenderer = ({
             loc.length > 1
               ? Number(DataUtils.cleanString(loc[loc.length - 1]))
               : start;
-          layoutManager.current.calculatePosition(
+          calculatePosition(
             lengthScaleRef.current(start),
             lengthScaleRef.current(end),
             row,
@@ -443,7 +546,7 @@ const LinearSequenceRenderer = ({
       });
 
       // 3. 锁定box布局，渲染所有box和骨架线
-      layoutManager.current.lockBoxLayout();
+      lockBoxLayout();
       features.forEach((feature, index) => {
         const featureId = `feature-${index}`;
         const row = feature._row;
@@ -478,7 +581,7 @@ const LinearSequenceRenderer = ({
                 ? Number(DataUtils.cleanString(loc[loc.length - 1]))
                 : boxStart;
             if (boxStart > lastEnd) {
-              const bonePosition = layoutManager.current.calculatePosition(
+              const bonePosition = calculatePosition(
                 lengthScaleRef.current(lastEnd),
                 lengthScaleRef.current(boxStart),
                 row,
@@ -494,8 +597,11 @@ const LinearSequenceRenderer = ({
                 .style("stroke-width", bonePosition.height / 4)
                 .style(
                   "stroke",
-                  CONFIG.colors[feature.type] || CONFIG.colors.others
-                );
+                  (CONFIG.colors[feature.type] || CONFIG.colors.others).stroke
+                )
+                .style("stroke-dasharray", CONFIG.styles.bone.strokeDasharray)
+                .style("stroke-linecap", CONFIG.styles.bone.strokeLinecap)
+                .style("opacity", CONFIG.styles.bone.opacity);
             }
             lastEnd = Math.max(lastEnd, boxEnd);
           });
@@ -508,7 +614,7 @@ const LinearSequenceRenderer = ({
             loc.length > 1
               ? Number(DataUtils.cleanString(loc[loc.length - 1]))
               : start;
-          const position = layoutManager.current.calculatePosition(
+          const position = calculatePosition(
             lengthScaleRef.current(start),
             lengthScaleRef.current(end),
             row,
@@ -535,7 +641,7 @@ const LinearSequenceRenderer = ({
             .style("stroke-width", CONFIG.styles.box.strokeWidth);
         });
       });
-      layoutManager.current.unlockBoxLayout();
+      unlockBoxLayout();
 
       // 4. 集中收集每行的textNodes
       const rowTextNodes = new Map();
@@ -546,7 +652,7 @@ const LinearSequenceRenderer = ({
             Number(DataUtils.cleanString(loc[0])),
             Number(DataUtils.cleanString(loc[loc.length - 1])),
           ];
-          const position = layoutManager.current.calculatePosition(
+          const position = calculatePosition(
             lengthScaleRef.current(boxStart),
             lengthScaleRef.current(boxEnd),
             row,
@@ -568,7 +674,7 @@ const LinearSequenceRenderer = ({
               if (!rowTextNodes.has(row)) rowTextNodes.set(row, []);
               rowTextNodes.get(row).push({
                 text,
-                width: position.width,
+                width: textWidth,
                 height: dimensions.fontSize,
                 x: position.x + position.width / 2,
                 y: position.y + position.height + dimensions.fontSize / 2,
@@ -603,7 +709,7 @@ const LinearSequenceRenderer = ({
             "collide",
             d3
               .forceCollide()
-              .radius((d) => 2 * d.width + 10)
+              .radius((d) => d.width / 2 + 5)
               .iterations(4)
           )
           .on("tick", () => {
@@ -637,20 +743,9 @@ const LinearSequenceRenderer = ({
             : 0;
         let rowHeight = maxY - minY;
         rowHeights.set(row, rowHeight);
-        console.log(`行 ${row} 的最终高度:`, rowHeight);
       });
 
-      // === 只输出一次所有行的textNodes ===
-      const maxRow =
-        rowTextNodes.size > 0
-          ? Math.max(...Array.from(rowTextNodes.keys()))
-          : -1;
-      for (let row = 0; row <= maxRow; row++) {
-        const nodes = rowTextNodes.get(row) || [];
-        console.log(`行 ${row} 的 textNodes 列表:`, nodes);
-      }
-
-      // 5. 渲染所有annotation
+      // 6. 渲染所有annotation
       features.forEach((feature, index) => {
         const row = feature._row;
         let rowGroup = rowGroups.get(row);
@@ -661,7 +756,7 @@ const LinearSequenceRenderer = ({
             Number(DataUtils.cleanString(loc[0])),
             Number(DataUtils.cleanString(loc[loc.length - 1])),
           ];
-          const position = layoutManager.current.calculatePosition(
+          const position = calculatePosition(
             lengthScaleRef.current(boxStart),
             lengthScaleRef.current(boxEnd),
             row,
@@ -700,8 +795,9 @@ const LinearSequenceRenderer = ({
                   .attr("y2", textNode.box.y + textNode.box.height)
                   .attr("stroke", "#aaa")
                   .attr("stroke-width", 1)
-                  .attr("stroke-dasharray", "2,2");
+                  .style("pointer-events", "none");
 
+                // 插入文本背景
                 featureGroup
                   .append("rect")
                   .attr("class", "text-bg")
@@ -709,9 +805,10 @@ const LinearSequenceRenderer = ({
                   .attr("y", textNode.y - textNode.height / 2)
                   .attr("width", textNode.width + 10)
                   .attr("height", textNode.height)
-                  .style("fill", "#121212")
-                  .style("opacity", 0.8);
+                  .style("fill", "none")
+                  .style("opacity", 0);
 
+                // 插入文本
                 featureGroup
                   .append("text")
                   .attr("class", "annotation truncated")
@@ -722,7 +819,8 @@ const LinearSequenceRenderer = ({
                   .style("font-size", `${dimensions.fontSize}px`)
                   .style("dominant-baseline", "middle")
                   .style("text-anchor", "middle")
-                  .style("pointer-events", "none");
+                  .style("pointer-events", "none")
+                  .style("fill", CONFIG.styles.annotation.fillDark);
               }
             } else {
               // 普通文本直接渲染
@@ -742,7 +840,15 @@ const LinearSequenceRenderer = ({
         });
       });
     },
-    [features, dimensions]
+    [
+      features,
+      dimensions,
+      resetLayout,
+      assignRowsBySpan,
+      calculatePosition,
+      lockBoxLayout,
+      unlockBoxLayout,
+    ]
   );
 
   /**
@@ -816,16 +922,16 @@ const LinearSequenceRenderer = ({
       .feature rect, .feature line, .feature text { cursor: pointer; }
       .hover-content, .hover-content * { pointer-events: none; }
       .top-axis path, .top-axis line {
-        stroke: #666;
-        stroke-width: 1;
+        stroke: ${CONFIG.styles.axis.stroke};
+        stroke-width: ${CONFIG.styles.axis.strokeWidth};
       }
       .top-axis text {
-        fill: #e0e0e0;
+        fill: ${CONFIG.styles.annotation.fillDark};
         font-size: ${CONFIG.styles.annotation.fontSize}px;
         font-family: ${CONFIG.fonts.primary.family};
       }
       .annotation {
-        fill: #e0e0e0;
+        fill: ${CONFIG.styles.annotation.fillDark};
         font-size: ${CONFIG.styles.annotation.fontSize}px;
         font-family: ${CONFIG.fonts.primary.family};
       }
@@ -916,30 +1022,20 @@ const LinearSequenceRenderer = ({
   }
 
   if (loading) {
-    return <div className="loading">加载中...</div>;
+    return <div style={sequenceViewer.loading}>加载中...</div>;
   }
 
   if (error) {
-    return <div className="error">错误: {error}</div>;
+    return <div style={sequenceViewer.error}>错误: {error}</div>;
   }
 
   return (
-    <div
-      className="sequence-renderer"
-      style={{
-        height: "100vh",
-        overflowY: "auto",
-        position: "relative",
-      }}
-    >
+    <div style={sequenceViewer.renderer}>
       <svg
         ref={svgRef}
+        style={sequenceViewer.svg}
         width={svgWidth}
         height={svgHeight}
-        style={{
-          display: "block",
-          margin: "0 auto",
-        }}
       />
     </div>
   );
