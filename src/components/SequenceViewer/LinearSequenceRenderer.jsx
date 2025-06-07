@@ -47,7 +47,7 @@ const LinearSequenceRenderer = ({
       left: initialWidth * CONFIG.dimensions.margin.left,
     };
     const contentWidth = initialWidth - margin.left - margin.right;
-    const contentHeight = height - margin.top - margin.bottom;
+    const viewportHeight = height - margin.top - margin.bottom;
     const fontSize =
       CONFIG.dimensions.unit * CONFIG.dimensions.fontSizeMultiplier;
     const boxHeight =
@@ -71,57 +71,55 @@ const LinearSequenceRenderer = ({
       .style("width", "100%")
       .style("height", "100%");
 
-    // 创建缩放行为
-    const zoom = d3
-      .zoom()
-      .scaleExtent([1, 1]) // 只允许平移，不允许缩放
-      .on("zoom", (event) => {
-        // 只使用 y 方向的变换，保持 x 方向不变
-        container.attr(
-          "transform",
-          `translate(${margin.left},${margin.top + event.transform.y})`
-        );
-      });
-
-    // 应用缩放行为到SVG
-    svg.call(zoom);
-
-    // 添加鼠标滚轮事件处理
-    svg.on("wheel", (event) => {
-      event.preventDefault();
-      const delta = event.deltaY;
-      const currentTransform = d3.zoomTransform(svg.node());
-      const newY = currentTransform.y + delta;
-
-      // 应用新的变换
-      svg.call(zoom.transform, d3.zoomIdentity.translate(0, newY));
-    });
-
-    const container = svg
+    // 创建可滚动的内容组
+    const contentGroup = svg
       .append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
+      .attr("class", "content")
+      .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+    // 创建固定坐标轴组（移到内容组之后，确保在最上层）
+    const axisGroup = svg
+      .append("g")
+      .attr("class", "axis-group")
+      .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+    // 添加坐标轴背景
+    axisGroup
+      .append("rect")
+      .attr("x", -margin.left)
+      .attr("y", -margin.top)
+      .attr("width", width + margin.left + margin.right)
+      .attr("height", margin.top + 20) // 20是刻度线的高度
+      .attr("fill", CONFIG.styles.axis.background.fill)
+      .attr("stroke", CONFIG.styles.axis.background.stroke);
 
     // 坐标轴
     const topAxis = d3
       .axisTop(lengthScale)
-      .tickFormat(d3.format(",d"))
-      .ticks(10);
-    const axisGroup = container.append("g").attr("class", "top-axis");
-    axisGroup.call(topAxis);
-    // 应用样式
+      .ticks(Math.min(20, Math.floor(width / 50)))
+      .tickFormat((d) => {
+        return d.toLocaleString();
+      });
+
+    axisGroup.append("g").call(topAxis);
+
+    // 应用坐标轴样式
     axisGroup
       .selectAll("path, line")
       .attr("stroke", CONFIG.styles.axis.stroke)
       .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
+
     axisGroup
       .selectAll("text")
       .attr("fill", CONFIG.styles.annotation.fillDark)
       .attr("font-size", `${CONFIG.styles.annotation.fontSize}px`)
       .attr("font-family", CONFIG.fonts.primary.family);
 
-    // 多行排布：贪心分配行号
+    // 渲染所有特征并计算内容高度
+    let currentRowY = vSpace * 2;
     const features = data.features || [];
-    // 按跨度降序排序
+
+    // 多行排布：贪心分配行号
     const sorted = [...features].sort((a, b) => {
       const aStart = Math.min(
         ...a.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
@@ -203,10 +201,9 @@ const LinearSequenceRenderer = ({
     });
 
     // 逐行渲染
-    let currentRowY = vSpace * 2;
     for (let row = 0; featuresByRow.has(row); row++) {
       const rowFeatures = featuresByRow.get(row) || [];
-      const rowGroup = container.append("g").attr("class", `row-${row}`);
+      const rowGroup = contentGroup.append("g").attr("class", `row-${row}`);
       // 收集当前行的圈外文本节点
       const rowTextNodes = [];
       // 渲染当前行的所有特征
@@ -576,17 +573,47 @@ const LinearSequenceRenderer = ({
       // 动态推进下一行y
       currentRowY = rowMaxY + vSpace;
     }
+
+    // 计算内容高度和可滚动范围
+    const contentHeight = currentRowY - margin.top;
+    const maxScroll = Math.max(
+      0,
+      contentHeight - viewportHeight + margin.bottom
+    ); // 添加底部边距
+
+    // 创建缩放行为
+    const zoom = d3
+      .zoom()
+      .scaleExtent([1, 1]) // 禁用缩放
+      .on("zoom", (event) => {
+        // 只应用y方向的变换，保持x位置固定
+        const limitedY = Math.max(-maxScroll, Math.min(0, event.transform.y));
+        contentGroup.attr(
+          "transform",
+          `translate(${margin.left}, ${margin.top + limitedY})`
+        );
+      });
+
+    // 应用缩放行为到SVG
+    svg.call(zoom);
+
+    // 添加鼠标滚轮事件处理
+    svg.on("wheel", (event) => {
+      event.preventDefault();
+      const delta = event.deltaY;
+      const currentTransform = d3.zoomTransform(svg.node());
+      const newY = currentTransform.y + delta;
+
+      // 限制滚动范围
+      const limitedY = Math.max(-maxScroll, Math.min(0, newY));
+
+      // 应用新的变换
+      svg.call(zoom.transform, d3.zoomIdentity.translate(0, limitedY));
+    });
   }, [data, width, height, onFeatureClick]);
 
   return (
-    <div
-      style={{
-        ...sequenceViewer.renderer,
-        overflow: "auto",
-        maxHeight: "100vh",
-        position: "relative",
-      }}
-    >
+    <div style={sequenceViewer.renderer}>
       <svg
         ref={svgRef}
         style={{

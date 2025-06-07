@@ -37,24 +37,6 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .append("g")
       .attr("transform", `translate(${width / 2},${height / 2})`);
 
-    // 创建缩放行为
-    const zoom = d3
-      .zoom()
-      .scaleExtent([0.5, 3])
-      .on("zoom", (event) => {
-        mainGroup.attr(
-          "transform",
-          `translate(${event.transform.x + width / 2},${
-            event.transform.y + height / 2
-          }) scale(${event.transform.k})`
-        );
-        setScale(event.transform.k);
-        setTranslate({ x: event.transform.x, y: event.transform.y });
-      });
-
-    // 应用缩放行为到SVG
-    svg.call(zoom);
-
     // 获取序列总长度
     const locusMatch = data.locus.match(/(\d+)\s+bp/);
     const totalLength = locusMatch ? parseInt(locusMatch[1], 10) : 0;
@@ -82,6 +64,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .attr("fill", "none")
       .attr("stroke", CONFIG.styles.axis.stroke)
       .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
+
+    let maxRadius = innerRadius; // 初始化最大半径
 
     // 绘制特征
     if (data.features && Array.isArray(data.features)) {
@@ -808,6 +792,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         });
 
         currentLayerMaxRadius = layerMaxRadius;
+        maxRadius = Math.max(maxRadius, currentLayerMaxRadius);
       }
     }
 
@@ -867,6 +852,28 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           })
           .text(Math.floor(d));
       });
+
+    // 在特征渲染完成后创建缩放行为
+    const zoom = d3
+      .zoom()
+      .scaleExtent([0.5, 3])
+      .translateExtent([
+        [width / 2 - maxRadius * 1.2, height / 2 - maxRadius * 1.2],
+        [width / 2 + maxRadius * 1.2, height / 2 + maxRadius * 1.2],
+      ])
+      .on("zoom", (event) => {
+        mainGroup.attr(
+          "transform",
+          `translate(${event.transform.x + width / 2},${
+            event.transform.y + height / 2
+          }) scale(${event.transform.k})`
+        );
+        setScale(event.transform.k);
+        setTranslate({ x: event.transform.x, y: event.transform.y });
+      });
+
+    // 应用缩放行为到SVG
+    svg.call(zoom);
   }, [data, width, height, onFeatureClick]);
 
   return (
