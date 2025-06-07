@@ -690,10 +690,7 @@ const LinearSequenceRenderer = ({
             )
             .force("x", d3.forceX((d) => d.targetX).strength(1))
             .force("y", d3.forceY((d) => d.targetY).strength(1))
-            .force(
-              "gravity",
-              d3.forceY(() => 0).strength(-0.1 / Math.log(2 + row))
-            )
+            .force("gravity", d3.forceY(() => 0).strength(-0.35 / (1 + row)))
             .force(
               "collide",
               d3
@@ -704,7 +701,7 @@ const LinearSequenceRenderer = ({
             .stop();
 
           // 执行力模拟
-          for (let i = 0; i < 100; ++i) {
+          for (let i = 0; i < 75; ++i) {
             simulation.tick();
           }
         }

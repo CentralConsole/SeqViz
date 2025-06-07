@@ -375,38 +375,97 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                   .attr("stroke-width", CONFIG.styles.box.strokeWidth);
               })
               .each(function () {
-                // 为每个段添加文本路径
+                // 为每个段创建专门的textPath弧形（位于内外环中间）
                 if (segment.isTextSegment) {
+                  const textContent =
+                    d.information?.gene || d.information?.product || d.type;
+                  const estimatedTextLength =
+                    textContent.length *
+                    CONFIG.styles.annotation.fontSize *
+                    0.6;
+
+                  // 获取当前层的内外半径
+                  const currentLayerRadii = layerRadii.get(d.radialOffset);
+                  const innerR = currentLayerRadii?.inner;
+                  const outerR = currentLayerRadii?.outer;
+                  const textRadiusOffset = 5;
+
+                  // 计算中间半径作为textPath的半径
+                  const textPathRadius =
+                    (innerR + outerR) / 2 - textRadiusOffset;
+
+                  // 创建专门的textPath弧形生成器
+                  const textPathArc = d3
+                    .arc()
+                    .innerRadius(textPathRadius)
+                    .outerRadius(textPathRadius + 1) // 极薄的弧形用于提取路径
+                    .startAngle(startAngle)
+                    .endAngle(stopAngle);
+
+                  // 生成中间弧形路径
+                  const textPathD = textPathArc();
+
+                  // 使用正则表达式提取弧形外环路径
                   const firstArcSection = /(^.+?)L/;
-                  const pathD = d3.select(this).attr("d");
-                  const arcMatch = firstArcSection.exec(pathD)?.[1];
+                  const arcMatch = firstArcSection.exec(textPathD)?.[1];
 
                   if (arcMatch) {
-                    const cleanArc = arcMatch.replace(/,/g, " ");
-                    const pathNode = d3.select(this).node();
-                    const pathLength = pathNode ? pathNode.getTotalLength() : 0;
+                    let cleanArc = arcMatch.replace(/,/g, " ");
 
-                    const textContent =
-                      d.information?.gene || d.information?.product || d.type;
-                    const estimatedTextLength =
-                      textContent.length *
-                      CONFIG.styles.annotation.fontSize *
-                      0.6;
+                    // 估算路径长度来判断是否适合显示文本
+                    const approximatePathLength =
+                      (stopAngle - startAngle) * textPathRadius;
 
-                    if (estimatedTextLength < pathLength * 0.9) {
-                      // 文本长度合适，创建textPath
+                    if (estimatedTextLength < approximatePathLength * 0.9) {
+                      // 文本长度合适，处理路径翻转逻辑
+                      let finalPath = cleanArc;
+
+                      // 计算段的角度范围来判断是否需要翻转文本路径
+                      const segmentMidAngle = (startAngle + stopAngle) / 2;
+
+                      // 检查是否在底部半圆（Pi/2 到 3Pi/2）
+                      const normalizedMidAngle =
+                        segmentMidAngle % (2 * Math.PI);
+                      const isInBottomHalf =
+                        normalizedMidAngle > Math.PI / 2 &&
+                        normalizedMidAngle < (3 * Math.PI) / 2;
+
+                      if (isInBottomHalf) {
+                        // 翻转路径方向，参考upsidedown逻辑
+                        const startLoc = /M(.*?)A/;
+                        const middleLoc = /A(.*?)0 0 1/;
+                        const endLoc = /0 0 1 (.*?)$/;
+
+                        const startMatch = startLoc.exec(finalPath);
+                        const middleMatch = middleLoc.exec(finalPath);
+                        const endMatch = endLoc.exec(finalPath);
+
+                        if (startMatch && middleMatch && endMatch) {
+                          // 翻转起点和终点，并将sweep-flag从1改为0
+                          const newStart = endMatch[1];
+                          const newEnd = startMatch[1];
+                          const middleSec = middleMatch[1];
+                          finalPath =
+                            "M" +
+                            newStart +
+                            "A" +
+                            middleSec +
+                            "0 0 0 " +
+                            newEnd;
+                        }
+                      }
+
+                      // 创建不可见的textPath弧形
                       featureElement
                         .append("path")
                         .attr(
                           "id",
                           `text-path-${layer}-${featureIndex}-${segmentIndex}`
                         )
-                        .attr("d", cleanArc)
+                        .attr("d", finalPath)
                         .attr("fill", "none")
-                        .attr("stroke", colorScale(d.type))
-                        .attr("stroke-width", 1)
-                        .attr("stroke-dasharray", "4,4")
-                        .style("opacity", 0.5);
+                        .attr("stroke", "none")
+                        .style("opacity", 0); // 完全不可见
                     }
                   }
                 }
@@ -449,19 +508,27 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
               if (startAngle > stopAngle) {
                 [startAngle, stopAngle] = [stopAngle, startAngle];
               }
-              const midAngle = (startAngle + stopAngle) / 2;
-              const radialOffset =
-                CONFIG.styles.annotation.textPathRadialOffset;
-              const dx = -Math.sin(midAngle) * radialOffset;
-              const dy = Math.cos(midAngle) * radialOffset;
+
+              const segmentMidAngle = (startAngle + stopAngle) / 2;
+              const normalizedMidAngle = segmentMidAngle % (2 * Math.PI);
+              const isInBottomHalf =
+                normalizedMidAngle > Math.PI / 2 &&
+                normalizedMidAngle < (3 * Math.PI) / 2; // A flag for annotations in the bottom half of the circle
+
+              const radiusOffset = -5; // An offset correction to be applied to annotations in the bottom half of the circle
+              const dx = -radiusOffset * Math.sin(segmentMidAngle);
+              const dy = radiusOffset * Math.cos(segmentMidAngle);
 
               featureElement
                 .append("text")
-                .attr("transform", `translate(${dx}, ${dy})`)
+                .attr(
+                  "transform",
+                  isInBottomHalf ? `translate(${dx}, ${dy})` : `translate(0,0)` // Conditional offset correction
+                )
                 .append("textPath")
                 .attr("xlink:href", `#${textPathId}`)
-                .style("text-anchor", "middle")
-                .attr("startOffset", "50%")
+                .style("text-anchor", "middle") //IMPORTANT: centering the text
+                .attr("startOffset", "50%") //IMPORTANT:  centering the text
                 .attr("lengthAdjust", "spacingAndGlyphs")
                 .attr("fill", CONFIG.styles.annotation.fillDark)
                 .attr("font-family", CONFIG.styles.annotation.fontFamily)
@@ -504,7 +571,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           }
         });
 
-        const centerStrength = -0.002 / Math.log(2 + layer);
+        const centerStrength = -0.008 / (2 + layer);
         // 对圈外文本应用力模拟
         if (layerOuterTextNodes.length > 0) {
           const simulation = d3
@@ -512,7 +579,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             .velocityDecay(0.7)
             .force(
               "repel",
-              d3.forceManyBody().strength(-0.5).distanceMax(50).distanceMin(0)
+              d3.forceManyBody().strength(-0.001).distanceMax(50).distanceMin(0)
             )
             .force("centerX", d3.forceX(() => 0).strength(centerStrength))
             .force("centerY", d3.forceY(() => 0).strength(centerStrength))
@@ -523,24 +590,10 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                 .radius((d) => d.width + 5)
                 .iterations(2)
             )
-            .on("tick", () => {
-              // 检查并强制推出最小半径
-              layerOuterTextNodes.forEach((node) => {
-                const currentRadius = Math.sqrt(
-                  node.x * node.x + node.y * node.y
-                );
-                const minRadius = currentLayerMaxRadius + 10;
-                if (currentRadius < minRadius && currentRadius > 0) {
-                  const scale = minRadius / currentRadius;
-                  node.x *= scale;
-                  node.y *= scale;
-                }
-              });
-            })
             .stop();
 
           // 执行多次tick直到收敛
-          for (let i = 0; i < 100; ++i) {
+          for (let i = 0; i < 75; ++i) {
             simulation.tick();
           }
         }
