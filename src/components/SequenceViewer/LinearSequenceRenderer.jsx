@@ -66,7 +66,7 @@ const LinearSequenceRenderer = ({
 
   // 计算所有行的y坐标
   const recalcRowYs = useCallback(() => {
-    let y = 0;
+    let y = CONFIG.dimensions.vSpace * 2;
     for (let row = 0; layoutState.current.rowHeights.has(row); row++) {
       layoutState.current.rowYs.set(row, y);
       y +=
@@ -120,17 +120,6 @@ const LinearSequenceRenderer = ({
     },
     [recalcRowYs]
   );
-
-  // 锁定布局
-  const lockBoxLayout = useCallback(() => {
-    layoutState.current.boxLayoutLocked = true;
-    layoutState.current.lockedRowYs = new Map(layoutState.current.rowYs);
-  }, []);
-
-  // 解锁布局
-  const unlockBoxLayout = useCallback(() => {
-    layoutState.current.boxLayoutLocked = false;
-  }, []);
 
   // 重置布局
   const resetLayout = useCallback(() => {
@@ -500,9 +489,6 @@ const LinearSequenceRenderer = ({
         .domain([0, dimensions.totalLength])
         .range([0, dimensions.contentWidth]);
 
-      // 初始化 rowGroups，避免未定义报错
-      const rowGroups = new Map();
-
       // 1. 按跨度贪心分配行号
       assignRowsBySpan(
         features,
@@ -526,319 +512,311 @@ const LinearSequenceRenderer = ({
         }
       );
 
-      // 2. 预分配box高度
+      // 2. 按行分组特征
+      const featuresByRow = new Map();
       features.forEach((feature) => {
         const row = feature._row;
-        feature.location.forEach((loc) => {
-          const start = Number(DataUtils.cleanString(loc[0]));
-          // 如果是单个坐标，则结束位置等于起始位置
-          const end =
-            loc.length > 1
-              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-              : start;
-          calculatePosition(
-            lengthScaleRef.current(start),
-            lengthScaleRef.current(end),
-            row,
-            dimensions.boxHeight
-          );
-        });
+        if (!featuresByRow.has(row)) {
+          featuresByRow.set(row, []);
+        }
+        featuresByRow.get(row).push(feature);
       });
 
-      // 3. 锁定box布局，渲染所有box和骨架线
-      lockBoxLayout();
-      features.forEach((feature, index) => {
-        const featureId = `feature-${index}`;
-        const row = feature._row;
-        let rowGroup = rowGroups.get(row);
-        if (!rowGroup) {
-          rowGroup = container.append("g").attr("class", `row-${row}`);
-          rowGroups.set(row, rowGroup);
-        }
-        const featureGroup = rowGroup
-          .append("g")
-          .attr("class", "feature")
-          .attr("id", featureId)
-          .on("mouseover", (event) =>
-            handleMouseOver(featureId, feature, row, event)
-          )
-          .on("mouseout", () => handleMouseOut(featureId))
-          .on("click", (event) => handleFeatureClick(feature, event));
+      // 3. 逐行渲染
+      const maxRow = Math.max(...features.map((f) => f._row));
+      let currentRowY = CONFIG.dimensions.vSpace * 2; // 初始Y位置
 
-        const [start, end] = getFeatureBounds(feature.location);
-        if (feature.location.length > 1) {
-          let lastEnd = start;
-          const sortedLocations = [...feature.location].sort((a, b) => {
-            return (
-              Number(DataUtils.cleanString(a[0])) -
-              Number(DataUtils.cleanString(b[0]))
-            );
-          });
-          sortedLocations.forEach((loc) => {
-            const boxStart = Number(DataUtils.cleanString(loc[0]));
-            const boxEnd =
-              loc.length > 1
-                ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-                : boxStart;
-            if (boxStart > lastEnd) {
-              const bonePosition = calculatePosition(
-                lengthScaleRef.current(lastEnd),
-                lengthScaleRef.current(boxStart),
-                row,
-                dimensions.boxHeight
+      for (let row = 0; row <= maxRow; row++) {
+        const rowFeatures = featuresByRow.get(row) || [];
+
+        // 创建当前行的组
+        const rowGroup = container.append("g").attr("class", `row-${row}`);
+
+        // 临时设置当前行的Y坐标
+        layoutState.current.rowYs.set(row, currentRowY);
+        layoutState.current.rowHeights.set(
+          row,
+          CONFIG.linearLayout.minAnnotationHeight
+        );
+
+        // 渲染当前行的所有特征
+        rowFeatures.forEach((feature, index) => {
+          const featureId = `feature-${row}-${index}`;
+          const featureGroup = rowGroup
+            .append("g")
+            .attr("class", "feature")
+            .attr("id", featureId)
+            .on("mouseover", (event) =>
+              handleMouseOver(featureId, feature, row, event)
+            )
+            .on("mouseout", () => handleMouseOut(featureId))
+            .on("click", (event) => handleFeatureClick(feature, event));
+
+          const [start, end] = getFeatureBounds(feature.location);
+
+          // 绘制骨架线（如果有多个location）
+          if (feature.location.length > 1) {
+            let lastEnd = start;
+            const sortedLocations = [...feature.location].sort((a, b) => {
+              return (
+                Number(DataUtils.cleanString(a[0])) -
+                Number(DataUtils.cleanString(b[0]))
               );
-              featureGroup
-                .append("line")
-                .attr("class", `box bone ${feature.type}`)
-                .attr("x1", bonePosition.x)
-                .attr("y1", bonePosition.y + bonePosition.height / 2)
-                .attr("x2", bonePosition.x + bonePosition.width)
-                .attr("y2", bonePosition.y + bonePosition.height / 2)
-                .style("stroke-width", bonePosition.height / 4)
-                .style(
-                  "stroke",
-                  (CONFIG.colors[feature.type] || CONFIG.colors.others).stroke
-                )
-                .style("stroke-dasharray", CONFIG.styles.bone.strokeDasharray)
-                .style("stroke-linecap", CONFIG.styles.bone.strokeLinecap)
-                .style("opacity", CONFIG.styles.bone.opacity);
-            }
-            lastEnd = Math.max(lastEnd, boxEnd);
-          });
-        }
-
-        feature.location.forEach((loc) => {
-          const start = Number(DataUtils.cleanString(loc[0]));
-          // 如果是单个坐标，则结束位置等于起始位置
-          const end =
-            loc.length > 1
-              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-              : start;
-          const position = calculatePosition(
-            lengthScaleRef.current(start),
-            lengthScaleRef.current(end),
-            row,
-            dimensions.boxHeight
-          );
-          // 对于单个坐标的特征，使用一个最小宽度的矩形
-          const width =
-            loc.length === 1 ? Math.max(2, position.width) : position.width;
-          featureGroup
-            .append("rect")
-            .attr("class", `box ${feature.type}`)
-            .attr("x", position.x)
-            .attr("y", position.y)
-            .attr("width", width)
-            .attr("height", position.height)
-            .style(
-              "fill",
-              (CONFIG.colors[feature.type] || CONFIG.colors.others).fill
-            )
-            .style(
-              "stroke",
-              (CONFIG.colors[feature.type] || CONFIG.colors.others).stroke
-            )
-            .style("stroke-width", CONFIG.styles.box.strokeWidth);
-        });
-      });
-      unlockBoxLayout();
-
-      // 4. 集中收集每行的textNodes
-      const rowTextNodes = new Map();
-      features.forEach((feature, index) => {
-        const row = feature._row;
-        feature.location.forEach((loc) => {
-          const [boxStart, boxEnd] = [
-            Number(DataUtils.cleanString(loc[0])),
-            Number(DataUtils.cleanString(loc[loc.length - 1])),
-          ];
-          const position = calculatePosition(
-            lengthScaleRef.current(boxStart),
-            lengthScaleRef.current(boxEnd),
-            row,
-            dimensions.boxHeight
-          );
-          const text =
-            feature.information.gene ||
-            feature.information.product ||
-            feature.type;
-          if (text) {
-            const textWidth = TextUtils.measureTextWidth(
-              text,
-              dimensions.fontSize,
-              CONFIG.fonts.primary.family
-            );
-            const availableWidth = position.width - 10;
-            const isTruncated = textWidth > availableWidth;
-            if (isTruncated) {
-              if (!rowTextNodes.has(row)) rowTextNodes.set(row, []);
-              rowTextNodes.get(row).push({
-                text,
-                width: textWidth,
-                height: dimensions.fontSize,
-                x: position.x + position.width / 2,
-                y: position.y + position.height + dimensions.fontSize / 2,
-                targetX: position.x + position.width / 2,
-                targetY: position.y + position.height + dimensions.fontSize / 2,
-                box: { ...position, row },
-                isTruncated: true,
-              });
-            }
-          }
-        });
-      });
-
-      // 5. 对每行做力导向模拟
-      const rowHeights = new Map();
-      rowTextNodes.forEach((textNodes, row) => {
-        // 使用d3.forceSimulation对每行textNodes做力导向模拟
-        const simulation = d3
-          .forceSimulation(textNodes)
-          .velocityDecay(0.5)
-          .force(
-            "repel",
-            d3.forceManyBody().strength(-5).distanceMax(50).distanceMin(0)
-          )
-          .force(
-            "attract",
-            d3.forceManyBody().strength(2).distanceMax(100).distanceMin(50)
-          )
-          .force("x", d3.forceX((d) => d.targetX).strength(1))
-          .force("y", d3.forceY((d) => d.targetY).strength(1))
-          .force(
-            "collide",
-            d3
-              .forceCollide()
-              .radius((d) => d.width / 2 + 5)
-              .iterations(4)
-          )
-          .on("tick", () => {
-            textNodes.forEach((node) => {
-              node.y = Math.max(
-                node.y,
-                node.box.y + node.box.height + CONFIG.linearLayout.textBoxMargin
-              ); // 不可穿越box底部
             });
-          })
-          .stop();
-        // tick多次收敛
-        for (let i = 0; i < 100; ++i) {
-          simulation.tick();
-        }
-        // tick后再全量修正一次，确保所有节点都在box底部之下
-        textNodes.forEach((node) => {
-          node.y = Math.max(
-            node.y,
-            node.box.y + node.box.height + CONFIG.linearLayout.textBoxMargin
-          );
-        });
-        // 力模拟后，计算该行最大y+height/2，作为行高
-        let maxY =
-          textNodes.length > 0
-            ? Math.max(...textNodes.map((node) => node.y + node.height / 2))
-            : 0;
-        let minY =
-          textNodes.length > 0
-            ? Math.min(...textNodes.map((node) => node.box.y))
-            : 0;
-        let rowHeight = maxY - minY;
-        rowHeights.set(row, rowHeight);
-      });
-
-      // 6. 渲染所有annotation
-      features.forEach((feature, index) => {
-        const row = feature._row;
-        let rowGroup = rowGroups.get(row);
-        if (!rowGroup) return;
-        const featureGroup = rowGroup.select(`#feature-${index}`);
-        feature.location.forEach((loc) => {
-          const [boxStart, boxEnd] = [
-            Number(DataUtils.cleanString(loc[0])),
-            Number(DataUtils.cleanString(loc[loc.length - 1])),
-          ];
-          const position = calculatePosition(
-            lengthScaleRef.current(boxStart),
-            lengthScaleRef.current(boxEnd),
-            row,
-            dimensions.boxHeight
-          );
-          const text =
-            feature.information.gene ||
-            feature.information.product ||
-            feature.type;
-          if (text) {
-            const textWidth = TextUtils.measureTextWidth(
-              text,
-              dimensions.fontSize,
-              CONFIG.fonts.primary.family
-            );
-            const availableWidth = position.width - 10;
-            const isTruncated = textWidth > availableWidth;
-
-            if (isTruncated) {
-              // 从rowTextNodes获取最新力导向后的节点
-              const textNodes = rowTextNodes.get(row) || [];
-              const textNode = textNodes.find(
-                (n) =>
-                  n.text === text &&
-                  n.box.x === position.x &&
-                  n.box.y === position.y
-              );
-              if (textNode) {
-                // 插入引导线：一端指向textNode中心，一端指向box底部中心
+            sortedLocations.forEach((loc) => {
+              const boxStart = Number(DataUtils.cleanString(loc[0]));
+              const boxEnd =
+                loc.length > 1
+                  ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+                  : boxStart;
+              if (boxStart > lastEnd) {
+                const bonePosition = calculatePosition(
+                  lengthScaleRef.current(lastEnd),
+                  lengthScaleRef.current(boxStart),
+                  row,
+                  dimensions.boxHeight
+                );
                 featureGroup
                   .append("line")
-                  .attr("class", "annotation-leader")
-                  .attr("x1", textNode.x)
-                  .attr("y1", textNode.y)
-                  .attr("x2", textNode.box.x + textNode.box.width / 2)
-                  .attr("y2", textNode.box.y + textNode.box.height)
-                  .attr("stroke", "#aaa")
-                  .attr("stroke-width", 1)
-                  .style("pointer-events", "none");
+                  .attr("class", `box bone ${feature.type}`)
+                  .attr("x1", bonePosition.x)
+                  .attr("y1", bonePosition.y + bonePosition.height / 2)
+                  .attr("x2", bonePosition.x + bonePosition.width)
+                  .attr("y2", bonePosition.y + bonePosition.height / 2)
+                  .style("stroke-width", bonePosition.height / 4)
+                  .style(
+                    "stroke",
+                    (CONFIG.colors[feature.type] || CONFIG.colors.others).stroke
+                  )
+                  .style("stroke-dasharray", CONFIG.styles.bone.strokeDasharray)
+                  .style("stroke-linecap", CONFIG.styles.bone.strokeLinecap)
+                  .style("opacity", CONFIG.styles.bone.opacity);
+              }
+              lastEnd = Math.max(lastEnd, boxEnd);
+            });
+          }
 
-                // 插入文本背景
-                featureGroup
-                  .append("rect")
-                  .attr("class", "text-bg")
-                  .attr("x", textNode.x - textNode.width / 2 - 5)
-                  .attr("y", textNode.y - textNode.height / 2)
-                  .attr("width", textNode.width + 10)
-                  .attr("height", textNode.height)
-                  .style("fill", "none")
-                  .style("opacity", 0);
+          // 绘制特征框
+          feature.location.forEach((loc) => {
+            const start = Number(DataUtils.cleanString(loc[0]));
+            const end =
+              loc.length > 1
+                ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+                : start;
+            const position = calculatePosition(
+              lengthScaleRef.current(start),
+              lengthScaleRef.current(end),
+              row,
+              dimensions.boxHeight
+            );
+            const width =
+              loc.length === 1 ? Math.max(2, position.width) : position.width;
+            featureGroup
+              .append("rect")
+              .attr("class", `box ${feature.type}`)
+              .attr("x", position.x)
+              .attr("y", position.y)
+              .attr("width", width)
+              .attr("height", position.height)
+              .style(
+                "fill",
+                (CONFIG.colors[feature.type] || CONFIG.colors.others).fill
+              )
+              .style(
+                "stroke",
+                (CONFIG.colors[feature.type] || CONFIG.colors.others).stroke
+              )
+              .style("stroke-width", CONFIG.styles.box.strokeWidth);
+          });
+        });
 
-                // 插入文本
+        // 收集当前行的圈外文本节点
+        const rowTextNodes = [];
+        rowFeatures.forEach((feature, index) => {
+          feature.location.forEach((loc) => {
+            const [boxStart, boxEnd] = [
+              Number(DataUtils.cleanString(loc[0])),
+              Number(DataUtils.cleanString(loc[loc.length - 1])),
+            ];
+            const position = calculatePosition(
+              lengthScaleRef.current(boxStart),
+              lengthScaleRef.current(boxEnd),
+              row,
+              dimensions.boxHeight
+            );
+            const text =
+              feature.information.gene ||
+              feature.information.product ||
+              feature.type;
+            if (text) {
+              const textWidth = TextUtils.measureTextWidth(
+                text,
+                dimensions.fontSize,
+                CONFIG.fonts.primary.family
+              );
+              const availableWidth = position.width - 10;
+              const isTruncated = textWidth > availableWidth;
+              if (isTruncated) {
+                rowTextNodes.push({
+                  text,
+                  width: textWidth,
+                  height: dimensions.fontSize,
+                  x: position.x + position.width / 2,
+                  y: position.y + position.height + dimensions.fontSize / 2,
+                  targetX: position.x + position.width / 2,
+                  targetY:
+                    position.y + position.height + dimensions.fontSize / 2,
+                  box: { ...position, row },
+                  isTruncated: true,
+                  featureIndex: index,
+                });
+              }
+            }
+          });
+        });
+
+        // 对当前行的圈外文本应用力模拟
+        if (rowTextNodes.length > 0) {
+          const simulation = d3
+            .forceSimulation(rowTextNodes)
+            .velocityDecay(0.5)
+            .force(
+              "repel",
+              d3.forceManyBody().strength(-1).distanceMax(50).distanceMin(0)
+            )
+            .force(
+              "attract",
+              d3.forceManyBody().strength(0.5).distanceMax(100).distanceMin(50)
+            )
+            .force("x", d3.forceX((d) => d.targetX).strength(1))
+            .force("y", d3.forceY((d) => d.targetY).strength(1))
+            .force(
+              "gravity",
+              d3.forceY(() => 0).strength(-0.1 / Math.log(2 + row))
+            )
+            .force(
+              "collide",
+              d3
+                .forceCollide()
+                .radius((d) => d.width / 2 + 5)
+                .iterations(4)
+            )
+            .stop();
+
+          // 执行力模拟
+          for (let i = 0; i < 100; ++i) {
+            simulation.tick();
+          }
+        }
+
+        // 渲染当前行的文本
+        rowFeatures.forEach((feature, index) => {
+          const featureGroup = rowGroup.select(`#feature-${row}-${index}`);
+          feature.location.forEach((loc) => {
+            const [boxStart, boxEnd] = [
+              Number(DataUtils.cleanString(loc[0])),
+              Number(DataUtils.cleanString(loc[loc.length - 1])),
+            ];
+            const position = calculatePosition(
+              lengthScaleRef.current(boxStart),
+              lengthScaleRef.current(boxEnd),
+              row,
+              dimensions.boxHeight
+            );
+            const text =
+              feature.information.gene ||
+              feature.information.product ||
+              feature.type;
+            if (text) {
+              const textWidth = TextUtils.measureTextWidth(
+                text,
+                dimensions.fontSize,
+                CONFIG.fonts.primary.family
+              );
+              const availableWidth = position.width - 10;
+              const isTruncated = textWidth > availableWidth;
+
+              if (isTruncated) {
+                // 从力模拟结果中找到对应的文本节点
+                const textNode = rowTextNodes.find(
+                  (n) =>
+                    n.text === text &&
+                    n.box.x === position.x &&
+                    n.box.y === position.y &&
+                    n.featureIndex === index
+                );
+                if (textNode) {
+                  // 添加引导线
+                  featureGroup
+                    .append("line")
+                    .attr("class", "annotation-leader")
+                    .attr("x1", textNode.x)
+                    .attr("y1", textNode.y)
+                    .attr("x2", textNode.box.x + textNode.box.width / 2)
+                    .attr("y2", textNode.box.y + textNode.box.height)
+                    .attr("stroke", "#aaa")
+                    .attr("stroke-width", 1)
+                    .style("pointer-events", "none");
+
+                  // 添加文本背景
+                  featureGroup
+                    .append("rect")
+                    .attr("class", "text-bg")
+                    .attr("x", textNode.x - textNode.width / 2 - 5)
+                    .attr("y", textNode.y - textNode.height / 2)
+                    .attr("width", textNode.width + 10)
+                    .attr("height", textNode.height)
+                    .style("fill", "none")
+                    .style("opacity", 0);
+
+                  // 添加文本
+                  featureGroup
+                    .append("text")
+                    .attr("class", "annotation truncated")
+                    .attr("x", textNode.x)
+                    .attr("y", textNode.y)
+                    .text(textNode.text)
+                    .style("font-family", CONFIG.fonts.primary.family)
+                    .style("font-size", `${dimensions.fontSize}px`)
+                    .style("dominant-baseline", "middle")
+                    .style("text-anchor", "middle")
+                    .style("pointer-events", "none")
+                    .style("fill", CONFIG.styles.annotation.fillDark);
+                }
+              } else {
+                // 普通文本直接渲染
                 featureGroup
                   .append("text")
-                  .attr("class", "annotation truncated")
-                  .attr("x", textNode.x)
-                  .attr("y", textNode.y)
-                  .text(textNode.text)
+                  .attr("class", "annotation")
+                  .attr("x", position.x + position.width / 2)
+                  .attr("y", position.y + position.height / 2)
+                  .text(text)
                   .style("font-family", CONFIG.fonts.primary.family)
                   .style("font-size", `${dimensions.fontSize}px`)
                   .style("dominant-baseline", "middle")
                   .style("text-anchor", "middle")
-                  .style("pointer-events", "none")
-                  .style("fill", CONFIG.styles.annotation.fillDark);
+                  .style("pointer-events", "none");
               }
-            } else {
-              // 普通文本直接渲染
-              featureGroup
-                .append("text")
-                .attr("class", "annotation")
-                .attr("x", position.x + position.width / 2)
-                .attr("y", position.y + position.height / 2)
-                .text(text)
-                .style("font-family", CONFIG.fonts.primary.family)
-                .style("font-size", `${dimensions.fontSize}px`)
-                .style("dominant-baseline", "middle")
-                .style("text-anchor", "middle")
-                .style("pointer-events", "none");
             }
-          }
+          });
         });
-      });
+
+        // 计算当前行的实际高度（包括力模拟后的文本）
+        let rowMaxY = currentRowY + dimensions.boxHeight;
+        if (rowTextNodes.length > 0) {
+          const textMaxY = Math.max(
+            ...rowTextNodes.map((node) => node.y + node.height / 2)
+          );
+          rowMaxY = Math.max(rowMaxY, textMaxY);
+        }
+
+        // 更新下一行的起始Y坐标
+        currentRowY = rowMaxY + CONFIG.linearLayout.rowSpacing;
+
+        // 更新当前行的实际高度记录
+        const actualRowHeight = rowMaxY - layoutState.current.rowYs.get(row);
+        layoutState.current.rowHeights.set(row, actualRowHeight);
+      }
     },
     [
       features,
@@ -846,8 +824,10 @@ const LinearSequenceRenderer = ({
       resetLayout,
       assignRowsBySpan,
       calculatePosition,
-      lockBoxLayout,
-      unlockBoxLayout,
+      handleMouseOver,
+      handleMouseOut,
+      handleFeatureClick,
+      getFeatureBounds,
     ]
   );
 

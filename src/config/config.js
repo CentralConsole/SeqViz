@@ -2,7 +2,7 @@
 export const CONFIG = {
   dimensions: {
     margin: {
-      top: 0.05,
+      top: 0.15,
       right: 0.05,
       bottom: 0.05,
       left: 0.05,
@@ -42,6 +42,7 @@ export const CONFIG = {
       fontFamily: "Maple Mono CN, Maple Mono, Arial, sans-serif",
       fill: "#333",
       fillDark: "#e0e0e0", // 深色主题下的文本颜色
+      textPathRadialOffset: 11, // 文本路径的径向移动距离
     },
   },
   colors: {

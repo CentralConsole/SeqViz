@@ -67,7 +67,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
     const angleScale = d3
       .scaleLinear()
       .domain([0, totalLength])
-      .range([-Math.PI, Math.PI]); // 从-180度开始，到180度结束
+      .range([0, 2 * Math.PI]); // 从0度开始，到360度结束
 
     // 创建颜色比例尺 - 使用config.js中的颜色
     const colorScale = d3
@@ -122,7 +122,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             const startAngle = angleScale(start);
             const stopAngle = angleScale(stop);
 
-            // 正常段
+            //段
             processedSegments.push({
               start,
               stop,
@@ -146,8 +146,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           }
 
           // 计算特征的整体角度范围（用于重叠检测）
-          let minAngle = Math.PI;
-          let maxAngle = -Math.PI;
+          let minAngle = 2 * Math.PI;
+          let maxAngle = 0;
 
           processedSegments.forEach(({ start, stop }) => {
             const startAngle = angleScale(start);
@@ -159,26 +159,25 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           // 返回处理后的特征对象
           return {
             ...feature,
-            segments: processedSegments, // 实际可视化段
+            segments: processedSegments,
             angle:
               firstSegmentMidAngle !== null
                 ? firstSegmentMidAngle
-                : angleScale(processedSegments[0].start), // 使用第一个原始段的中点角度，如果没有则使用第一个可视化段的起点角度
-            radialOffset: 0, // 特征的径向偏移（用于避免重叠）
+                : angleScale(processedSegments[0].start),
+            radialOffset: 0,
             totalLength: feature.location.reduce((sum, loc) => {
               const start = parseInt(loc[0], 10);
               const stop = parseInt(loc[loc.length - 1], 10);
               if (isNaN(start) || isNaN(stop)) return sum;
               return sum + (stop - start);
-            }, 0), // 计算原始总长度
+            }, 0),
             angleRange: {
-              // 用于重叠检测的整体角度范围
               min: minAngle,
               max: maxAngle,
             },
           };
         })
-        .filter(Boolean); // 移除无效的特征
+        .filter(Boolean);
 
       console.log("Processed Features:", processedFeatures);
 
@@ -250,167 +249,355 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         current.radialOffset = layer;
       }
 
+      // 动态计算每层的实际半径
+      const layerRadii = new Map(); // 存储每层的内径和外径
+
+      // 计算各层半径，保持紧凑布局
+      const maxLayer = Math.max(
+        ...processedFeatures.map((f) => f.radialOffset)
+      );
+      for (let layer = 0; layer <= maxLayer; layer++) {
+        if (layer === 0) {
+          layerRadii.set(0, {
+            inner: innerRadius + 8,
+            outer: innerRadius + 24,
+          });
+        } else {
+          // 基于上一层的外径，只添加小间隔
+          const prevOuter = layerRadii.get(layer - 1).outer;
+          layerRadii.set(layer, {
+            inner: prevOuter + 8, // 只留8像素间隔
+            outer: prevOuter + 24, // 16像素厚度的弧
+          });
+        }
+      }
+
       // 创建特征弧生成器（用于绘制单个段）
       const segmentArc = d3
         .arc()
-        .innerRadius((d) => innerRadius + 8 + d.radialOffset * layerSpacing)
-        .outerRadius((d) => innerRadius + 24 + d.radialOffset * layerSpacing);
+        .innerRadius(
+          (d) =>
+            layerRadii.get(d.radialOffset)?.inner ||
+            innerRadius + 8 + d.radialOffset * layerSpacing
+        )
+        .outerRadius(
+          (d) =>
+            layerRadii.get(d.radialOffset)?.outer ||
+            innerRadius + 24 + d.radialOffset * layerSpacing
+        );
 
-      // 为每个特征创建单独的组
-      const featureElements = featureGroup
-        .selectAll("g.feature")
-        .data(processedFeatures)
-        .enter()
-        .append("g")
-        .attr("class", "feature");
-
-      // 绘制特征的每个段弧线
-      featureElements.each(function (d, featureIndex) {
-        const featureElement = d3.select(this);
-        d.segments.forEach((segment, segmentIndex) => {
-          // 计算段的起始和结束角度
-          let startAngle = angleScale(segment.start);
-          let stopAngle = angleScale(segment.stop);
-
-          // 如果起始角度大于结束角度，交换角度以绘制小弧
-          if (startAngle > stopAngle) {
-            [startAngle, stopAngle] = [stopAngle, startAngle];
-          }
-
-          // 将特征位置旋转180度 (PI弧度)
-          startAngle += Math.PI;
-          stopAngle += Math.PI;
-
-          // 使用segmentArc生成器为每个段绘制路径
-          const segmentD = segmentArc({
-            startAngle: startAngle,
-            endAngle: stopAngle,
-            radialOffset: d.radialOffset, // 使用特征的整体径向偏移
-          });
-
-          featureElement
-            .append("path")
-            .attr("d", segmentD)
-            // 根据特征类型设置填充颜色
-            .attr("fill", (CONFIG.colors[d.type] || CONFIG.colors.others).fill)
-            .attr(
-              "stroke",
-              (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
-            )
-            .attr("stroke-width", CONFIG.styles.box.strokeWidth)
-            .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
-            .style("cursor", "pointer")
-            .on("click", (event) => onFeatureClick?.(d)) // 点击整个特征组触发事件
-            .on("mouseover", function () {
-              featureElement
-                .selectAll("path") // 高亮整个特征的所有段
-                .attr(
-                  "stroke",
-                  (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
-                )
-                .attr("stroke-width", CONFIG.styles.box.strokeWidth * 2);
-            })
-            .on("mouseout", function () {
-              featureElement
-                .selectAll("path")
-                .attr(
-                  "stroke",
-                  (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
-                )
-                .attr("stroke-width", CONFIG.styles.box.strokeWidth);
-            })
-            .each(function () {
-              // 使用不同的参数名避免冲突
-              // 为第一个实际可视化段创建文本路径
-              if (segment.isTextSegment) {
-                // Arc是封闭路径，需要使用正则表达式提取Arc的圆弧部分
-                const firstArcSection = /(^.+?)L/;
-                const pathD = d3.select(this).attr("d");
-                const newArc = firstArcSection.exec(pathD);
-
-                if (newArc && newArc[1]) {
-                  const cleanArc = newArc[1].replace(/,/g, " ");
-
-                  // 计算段的长度
-                  const pathNode = d3.select(this).node();
-                  const pathLength = pathNode ? pathNode.getTotalLength() : 0;
-
-                  // 估算文本长度（每个字符约6像素）
-                  const textContent =
-                    d.information?.gene ||
-                    d.information?.product ||
-                    d.information?.note ||
-                    d.type; // 使用不同的变量名
-                  const estimatedTextLength =
-                    textContent.length *
-                    CONFIG.styles.annotation.fontSize *
-                    0.6;
-
-                  // 只有当文本长度小于段长度时才创建文本路径
-                  if (estimatedTextLength < pathLength * 0.9) {
-                    // 使用90%的弧长作为阈值，稍微宽松一些
-                    featureElement // 在特征组内添加文本路径
-                      .append("path")
-                      .attr("id", `text-path-${featureIndex}-${segmentIndex}`)
-                      .attr("d", cleanArc)
-                      .attr("fill", "none")
-                      .attr("stroke", colorScale(d.type))
-                      .attr("stroke-width", 1)
-                      .attr("stroke-dasharray", "4,4")
-                      .style("opacity", 0.5);
-                  } else {
-                  }
-                } else {
-                }
-              }
-            });
-        });
+      // 按层级分组特征
+      const featuresByLayer = new Map();
+      processedFeatures.forEach((feature) => {
+        const layer = feature.radialOffset;
+        if (!featuresByLayer.has(layer)) {
+          featuresByLayer.set(layer, []);
+        }
+        featuresByLayer.get(layer).push(feature);
       });
 
-      // 添加标签（只为第一个实际可视化段添加文本）
-      featureElements.each(function (d, featureIndex) {
-        const featureElement = d3.select(this);
-        const textSegment = d.segments.find((s) => s.isTextSegment); // 找到用于文本的段
+      // 逐层渲染
+      let currentLayerMaxRadius = innerRadius + 24; // 初始最大半径
 
-        if (textSegment) {
-          const text =
-            d.information?.gene ||
-            d.information?.product ||
-            d.information?.note ||
-            d.type;
-          // 查找对应的文本路径
-          const textPathId = `text-path-${featureIndex}-${d.segments.indexOf(
-            textSegment
-          )}`;
-          const textPathElement = featureElement
-            .select(`#${textPathId}`)
-            .node();
+      for (let layer = 0; layer <= maxLayer; layer++) {
+        const layerFeatures = featuresByLayer.get(layer) || [];
 
-          if (textPathElement) {
-            // 确保文本路径存在
+        // 更新当前层的半径（基于前一层的最大半径）
+        if (layer > 0) {
+          layerRadii.set(layer, {
+            inner: currentLayerMaxRadius + 8,
+            outer: currentLayerMaxRadius + 24,
+          });
+        }
+
+        // 创建当前层的组
+        const layerGroup = featureGroup
+          .append("g")
+          .attr("class", `layer-${layer}`);
+
+        // 渲染当前层的所有特征
+        const featureElements = layerGroup
+          .selectAll("g.feature")
+          .data(layerFeatures)
+          .enter()
+          .append("g")
+          .attr("class", "feature");
+
+        // 绘制特征的每个段弧线
+        featureElements.each(function (d, featureIndex) {
+          const featureElement = d3.select(this);
+
+          d.segments.forEach((segment, segmentIndex) => {
+            let startAngle = angleScale(segment.start);
+            let stopAngle = angleScale(segment.stop);
+
+            if (startAngle > stopAngle) {
+              [startAngle, stopAngle] = [stopAngle, startAngle];
+            }
+
+            const segmentD = segmentArc({
+              startAngle,
+              endAngle: stopAngle,
+              radialOffset: d.radialOffset,
+            });
+
+            featureElement
+              .append("path")
+              .attr("d", segmentD)
+              .attr(
+                "fill",
+                (CONFIG.colors[d.type] || CONFIG.colors.others).fill
+              )
+              .attr(
+                "stroke",
+                (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+              )
+              .attr("stroke-width", CONFIG.styles.box.strokeWidth)
+              .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
+              .style("cursor", "pointer")
+              .on("click", () => onFeatureClick?.(d))
+              .on("mouseover", function () {
+                featureElement
+                  .selectAll("path")
+                  .attr(
+                    "stroke",
+                    (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                  )
+                  .attr("stroke-width", CONFIG.styles.box.strokeWidth * 2);
+              })
+              .on("mouseout", function () {
+                featureElement
+                  .selectAll("path")
+                  .attr(
+                    "stroke",
+                    (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                  )
+                  .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+              })
+              .each(function () {
+                // 为每个段添加文本路径
+                if (segment.isTextSegment) {
+                  const firstArcSection = /(^.+?)L/;
+                  const pathD = d3.select(this).attr("d");
+                  const arcMatch = firstArcSection.exec(pathD)?.[1];
+
+                  if (arcMatch) {
+                    const cleanArc = arcMatch.replace(/,/g, " ");
+                    const pathNode = d3.select(this).node();
+                    const pathLength = pathNode ? pathNode.getTotalLength() : 0;
+
+                    const textContent =
+                      d.information?.gene || d.information?.product || d.type;
+                    const estimatedTextLength =
+                      textContent.length *
+                      CONFIG.styles.annotation.fontSize *
+                      0.6;
+
+                    if (estimatedTextLength < pathLength * 0.9) {
+                      // 文本长度合适，创建textPath
+                      featureElement
+                        .append("path")
+                        .attr(
+                          "id",
+                          `text-path-${layer}-${featureIndex}-${segmentIndex}`
+                        )
+                        .attr("d", cleanArc)
+                        .attr("fill", "none")
+                        .attr("stroke", colorScale(d.type))
+                        .attr("stroke-width", 1)
+                        .attr("stroke-dasharray", "4,4")
+                        .style("opacity", 0.5);
+                    }
+                  }
+                }
+              });
+          });
+        });
+
+        // 添加当前层的标签
+        const layerOuterTextNodes = []; // 收集当前层的圈外文本节点
+
+        featureElements.each(function (d, featureIndex) {
+          const featureElement = d3.select(this);
+          const textSegment = d.segments.find((s) => s.isTextSegment);
+
+          if (textSegment) {
+            const text =
+              d.information?.gene || d.information?.product || d.type;
+            const textPathId = `text-path-${layer}-${featureIndex}-${d.segments.indexOf(
+              textSegment
+            )}`;
+            const textPathElement = featureElement
+              .select(`#${textPathId}`)
+              .node();
 
             // 检查文本长度是否适合路径
-            const pathLength = textPathElement.getTotalLength();
             const estimatedTextLength =
               text.length * CONFIG.styles.annotation.fontSize * 0.6;
+            let isTruncated = true;
+            let pathLength = 0;
 
-            if (estimatedTextLength < pathLength * 0.9) {
-              // 文本长度阈值与创建文本路径一致
+            if (textPathElement) {
+              pathLength = textPathElement.getTotalLength();
+              isTruncated = estimatedTextLength >= pathLength * 0.9;
+            }
+
+            if (!isTruncated && textPathElement) {
+              // 文本长度合适，使用textPath并应用径向偏移
+              let startAngle = angleScale(textSegment.start);
+              let stopAngle = angleScale(textSegment.stop);
+              if (startAngle > stopAngle) {
+                [startAngle, stopAngle] = [stopAngle, startAngle];
+              }
+              const midAngle = (startAngle + stopAngle) / 2;
+              const radialOffset =
+                CONFIG.styles.annotation.textPathRadialOffset;
+              const dx = -Math.sin(midAngle) * radialOffset;
+              const dy = Math.cos(midAngle) * radialOffset;
+
               featureElement
                 .append("text")
+                .attr("transform", `translate(${dx}, ${dy})`)
                 .append("textPath")
                 .attr("xlink:href", `#${textPathId}`)
-                .style("text-anchor", "middle") // 文本居中
-                .attr("startOffset", "50%") // 文本路径起始偏移50%
+                .style("text-anchor", "middle")
+                .attr("startOffset", "50%")
                 .attr("lengthAdjust", "spacingAndGlyphs")
                 .attr("fill", CONFIG.styles.annotation.fillDark)
                 .attr("font-family", CONFIG.styles.annotation.fontFamily)
                 .attr("font-size", `${CONFIG.styles.annotation.fontSize}px`)
                 .text(text);
+            } else {
+              // 文本长度过长，显示在圈外，先收集节点信息用于力模拟
+              let startAngle = angleScale(textSegment.start);
+              let stopAngle = angleScale(textSegment.stop);
+              if (startAngle > stopAngle) {
+                [startAngle, stopAngle] = [stopAngle, startAngle];
+              }
+              const midAngle = (startAngle + stopAngle) / 2;
+              const outerRadius =
+                layerRadii.get(d.radialOffset)?.outer ||
+                innerRadius + 24 + d.radialOffset * layerSpacing;
+
+              // 调整角度，使其与圆形坐标系对齐
+              const adjustedAngle = midAngle - Math.PI / 2;
+              const textDistance = currentLayerMaxRadius + 30; // 基于当前最大半径
+              const textX = Math.cos(adjustedAngle) * textDistance;
+              const textY = Math.sin(adjustedAngle) * textDistance;
+
+              // 收集圈外文本节点信息
+              layerOuterTextNodes.push({
+                text,
+                width: estimatedTextLength,
+                height: CONFIG.styles.annotation.fontSize,
+                x: textX,
+                y: textY,
+                targetX: textX,
+                targetY: textY,
+                adjustedAngle,
+                outerRadius,
+                featureElement,
+                featureIndex,
+                isTruncated: true,
+              });
             }
           }
+        });
+
+        const centerStrength = -0.002 / Math.log(2 + layer);
+        // 对圈外文本应用力模拟
+        if (layerOuterTextNodes.length > 0) {
+          const simulation = d3
+            .forceSimulation(layerOuterTextNodes)
+            .velocityDecay(0.7)
+            .force(
+              "repel",
+              d3.forceManyBody().strength(-0.5).distanceMax(50).distanceMin(0)
+            )
+            .force("centerX", d3.forceX(() => 0).strength(centerStrength))
+            .force("centerY", d3.forceY(() => 0).strength(centerStrength))
+            .force(
+              "collide",
+              d3
+                .forceCollide()
+                .radius((d) => d.width + 5)
+                .iterations(2)
+            )
+            .on("tick", () => {
+              // 检查并强制推出最小半径
+              layerOuterTextNodes.forEach((node) => {
+                const currentRadius = Math.sqrt(
+                  node.x * node.x + node.y * node.y
+                );
+                const minRadius = currentLayerMaxRadius + 10;
+                if (currentRadius < minRadius && currentRadius > 0) {
+                  const scale = minRadius / currentRadius;
+                  node.x *= scale;
+                  node.y *= scale;
+                }
+              });
+            })
+            .stop();
+
+          // 执行多次tick直到收敛
+          for (let i = 0; i < 100; ++i) {
+            simulation.tick();
+          }
         }
-      });
+
+        // 渲染力模拟后的圈外文本
+        layerOuterTextNodes.forEach((node) => {
+          // 添加引导线
+          node.featureElement
+            .append("line")
+            .attr("class", "annotation-leader")
+            .attr("x1", Math.cos(node.adjustedAngle) * node.outerRadius)
+            .attr("y1", Math.sin(node.adjustedAngle) * node.outerRadius)
+            .attr("x2", node.x)
+            .attr("y2", node.y)
+            .attr("stroke", "#aaa")
+            .attr("stroke-width", 1)
+            .style("pointer-events", "none");
+
+          // 添加文本背景
+          node.featureElement
+            .append("rect")
+            .attr("class", "text-bg")
+            .attr("x", node.x - node.width / 2 - 5)
+            .attr("y", node.y - node.height / 2)
+            .attr("width", node.width + 10)
+            .attr("height", node.height)
+            .style("fill", "none")
+            .style("stroke", "none");
+
+          // 添加文本
+          node.featureElement
+            .append("text")
+            .attr("class", "annotation truncated")
+            .attr("x", node.x)
+            .attr("y", node.y)
+            .text(node.text)
+            .style("font-family", CONFIG.styles.annotation.fontFamily)
+            .style("font-size", `${CONFIG.styles.annotation.fontSize}px`)
+            .style("dominant-baseline", "middle")
+            .style("text-anchor", "middle")
+            .style("pointer-events", "none")
+            .style("fill", CONFIG.styles.annotation.fillDark);
+        });
+
+        // 计算当前层的最大半径（包括力模拟后的圈外文本）
+        let layerMaxRadius =
+          layerRadii.get(layer)?.outer ||
+          innerRadius + 24 + layer * layerSpacing;
+
+        // 检查力模拟后的圈外文本半径
+        layerOuterTextNodes.forEach((node) => {
+          const textRadius = Math.sqrt(node.x * node.x + node.y * node.y);
+          layerMaxRadius = Math.max(layerMaxRadius, textRadius + 10); // 文本半径加边距
+        });
+
+        currentLayerMaxRadius = layerMaxRadius;
+      }
     }
 
     // 绘制刻度
@@ -427,7 +614,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .enter()
       .append("g")
       .attr("transform", (d) => {
-        const angle = angleScale(d) + Math.PI / 2;
+        const angle = angleScale(d) - Math.PI / 2;
         return `rotate(${(angle * 180) / Math.PI})`;
       })
       .each(function (d) {
@@ -440,39 +627,34 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           .attr("stroke", CONFIG.styles.axis.stroke)
           .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
 
-        // 创建文本组并绘制刻度值文本
         const textGroup = d3
           .select(this)
           .append("g")
-          .attr("transform", `translate(${innerRadius - 20}, 0)`); // 将组径向平移到文本位置
+          .attr("transform", `translate(${innerRadius - 20}, 0)`);
 
         textGroup
           .append("text")
-          .attr("x", 0) // 文本在组内的相对位置
+          .attr("x", 0)
           .attr("y", 0)
-          .attr("text-anchor", "middle") // 文本锚点在其自身中心
+          .attr("text-anchor", "middle")
           .attr("fill", CONFIG.styles.annotation.fillDark)
           .attr("font-family", CONFIG.styles.annotation.fontFamily)
           .attr("font-size", `${CONFIG.styles.annotation.fontSize}px`)
           .attr("transform", (d) => {
-            const angle = angleScale(d); // 当前刻度的角度 (-PI 到 PI)
-
-            // 根据角度调整文本组的自转，使其始终保持正向朝外
-            // 如果角度在左半边 (90度到270度), 旋转 180 度
-            // 否则 (右半边), 旋转 0 度
-            if (angle > 0 && angle < Math.PI) {
+            const angle = angleScale(d);
+            if (angle > Math.PI || angle < 0) {
               return "rotate(180)";
-            } else if (Math.abs(angle) === 0) {
-              // 最下方
-              return "rotate(-90)";
-            } else if (Math.abs(angle) === Math.PI) {
-              // 最上方
-              return "rotate(90)";
-            } else {
-              return "rotate(0)";
             }
+            if (angle === 0) {
+              return "rotate(90)"; //IMPORTANT: 0度时，文本需要旋转90度，否则方向错误
+            }
+            if (angle === Math.PI) {
+              return "rotate(-90)"; //IMPORTANT: 180度时，文本需要旋转-90度，否则方向错误
+            }
+
+            return "";
           })
-          .text(Math.floor(d)); // 显示刻度值
+          .text(Math.floor(d));
       });
   }, [data, width, height, onFeatureClick]);
 
