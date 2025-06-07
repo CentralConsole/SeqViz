@@ -354,18 +354,44 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
               )
               .attr("stroke-width", CONFIG.styles.box.strokeWidth)
               .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
-              .style("cursor", "pointer")
+              .style("cursor", CONFIG.interaction.hover.cursor)
               .on("click", () => onFeatureClick?.(d))
               .on("mouseover", function () {
+                // 高亮特征弧
                 featureElement
                   .selectAll("path")
                   .attr(
                     "stroke",
                     (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
                   )
-                  .attr("stroke-width", CONFIG.styles.box.strokeWidth * 2);
+                  .attr(
+                    "stroke-width",
+                    CONFIG.styles.box.strokeWidth *
+                      CONFIG.interaction.hover.strokeWidthMultiplier
+                  );
+
+                // 高亮对应的文本标签
+                featureElement
+                  .selectAll("text")
+                  .style("font-weight", CONFIG.interaction.hover.fontWeight)
+                  .style("fill", CONFIG.styles.annotation.fillDark)
+                  .style("text-shadow", CONFIG.interaction.hover.textShadow);
+
+                // 高亮文本背景
+                featureElement
+                  .selectAll(".text-bg")
+                  .style("fill", CONFIG.interaction.hover.textBackground.fill)
+                  .style(
+                    "stroke",
+                    CONFIG.interaction.hover.textBackground.stroke
+                  )
+                  .style(
+                    "stroke-width",
+                    CONFIG.interaction.hover.textBackground.strokeWidth
+                  );
               })
               .on("mouseout", function () {
+                // 恢复特征弧样式
                 featureElement
                   .selectAll("path")
                   .attr(
@@ -373,6 +399,22 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                     (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
                   )
                   .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+
+                // 恢复文本标签样式
+                featureElement
+                  .selectAll("text")
+                  .style("font-weight", CONFIG.interaction.normal.fontWeight)
+                  .style("fill", CONFIG.styles.annotation.fillDark)
+                  .style("text-shadow", CONFIG.interaction.normal.textShadow);
+
+                // 恢复文本背景样式
+                featureElement
+                  .selectAll(".text-bg")
+                  .style("fill", CONFIG.interaction.normal.textBackground.fill)
+                  .style(
+                    "stroke",
+                    CONFIG.interaction.normal.textBackground.stroke
+                  );
               })
               .each(function () {
                 // 为每个段创建专门的textPath弧形（位于内外环中间）
@@ -525,6 +567,42 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                   "transform",
                   isInBottomHalf ? `translate(${dx}, ${dy})` : `translate(0,0)` // Conditional offset correction
                 )
+                .style("cursor", CONFIG.interaction.hover.cursor)
+                .on("mouseover", function () {
+                  // 高亮特征弧
+                  featureElement
+                    .selectAll("path")
+                    .attr(
+                      "stroke",
+                      (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                    )
+                    .attr(
+                      "stroke-width",
+                      CONFIG.styles.box.strokeWidth *
+                        CONFIG.interaction.hover.strokeWidthMultiplier
+                    );
+
+                  // 高亮文本
+                  d3.select(this)
+                    .style("font-weight", CONFIG.interaction.hover.fontWeight)
+                    .style("text-shadow", CONFIG.interaction.hover.textShadow);
+                })
+                .on("mouseout", function () {
+                  // 恢复特征弧样式
+                  featureElement
+                    .selectAll("path")
+                    .attr(
+                      "stroke",
+                      (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                    )
+                    .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+
+                  // 恢复文本样式
+                  d3.select(this)
+                    .style("font-weight", CONFIG.interaction.normal.fontWeight)
+                    .style("text-shadow", CONFIG.interaction.normal.textShadow);
+                })
+                .on("click", () => onFeatureClick?.(d))
                 .append("textPath")
                 .attr("xlink:href", `#${textPathId}`)
                 .style("text-anchor", "middle") //IMPORTANT: centering the text
@@ -565,6 +643,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                 outerRadius,
                 featureElement,
                 featureIndex,
+                feature: d, // 添加特征数据引用
                 isTruncated: true,
               });
             }
@@ -634,8 +713,87 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             .style("font-size", `${CONFIG.styles.annotation.fontSize}px`)
             .style("dominant-baseline", "middle")
             .style("text-anchor", "middle")
-            .style("pointer-events", "none")
-            .style("fill", CONFIG.styles.annotation.fillDark);
+            .style("pointer-events", "auto")
+            .style("cursor", CONFIG.interaction.hover.cursor)
+            .style("fill", CONFIG.styles.annotation.fillDark)
+            .on("mouseover", function () {
+              // 获取对应的特征数据
+              const featureData = layerOuterTextNodes.find(
+                (n) => n.x === node.x && n.y === node.y
+              );
+              if (featureData) {
+                // 高亮特征弧
+                node.featureElement
+                  .selectAll("path")
+                  .attr(
+                    "stroke-width",
+                    CONFIG.styles.box.strokeWidth *
+                      CONFIG.interaction.hover.strokeWidthMultiplier
+                  );
+
+                // 高亮文本
+                d3.select(this)
+                  .style("font-weight", CONFIG.interaction.hover.fontWeight)
+                  .style("text-shadow", CONFIG.interaction.hover.textShadow);
+
+                // 高亮文本背景
+                node.featureElement
+                  .select(".text-bg")
+                  .style("fill", CONFIG.interaction.hover.textBackground.fill)
+                  .style(
+                    "stroke",
+                    CONFIG.interaction.hover.textBackground.stroke
+                  )
+                  .style(
+                    "stroke-width",
+                    CONFIG.interaction.hover.textBackground.strokeWidth
+                  );
+
+                // 高亮引导线
+                node.featureElement
+                  .select(".annotation-leader")
+                  .attr("stroke", CONFIG.interaction.hover.leader.stroke)
+                  .attr(
+                    "stroke-width",
+                    CONFIG.interaction.hover.leader.strokeWidth
+                  );
+              }
+            })
+            .on("mouseout", function () {
+              // 恢复特征弧样式
+              node.featureElement
+                .selectAll("path")
+                .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+
+              // 恢复文本样式
+              d3.select(this)
+                .style("font-weight", CONFIG.interaction.normal.fontWeight)
+                .style("text-shadow", CONFIG.interaction.normal.textShadow);
+
+              // 恢复文本背景样式
+              node.featureElement
+                .select(".text-bg")
+                .style("fill", CONFIG.interaction.normal.textBackground.fill)
+                .style(
+                  "stroke",
+                  CONFIG.interaction.normal.textBackground.stroke
+                );
+
+              // 恢复引导线样式
+              node.featureElement
+                .select(".annotation-leader")
+                .attr("stroke", CONFIG.interaction.normal.leader.stroke)
+                .attr(
+                  "stroke-width",
+                  CONFIG.interaction.normal.leader.strokeWidth
+                );
+            })
+            .on("click", () => {
+              // 直接使用节点中的特征数据
+              if (node.feature) {
+                onFeatureClick?.(node.feature);
+              }
+            });
         });
 
         // 计算当前层的最大半径（包括力模拟后的圈外文本）

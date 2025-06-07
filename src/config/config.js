@@ -130,6 +130,35 @@ export const CONFIG = {
     hoverDelay: 200,
     tooltipOffset: 10,
     highlightOpacity: 0.7,
+    hover: {
+      // 悬停时的样式配置
+      strokeWidthMultiplier: 2, // 边框加粗倍数
+      textShadow: "0 0 3px rgba(0,0,0,0.3)", // 文本阴影
+      textBackground: {
+        fill: "rgba(58, 58, 58, 0.5)", // 文本背景填充
+        stroke: "rgb(148, 148, 148)", // 文本背景边框
+        strokeWidth: 1, // 文本背景边框宽度
+      },
+      leader: {
+        stroke: "#333", // 引导线颜色
+        strokeWidth: 2, // 引导线宽度
+      },
+      cursor: "pointer", // 光标样式
+      fontWeight: "bold", // 文本加粗
+    },
+    normal: {
+      // 正常状态的样式配置
+      textShadow: "none", // 无文本阴影
+      textBackground: {
+        fill: "none", // 无文本背景填充
+        stroke: "none", // 无文本背景边框
+      },
+      leader: {
+        stroke: "#aaa", // 引导线默认颜色
+        strokeWidth: 1, // 引导线默认宽度
+      },
+      fontWeight: "normal", // 文本正常粗细
+    },
   },
   animation: {
     duration: 300,

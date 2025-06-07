@@ -46,16 +46,35 @@ const SequenceViewer = ({
   useEffect(() => {
     updateDimensions();
     window.addEventListener("resize", updateDimensions);
-    return () => window.removeEventListener("resize", updateDimensions);
+
+    // 添加初始化渲染机制
+    const initRender = () => {
+      updateDimensions();
+      // 使用 requestAnimationFrame 确保在下一帧渲染
+      requestAnimationFrame(() => {
+        updateDimensions();
+        // 再次触发以确保尺寸计算正确
+        setTimeout(updateDimensions, 100);
+      });
+    };
+
+    // 组件挂载后立即触发初始化渲染
+    initRender();
+
+    return () => {
+      window.removeEventListener("resize", updateDimensions);
+    };
   }, []);
 
   // 监听数据变化
   useEffect(() => {
+    console.log("SequenceViewer data", data);
     if (typeof data === "string") {
       setLoading(true);
       fetch(data)
         .then((response) => response.json())
         .then((json) => {
+          console.log("SequenceViewer genomeData", json);
           setGenomeData(json);
           setLoading(false);
         })
@@ -65,6 +84,7 @@ const SequenceViewer = ({
           setLoading(false);
         });
     } else {
+      console.log("SequenceViewer genomeData", data);
       setGenomeData(data);
     }
   }, [data]);
