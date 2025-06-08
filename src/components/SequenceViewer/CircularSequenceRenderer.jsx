@@ -32,10 +32,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .style("width", "100%")
       .style("height", "100%");
 
-    // 创建主容器组并移动到中心
-    const mainGroup = svg
-      .append("g")
-      .attr("transform", `translate(${width / 2},${height / 2})`);
+    // 创建主容器组，不做初始平移
+    const mainGroup = svg.append("g");
 
     // 获取序列总长度
     const locusMatch = data.locus.match(/(\d+)\s+bp/);
@@ -857,23 +855,19 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
     const zoom = d3
       .zoom()
       .scaleExtent([0.5, 3])
-      .translateExtent([
-        [width / 2 - maxRadius * 1.2, height / 2 - maxRadius * 1.2],
-        [width / 2 + maxRadius * 1.2, height / 2 + maxRadius * 1.2],
-      ])
       .on("zoom", (event) => {
-        mainGroup.attr(
-          "transform",
-          `translate(${event.transform.x + width / 2},${
-            event.transform.y + height / 2
-          }) scale(${event.transform.k})`
-        );
+        mainGroup.attr("transform", event.transform);
         setScale(event.transform.k);
         setTranslate({ x: event.transform.x, y: event.transform.y });
       });
 
-    // 应用缩放行为到SVG
-    svg.call(zoom);
+    // 应用缩放行为到SVG，并设置初始变换为画布中心
+    svg
+      .call(zoom)
+      .call(
+        zoom.transform,
+        d3.zoomIdentity.translate(width / 2, height / 2).scale(1)
+      );
   }, [data, width, height, onFeatureClick]);
 
   return (

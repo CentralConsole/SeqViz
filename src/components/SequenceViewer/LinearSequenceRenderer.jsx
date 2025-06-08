@@ -61,6 +61,9 @@ const LinearSequenceRenderer = ({
       .domain([0, totalLength])
       .range([0, contentWidth]);
 
+    // 计算最小可见宽度（至少1个像素）
+    const minVisibleWidth = Math.max(1, contentWidth / totalLength);
+
     // 主容器
     const svg = d3
       .select(svgRef.current)
@@ -228,123 +231,205 @@ const LinearSequenceRenderer = ({
         const y = currentRowY;
         // 特征组
         const featureGroup = rowGroup.append("g").attr("class", "feature");
-        // 框
-        const colorConf = CONFIG.colors[feature.type] || CONFIG.colors.others;
-        if (!CONFIG.colors[feature.type]) {
-          console.warn("未命中特征类型颜色配置:", feature.type, "使用默认色");
-        }
-        if (w <= 0 || boxHeight <= 0) {
-          console.warn("特征框宽高异常:", { w, boxHeight, feature });
-        }
-        featureGroup
-          .append("rect")
-          .attr("class", `box ${feature.type}`)
-          .attr("x", x)
-          .attr("y", y)
-          .attr("width", w > 0 ? w : 2)
-          .attr("height", boxHeight > 0 ? boxHeight : 2)
-          .attr(
-            "fill",
-            colorConf && colorConf.fill ? colorConf.fill : "#ffcccc"
-          )
-          .attr(
-            "stroke",
-            colorConf && colorConf.stroke ? colorConf.stroke : "#333"
-          )
-          .attr("stroke-width", CONFIG.styles.box.strokeWidth)
-          .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
-          .style("cursor", CONFIG.interaction.hover.cursor)
-          .on("click", () => onFeatureClick?.(feature))
-          .on("mouseover", function () {
-            featureGroup
-              .selectAll("rect.box")
-              .attr(
-                "stroke-width",
-                CONFIG.styles.box.strokeWidth *
-                  CONFIG.interaction.hover.strokeWidthMultiplier
-              );
-            featureGroup
-              .selectAll("text.annotation")
-              .style("font-weight", CONFIG.interaction.hover.fontWeight)
-              .style("fill", CONFIG.styles.annotation.fillDark)
-              .style("text-shadow", CONFIG.interaction.hover.textShadow);
-            // 添加文本背景显示
-            featureGroup
-              .selectAll(".text-bg")
-              .style("fill", CONFIG.interaction.hover.textBackground.fill)
-              .style("stroke", CONFIG.interaction.hover.textBackground.stroke)
-              .style(
-                "stroke-width",
-                CONFIG.interaction.hover.textBackground.strokeWidth
-              )
-              .style("opacity", 1);
-            // 高亮引导线
-            featureGroup
-              .selectAll(".annotation-leader")
-              .attr("stroke", CONFIG.interaction.hover.leader.stroke)
-              .attr(
-                "stroke-width",
-                CONFIG.interaction.hover.leader.strokeWidth
-              );
-          })
-          .on("mouseout", function () {
-            // 恢复特征框样式
-            featureGroup
-              .selectAll("rect.box")
-              .attr("stroke-width", CONFIG.styles.box.strokeWidth);
-            // 恢复文本样式
-            featureGroup
-              .selectAll("text.annotation")
-              .style("font-weight", CONFIG.interaction.normal.fontWeight)
-              .style("text-shadow", CONFIG.interaction.normal.textShadow);
-            // 隐藏文本背景
-            featureGroup
-              .selectAll(".text-bg")
-              .style("fill", CONFIG.interaction.normal.textBackground.fill)
-              .style("stroke", CONFIG.interaction.normal.textBackground.stroke)
-              .style(
-                "stroke-width",
-                CONFIG.interaction.normal.textBackground.strokeWidth
-              )
-              .style("opacity", 0);
-            // 恢复引导线样式
-            featureGroup
-              .selectAll(".annotation-leader")
-              .attr("stroke", CONFIG.interaction.normal.leader.stroke)
-              .attr(
-                "stroke-width",
-                CONFIG.interaction.normal.leader.strokeWidth
-              );
-          });
-        // 文本
-        const text =
-          feature.information.gene ||
-          feature.information.product ||
-          feature.type;
-        if (text) {
-          const textWidth = TextUtils.measureTextWidth(
-            text,
-            fontSize,
-            CONFIG.fonts.primary.family
+
+        // 收集所有段的中心点，用于绘制骨架线
+        const segmentCenters = [];
+
+        // 先计算所有段的位置信息
+        feature.location.forEach((loc, segmentIndex) => {
+          const segmentStart = Number(DataUtils.cleanString(loc[0]));
+          const segmentEnd =
+            loc.length > 1
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : segmentStart;
+          const segmentX = lengthScale(segmentStart);
+          // 计算实际宽度，确保至少显示最小可见宽度
+          const segmentW = Math.max(
+            minVisibleWidth,
+            lengthScale(segmentEnd) - segmentX
           );
-          const availableWidth = w - 10;
-          const isTruncated = textWidth > availableWidth;
-          if (isTruncated) {
-            // 圈外文本节点
-            rowTextNodes.push({
-              text,
-              width: textWidth,
-              height: fontSize,
-              x: x + w / 2,
-              y: y + boxHeight + fontSize / 2,
-              targetX: x + w / 2,
-              targetY: y + boxHeight + fontSize / 2,
-              box: { x, y, width: w, height: boxHeight, row },
-              isTruncated: true,
-              featureIndex: index,
-            });
+
+          // 计算段的中心点
+          const segmentCenterX = segmentX + segmentW / 2;
+          segmentCenters.push({ x: segmentCenterX, y });
+        });
+
+        // 先绘制骨架线
+        if (segmentCenters.length > 1) {
+          const colorConf = CONFIG.colors[feature.type] || CONFIG.colors.others;
+          for (let i = 0; i < segmentCenters.length - 1; i++) {
+            const current = segmentCenters[i];
+            const next = segmentCenters[i + 1];
+
+            featureGroup
+              .append("line")
+              .attr("class", "bone")
+              .attr("x1", current.x)
+              .attr("y1", current.y + boxHeight / 2)
+              .attr("x2", next.x)
+              .attr("y2", next.y + boxHeight / 2)
+              .attr("stroke", colorConf.stroke)
+              .attr("stroke-width", CONFIG.styles.bone.strokeWidth)
+              .attr("stroke-dasharray", CONFIG.styles.bone.strokeDasharray)
+              .style("pointer-events", "none");
           }
         }
+
+        // 再绘制特征框和文本
+        feature.location.forEach((loc, segmentIndex) => {
+          const segmentStart = Number(DataUtils.cleanString(loc[0]));
+          const segmentEnd =
+            loc.length > 1
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : segmentStart;
+          const segmentX = lengthScale(segmentStart);
+          const segmentW = Math.max(2, lengthScale(segmentEnd) - segmentX);
+          const segmentCenterX = segmentCenters[segmentIndex].x;
+
+          // 框
+          const colorConf = CONFIG.colors[feature.type] || CONFIG.colors.others;
+          if (!CONFIG.colors[feature.type]) {
+            console.warn("未命中特征类型颜色配置:", feature.type, "使用默认色");
+          }
+          if (segmentW <= 0 || boxHeight <= 0) {
+            console.warn("特征框宽高异常:", { segmentW, boxHeight, feature });
+          }
+          featureGroup
+            .append("rect")
+            .attr("class", `box ${feature.type}`)
+            .attr("x", segmentX)
+            .attr("y", y)
+            .attr("width", segmentW > 0 ? segmentW : 2)
+            .attr("height", boxHeight > 0 ? boxHeight : 2)
+            .attr(
+              "fill",
+              colorConf && colorConf.fill ? colorConf.fill : "#ffcccc"
+            )
+            .attr(
+              "stroke",
+              colorConf && colorConf.stroke ? colorConf.stroke : "#333"
+            )
+            .attr("stroke-width", CONFIG.styles.box.strokeWidth)
+            .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
+            .style("cursor", CONFIG.interaction.hover.cursor)
+            .on("click", () => onFeatureClick?.(feature))
+            .on("mouseover", function () {
+              featureGroup
+                .selectAll("rect.box")
+                .attr(
+                  "stroke-width",
+                  CONFIG.styles.box.strokeWidth *
+                    CONFIG.interaction.hover.strokeWidthMultiplier
+                );
+              featureGroup
+                .selectAll("text.annotation")
+                .style("font-weight", CONFIG.interaction.hover.fontWeight)
+                .style("fill", CONFIG.styles.annotation.fillDark)
+                .style("text-shadow", CONFIG.interaction.hover.textShadow);
+              // 添加文本背景显示
+              featureGroup
+                .selectAll(".text-bg")
+                .style("fill", CONFIG.interaction.hover.textBackground.fill)
+                .style("stroke", CONFIG.interaction.hover.textBackground.stroke)
+                .style(
+                  "stroke-width",
+                  CONFIG.interaction.hover.textBackground.strokeWidth
+                )
+                .style("opacity", 1);
+              // 高亮引导线
+              featureGroup
+                .selectAll(".annotation-leader")
+                .attr("stroke", CONFIG.interaction.hover.leader.stroke)
+                .attr(
+                  "stroke-width",
+                  CONFIG.interaction.hover.leader.strokeWidth
+                );
+            })
+            .on("mouseout", function () {
+              // 恢复特征框样式
+              featureGroup
+                .selectAll("rect.box")
+                .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+              // 恢复文本样式
+              featureGroup
+                .selectAll("text.annotation")
+                .style("font-weight", CONFIG.interaction.normal.fontWeight)
+                .style("text-shadow", CONFIG.interaction.normal.textShadow);
+              // 隐藏文本背景
+              featureGroup
+                .selectAll(".text-bg")
+                .style("fill", CONFIG.interaction.normal.textBackground.fill)
+                .style(
+                  "stroke",
+                  CONFIG.interaction.normal.textBackground.stroke
+                )
+                .style(
+                  "stroke-width",
+                  CONFIG.interaction.normal.textBackground.strokeWidth
+                )
+                .style("opacity", 0);
+              // 恢复引导线样式
+              featureGroup
+                .selectAll(".annotation-leader")
+                .attr("stroke", CONFIG.interaction.normal.leader.stroke)
+                .attr(
+                  "stroke-width",
+                  CONFIG.interaction.normal.leader.strokeWidth
+                );
+            });
+
+          // 为每个段添加文本标注
+          const text =
+            feature.information.gene ||
+            feature.information.product ||
+            feature.type;
+          if (text) {
+            const textWidth = TextUtils.measureTextWidth(
+              text,
+              fontSize,
+              CONFIG.fonts.primary.family
+            );
+            const availableWidth = segmentW - 10;
+            const isTruncated = textWidth > availableWidth;
+
+            if (isTruncated) {
+              // 圈外文本节点
+              rowTextNodes.push({
+                text,
+                width: textWidth,
+                height: fontSize,
+                x: segmentCenterX,
+                y: y + boxHeight + fontSize / 2,
+                targetX: segmentCenterX,
+                targetY: y + boxHeight + fontSize / 2,
+                box: {
+                  x: segmentX,
+                  y,
+                  width: segmentW,
+                  height: boxHeight,
+                  row,
+                },
+                isTruncated: true,
+                featureIndex: index,
+                segmentIndex,
+              });
+            } else {
+              // 在框内显示文本
+              featureGroup
+                .append("text")
+                .attr("class", "annotation")
+                .attr("x", segmentCenterX)
+                .attr("y", y + boxHeight / 2)
+                .text(text)
+                .style("font-family", CONFIG.fonts.primary.family)
+                .style("font-size", `${fontSize}px`)
+                .style("dominant-baseline", "middle")
+                .style("text-anchor", "middle")
+                .style("fill", CONFIG.styles.annotation.fillDark)
+                .style("pointer-events", "none");
+            }
+          }
+        });
       });
       // 对当前行的圈外文本应用力模拟
       if (rowTextNodes.length > 0) {
@@ -374,23 +459,6 @@ const LinearSequenceRenderer = ({
       }
       // 渲染文本
       rowFeatures.forEach((feature, index) => {
-        const [start, end] = [
-          Math.min(
-            ...feature.location.map((loc) =>
-              Number(DataUtils.cleanString(loc[0]))
-            )
-          ),
-          Math.max(
-            ...feature.location.map((loc) => {
-              const s = Number(DataUtils.cleanString(loc[0]));
-              return loc.length > 1
-                ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-                : s;
-            })
-          ),
-        ];
-        const x = lengthScale(start);
-        const w = Math.max(2, lengthScale(end) - x);
         const y = currentRowY;
         const featureGroup = rowGroup
           .selectAll(".feature")
@@ -400,59 +468,163 @@ const LinearSequenceRenderer = ({
           feature.information.product ||
           feature.type;
         if (text) {
-          const textWidth = TextUtils.measureTextWidth(
-            text,
-            fontSize,
-            CONFIG.fonts.primary.family
-          );
-          const availableWidth = w - 10;
-          const isTruncated = textWidth > availableWidth;
-          if (isTruncated) {
-            // 找到力导向后的节点
-            const textNode = rowTextNodes.find(
-              (n) =>
-                n.text === text &&
-                n.box.x === x &&
-                n.box.y === y &&
-                n.featureIndex === index
+          // 遍历每个段，分别渲染文本
+          feature.location.forEach((loc) => {
+            const segmentStart = Number(DataUtils.cleanString(loc[0]));
+            const segmentEnd =
+              loc.length > 1
+                ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+                : segmentStart;
+            const segmentX = lengthScale(segmentStart);
+            const segmentW = Math.max(2, lengthScale(segmentEnd) - segmentX);
+            const segmentCenterX = segmentX + segmentW / 2;
+            const textWidth = TextUtils.measureTextWidth(
+              text,
+              fontSize,
+              CONFIG.fonts.primary.family
             );
-            if (textNode) {
-              // 引导线
-              featureGroup
-                .append("line")
-                .attr("class", "annotation-leader")
-                .attr("x1", textNode.x)
-                .attr("y1", textNode.y)
-                .attr("x2", textNode.box.x + textNode.box.width / 2)
-                .attr("y2", textNode.box.y + textNode.box.height)
-                .attr("stroke", CONFIG.interaction.normal.leader.stroke)
-                .attr(
-                  "stroke-width",
-                  CONFIG.interaction.normal.leader.strokeWidth
-                )
-                .style("pointer-events", "none");
-              // 文本背景
-              featureGroup
-                .append("rect")
-                .attr("class", "text-bg")
-                .attr("x", textNode.x - textNode.width / 2 - 5)
-                .attr("y", textNode.y - textNode.height / 2)
-                .attr("width", textNode.width + 10)
-                .attr("height", textNode.height)
-                .attr("fill", CONFIG.interaction.normal.textBackground.fill)
-                .attr("stroke", CONFIG.interaction.normal.textBackground.stroke)
-                .attr(
-                  "stroke-width",
-                  CONFIG.interaction.normal.textBackground.strokeWidth
-                )
-                .style("opacity", 0);
-              // 文本
+            const availableWidth = segmentW - 10;
+            const isTruncated = textWidth > availableWidth;
+            if (isTruncated) {
+              // 找到力导向后的节点（锚定segment的x/y/w）
+              const textNode = rowTextNodes.find(
+                (n) =>
+                  n.text === text &&
+                  n.box.x === segmentX &&
+                  n.box.y === y &&
+                  n.box.width === segmentW &&
+                  n.featureIndex === index
+              );
+              if (textNode) {
+                // 引导线
+                featureGroup
+                  .append("line")
+                  .attr("class", "annotation-leader")
+                  .attr("x1", textNode.x)
+                  .attr("y1", textNode.y)
+                  .attr("x2", textNode.box.x + textNode.box.width / 2)
+                  .attr("y2", textNode.box.y + textNode.box.height)
+                  .attr("stroke", CONFIG.interaction.normal.leader.stroke)
+                  .attr(
+                    "stroke-width",
+                    CONFIG.interaction.normal.leader.strokeWidth
+                  )
+                  .style("pointer-events", "none");
+                // 文本背景
+                featureGroup
+                  .append("rect")
+                  .attr("class", "text-bg")
+                  .attr("x", textNode.x - textNode.width / 2 - 5)
+                  .attr("y", textNode.y - textNode.height / 2)
+                  .attr("width", textNode.width + 10)
+                  .attr("height", textNode.height)
+                  .attr("fill", CONFIG.interaction.normal.textBackground.fill)
+                  .attr(
+                    "stroke",
+                    CONFIG.interaction.normal.textBackground.stroke
+                  )
+                  .attr(
+                    "stroke-width",
+                    CONFIG.interaction.normal.textBackground.strokeWidth
+                  )
+                  .style("opacity", 0);
+                // 文本
+                featureGroup
+                  .append("text")
+                  .attr("class", "annotation truncated")
+                  .attr("x", textNode.x)
+                  .attr("y", textNode.y)
+                  .text(textNode.text)
+                  .style("font-family", CONFIG.fonts.primary.family)
+                  .style("font-size", `${fontSize}px`)
+                  .style("dominant-baseline", "middle")
+                  .style("text-anchor", "middle")
+                  .style("pointer-events", "auto")
+                  .style("cursor", CONFIG.interaction.hover.cursor)
+                  .style("fill", CONFIG.styles.annotation.fillDark)
+                  .on("click", () => onFeatureClick?.(feature))
+                  .on("mouseover", function () {
+                    featureGroup
+                      .selectAll("rect.box")
+                      .attr(
+                        "stroke-width",
+                        CONFIG.styles.box.strokeWidth *
+                          CONFIG.interaction.hover.strokeWidthMultiplier
+                      );
+                    d3.select(this)
+                      .style("font-weight", CONFIG.interaction.hover.fontWeight)
+                      .style(
+                        "text-shadow",
+                        CONFIG.interaction.hover.textShadow
+                      );
+                    featureGroup
+                      .selectAll(".text-bg")
+                      .style(
+                        "fill",
+                        CONFIG.interaction.hover.textBackground.fill
+                      )
+                      .style(
+                        "stroke",
+                        CONFIG.interaction.hover.textBackground.stroke
+                      )
+                      .style(
+                        "stroke-width",
+                        CONFIG.interaction.hover.textBackground.strokeWidth
+                      )
+                      .style("opacity", 1);
+                    featureGroup
+                      .selectAll(".annotation-leader")
+                      .attr("stroke", CONFIG.interaction.hover.leader.stroke)
+                      .attr(
+                        "stroke-width",
+                        CONFIG.interaction.hover.leader.strokeWidth
+                      );
+                  })
+                  .on("mouseout", function () {
+                    featureGroup
+                      .selectAll("rect.box")
+                      .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+                    d3.select(this)
+                      .style(
+                        "font-weight",
+                        CONFIG.interaction.normal.fontWeight
+                      )
+                      .style(
+                        "text-shadow",
+                        CONFIG.interaction.normal.textShadow
+                      );
+                    featureGroup
+                      .selectAll(".text-bg")
+                      .style(
+                        "fill",
+                        CONFIG.interaction.normal.textBackground.fill
+                      )
+                      .style(
+                        "stroke",
+                        CONFIG.interaction.normal.textBackground.stroke
+                      )
+                      .style(
+                        "stroke-width",
+                        CONFIG.interaction.normal.textBackground.strokeWidth
+                      )
+                      .style("opacity", 0);
+                    featureGroup
+                      .selectAll(".annotation-leader")
+                      .attr("stroke", CONFIG.interaction.normal.leader.stroke)
+                      .attr(
+                        "stroke-width",
+                        CONFIG.interaction.normal.leader.strokeWidth
+                      );
+                  });
+              }
+            } else {
+              // 普通文本，锚定每个段的中心
               featureGroup
                 .append("text")
-                .attr("class", "annotation truncated")
-                .attr("x", textNode.x)
-                .attr("y", textNode.y)
-                .text(textNode.text)
+                .attr("class", "annotation")
+                .attr("x", segmentCenterX)
+                .attr("y", y + boxHeight / 2)
+                .text(text)
                 .style("font-family", CONFIG.fonts.primary.family)
                 .style("font-size", `${fontSize}px`)
                 .style("dominant-baseline", "middle")
@@ -472,25 +644,6 @@ const LinearSequenceRenderer = ({
                   d3.select(this)
                     .style("font-weight", CONFIG.interaction.hover.fontWeight)
                     .style("text-shadow", CONFIG.interaction.hover.textShadow);
-                  featureGroup
-                    .selectAll(".text-bg")
-                    .style("fill", CONFIG.interaction.hover.textBackground.fill)
-                    .style(
-                      "stroke",
-                      CONFIG.interaction.hover.textBackground.stroke
-                    )
-                    .style(
-                      "stroke-width",
-                      CONFIG.interaction.hover.textBackground.strokeWidth
-                    )
-                    .style("opacity", 1);
-                  featureGroup
-                    .selectAll(".annotation-leader")
-                    .attr("stroke", CONFIG.interaction.hover.leader.stroke)
-                    .attr(
-                      "stroke-width",
-                      CONFIG.interaction.hover.leader.strokeWidth
-                    );
                 })
                 .on("mouseout", function () {
                   featureGroup
@@ -499,67 +652,9 @@ const LinearSequenceRenderer = ({
                   d3.select(this)
                     .style("font-weight", CONFIG.interaction.normal.fontWeight)
                     .style("text-shadow", CONFIG.interaction.normal.textShadow);
-                  featureGroup
-                    .selectAll(".text-bg")
-                    .style(
-                      "fill",
-                      CONFIG.interaction.normal.textBackground.fill
-                    )
-                    .style(
-                      "stroke",
-                      CONFIG.interaction.normal.textBackground.stroke
-                    )
-                    .style(
-                      "stroke-width",
-                      CONFIG.interaction.normal.textBackground.strokeWidth
-                    )
-                    .style("opacity", 0);
-                  featureGroup
-                    .selectAll(".annotation-leader")
-                    .attr("stroke", CONFIG.interaction.normal.leader.stroke)
-                    .attr(
-                      "stroke-width",
-                      CONFIG.interaction.normal.leader.strokeWidth
-                    );
                 });
             }
-          } else {
-            // 普通文本
-            featureGroup
-              .append("text")
-              .attr("class", "annotation")
-              .attr("x", x + w / 2)
-              .attr("y", y + boxHeight / 2)
-              .text(text)
-              .style("font-family", CONFIG.fonts.primary.family)
-              .style("font-size", `${fontSize}px`)
-              .style("dominant-baseline", "middle")
-              .style("text-anchor", "middle")
-              .style("pointer-events", "auto")
-              .style("cursor", CONFIG.interaction.hover.cursor)
-              .style("fill", CONFIG.styles.annotation.fillDark)
-              .on("click", () => onFeatureClick?.(feature))
-              .on("mouseover", function () {
-                featureGroup
-                  .selectAll("rect.box")
-                  .attr(
-                    "stroke-width",
-                    CONFIG.styles.box.strokeWidth *
-                      CONFIG.interaction.hover.strokeWidthMultiplier
-                  );
-                d3.select(this)
-                  .style("font-weight", CONFIG.interaction.hover.fontWeight)
-                  .style("text-shadow", CONFIG.interaction.hover.textShadow);
-              })
-              .on("mouseout", function () {
-                featureGroup
-                  .selectAll("rect.box")
-                  .attr("stroke-width", CONFIG.styles.box.strokeWidth);
-                d3.select(this)
-                  .style("font-weight", CONFIG.interaction.normal.fontWeight)
-                  .style("text-shadow", CONFIG.interaction.normal.textShadow);
-              });
-          }
+          });
         }
       });
       // 计算本行最大y
@@ -600,7 +695,7 @@ const LinearSequenceRenderer = ({
     // 添加鼠标滚轮事件处理
     svg.on("wheel", (event) => {
       event.preventDefault();
-      const delta = event.deltaY;
+      const delta = -event.deltaY; // 取反 deltaY 来修正滚动方向
       const currentTransform = d3.zoomTransform(svg.node());
       const newY = currentTransform.y + delta;
 
