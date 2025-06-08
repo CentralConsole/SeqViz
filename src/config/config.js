@@ -54,70 +54,87 @@ export const CONFIG = {
     source: {
       fill: "#4A7A6C",
       stroke: "rgb(142, 209, 189)",
+      shape: "arrow",
     },
     operon: {
       fill: "#3C6C8C",
       stroke: "rgb(169, 146, 227)",
+      shape: "rect",
     },
     CDS: {
       fill: "#287733",
       stroke: "rgb(165, 216, 76)",
+      shape: "arrow",
     },
     gene: {
-      fill: "#333377",
+      fill: " #333377",
       stroke: "rgb(143, 175, 211)",
+      shape: "arrow",
     },
     tRNA: {
-      fill: "#614D7C",
+      fill: " #614D7C",
       stroke: "rgb(187, 156, 210)",
+      shape: "rect",
     },
     rRNA: {
       fill: "#7E4450",
       stroke: "rgb(213, 112, 112)",
+      shape: "rect",
     },
     misc_feature: {
       fill: "#607D8B",
       stroke: "#405D6B",
+      shape: "rect",
     },
     regulatory: {
       fill: "#475A66",
       stroke: "rgb(98, 195, 255)",
+      shape: "rect",
     },
     STS: {
-      fill: "#7D5A40",
+      fill: " #7D5A40",
       stroke: "rgb(204, 137, 66)",
+      shape: "arrow",
     },
     mRNA: {
       fill: "#FF9800",
       stroke: "#DF7800",
+      shape: "arrow",
     },
     exon: {
       fill: "#9C27B0",
       stroke: "#7C0790",
+      shape: "rect",
     },
     intron: {
       fill: "#E91E63",
       stroke: "#C90E43",
+      shape: "rect",
     },
     promoter: {
       fill: "#FF5722",
       stroke: "#DF3702",
+      shape: "rect",
     },
     terminator: {
       fill: "#F44336",
       stroke: "#D42326",
+      shape: "rect",
     },
     variation: {
       fill: "#00BCD4",
       stroke: "#009CB4",
+      shape: "rect",
     },
     gap: {
       fill: "#9E9E9E",
       stroke: "#7E7E7E",
+      shape: "rect",
     },
     others: {
       fill: "#757575",
       stroke: "rgb(185, 185, 185)",
+      shape: "rect",
     },
   },
   fonts: {

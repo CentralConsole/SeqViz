@@ -21,7 +21,7 @@ function App() {
   return (
     <div className="App">
       <SequenceViewer
-        data="/test.json"
+        data="./mito.json"
         style={{ width: "100%", height: "100vh" }}
         onFeatureClick={handleFeatureClick}
       />

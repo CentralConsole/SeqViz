@@ -211,6 +211,7 @@ const LinearSequenceRenderer = ({
       const rowTextNodes = [];
       // 渲染当前行的所有特征
       rowFeatures.forEach((feature, index) => {
+        const colorConf = CONFIG.colors[feature.type] || CONFIG.colors.others;
         const [start, end] = [
           Math.min(
             ...feature.location.map((loc) =>
@@ -256,7 +257,6 @@ const LinearSequenceRenderer = ({
 
         // 先绘制骨架线
         if (segmentCenters.length > 1) {
-          const colorConf = CONFIG.colors[feature.type] || CONFIG.colors.others;
           for (let i = 0; i < segmentCenters.length - 1; i++) {
             const current = segmentCenters[i];
             const next = segmentCenters[i + 1];
@@ -286,97 +286,63 @@ const LinearSequenceRenderer = ({
           const segmentW = Math.max(2, lengthScale(segmentEnd) - segmentX);
           const segmentCenterX = segmentCenters[segmentIndex].x;
 
-          // 框
-          const colorConf = CONFIG.colors[feature.type] || CONFIG.colors.others;
-          if (!CONFIG.colors[feature.type]) {
-            console.warn("未命中特征类型颜色配置:", feature.type, "使用默认色");
+          // 计算arrow宽度
+          let arrowWidth = 0;
+          let arrowHeight = 0;
+          if (colorConf.shape === "arrow") {
+            // 七边形箭头参数
+            const arrowWidth = Math.min(boxHeight * 1.2, segmentW / 3);
+            const arrowNeck = boxHeight * 0.6;
+            const rectW = segmentW - arrowWidth;
+            //点坐标
+            const leftTop = [segmentX, y];
+            const rightTop = [segmentX + rectW, y];
+            const neckTop = [
+              segmentX + rectW,
+              y + boxHeight / 2 - (boxHeight + arrowNeck) / 2,
+            ];
+            const tip = [segmentX + segmentW, y + boxHeight / 2];
+            const neckBottom = [
+              segmentX + rectW,
+              y + boxHeight / 2 + (boxHeight + arrowNeck) / 2,
+            ];
+            const rightBottom = [segmentX + rectW, y + boxHeight];
+            const leftBottom = [segmentX, y + boxHeight];
+            const points = [
+              leftTop,
+              rightTop,
+              neckTop,
+              tip,
+              neckBottom,
+              rightBottom,
+              leftBottom,
+            ];
+            featureGroup
+              .append("polygon")
+              .attr("points", points.map((p) => p.join(",")).join(" "))
+              .attr("fill", colorConf.fill)
+              .attr("stroke", colorConf.stroke)
+              .attr("class", "arrow-rect")
+              .style("cursor", CONFIG.interaction.hover.cursor)
+              .on("click", () => onFeatureClick?.(feature))
+              .on("mouseover", function () {
+                highlightFeature(featureGroup);
+              })
+              .on("mouseout", function () {
+                unhighlightFeature(featureGroup);
+              });
+          } else {
+            drawRect(
+              featureGroup,
+              feature,
+              segmentX,
+              y,
+              segmentW,
+              boxHeight,
+              colorConf,
+              onFeatureClick
+            );
           }
-          if (segmentW <= 0 || boxHeight <= 0) {
-            console.warn("特征框宽高异常:", { segmentW, boxHeight, feature });
-          }
-          featureGroup
-            .append("rect")
-            .attr("class", `box ${feature.type}`)
-            .attr("x", segmentX)
-            .attr("y", y)
-            .attr("width", segmentW > 0 ? segmentW : 2)
-            .attr("height", boxHeight > 0 ? boxHeight : 2)
-            .attr(
-              "fill",
-              colorConf && colorConf.fill ? colorConf.fill : "#ffcccc"
-            )
-            .attr(
-              "stroke",
-              colorConf && colorConf.stroke ? colorConf.stroke : "#333"
-            )
-            .attr("stroke-width", CONFIG.styles.box.strokeWidth)
-            .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
-            .style("cursor", CONFIG.interaction.hover.cursor)
-            .on("click", () => onFeatureClick?.(feature))
-            .on("mouseover", function () {
-              featureGroup
-                .selectAll("rect.box")
-                .attr(
-                  "stroke-width",
-                  CONFIG.styles.box.strokeWidth *
-                    CONFIG.interaction.hover.strokeWidthMultiplier
-                );
-              featureGroup
-                .selectAll("text.annotation")
-                .style("font-weight", CONFIG.interaction.hover.fontWeight)
-                .style("fill", CONFIG.styles.annotation.fillDark)
-                .style("text-shadow", CONFIG.interaction.hover.textShadow);
-              // 添加文本背景显示
-              featureGroup
-                .selectAll(".text-bg")
-                .style("fill", CONFIG.interaction.hover.textBackground.fill)
-                .style("stroke", CONFIG.interaction.hover.textBackground.stroke)
-                .style(
-                  "stroke-width",
-                  CONFIG.interaction.hover.textBackground.strokeWidth
-                )
-                .style("opacity", 1);
-              // 高亮引导线
-              featureGroup
-                .selectAll(".annotation-leader")
-                .attr("stroke", CONFIG.interaction.hover.leader.stroke)
-                .attr(
-                  "stroke-width",
-                  CONFIG.interaction.hover.leader.strokeWidth
-                );
-            })
-            .on("mouseout", function () {
-              // 恢复特征框样式
-              featureGroup
-                .selectAll("rect.box")
-                .attr("stroke-width", CONFIG.styles.box.strokeWidth);
-              // 恢复文本样式
-              featureGroup
-                .selectAll("text.annotation")
-                .style("font-weight", CONFIG.interaction.normal.fontWeight)
-                .style("text-shadow", CONFIG.interaction.normal.textShadow);
-              // 隐藏文本背景
-              featureGroup
-                .selectAll(".text-bg")
-                .style("fill", CONFIG.interaction.normal.textBackground.fill)
-                .style(
-                  "stroke",
-                  CONFIG.interaction.normal.textBackground.stroke
-                )
-                .style(
-                  "stroke-width",
-                  CONFIG.interaction.normal.textBackground.strokeWidth
-                )
-                .style("opacity", 0);
-              // 恢复引导线样式
-              featureGroup
-                .selectAll(".annotation-leader")
-                .attr("stroke", CONFIG.interaction.normal.leader.stroke)
-                .attr(
-                  "stroke-width",
-                  CONFIG.interaction.normal.leader.strokeWidth
-                );
-            });
 
           // 为每个段添加文本标注
           const text =
@@ -544,77 +510,10 @@ const LinearSequenceRenderer = ({
                   .style("fill", CONFIG.styles.annotation.fillDark)
                   .on("click", () => onFeatureClick?.(feature))
                   .on("mouseover", function () {
-                    featureGroup
-                      .selectAll("rect.box")
-                      .attr(
-                        "stroke-width",
-                        CONFIG.styles.box.strokeWidth *
-                          CONFIG.interaction.hover.strokeWidthMultiplier
-                      );
-                    d3.select(this)
-                      .style("font-weight", CONFIG.interaction.hover.fontWeight)
-                      .style(
-                        "text-shadow",
-                        CONFIG.interaction.hover.textShadow
-                      );
-                    featureGroup
-                      .selectAll(".text-bg")
-                      .style(
-                        "fill",
-                        CONFIG.interaction.hover.textBackground.fill
-                      )
-                      .style(
-                        "stroke",
-                        CONFIG.interaction.hover.textBackground.stroke
-                      )
-                      .style(
-                        "stroke-width",
-                        CONFIG.interaction.hover.textBackground.strokeWidth
-                      )
-                      .style("opacity", 1);
-                    featureGroup
-                      .selectAll(".annotation-leader")
-                      .attr("stroke", CONFIG.interaction.hover.leader.stroke)
-                      .attr(
-                        "stroke-width",
-                        CONFIG.interaction.hover.leader.strokeWidth
-                      );
+                    highlightFeature(featureGroup);
                   })
                   .on("mouseout", function () {
-                    featureGroup
-                      .selectAll("rect.box")
-                      .attr("stroke-width", CONFIG.styles.box.strokeWidth);
-                    d3.select(this)
-                      .style(
-                        "font-weight",
-                        CONFIG.interaction.normal.fontWeight
-                      )
-                      .style(
-                        "text-shadow",
-                        CONFIG.interaction.normal.textShadow
-                      );
-                    featureGroup
-                      .selectAll(".text-bg")
-                      .style(
-                        "fill",
-                        CONFIG.interaction.normal.textBackground.fill
-                      )
-                      .style(
-                        "stroke",
-                        CONFIG.interaction.normal.textBackground.stroke
-                      )
-                      .style(
-                        "stroke-width",
-                        CONFIG.interaction.normal.textBackground.strokeWidth
-                      )
-                      .style("opacity", 0);
-                    featureGroup
-                      .selectAll(".annotation-leader")
-                      .attr("stroke", CONFIG.interaction.normal.leader.stroke)
-                      .attr(
-                        "stroke-width",
-                        CONFIG.interaction.normal.leader.strokeWidth
-                      );
+                    unhighlightFeature(featureGroup);
                   });
               }
             } else {
@@ -634,24 +533,10 @@ const LinearSequenceRenderer = ({
                 .style("fill", CONFIG.styles.annotation.fillDark)
                 .on("click", () => onFeatureClick?.(feature))
                 .on("mouseover", function () {
-                  featureGroup
-                    .selectAll("rect.box")
-                    .attr(
-                      "stroke-width",
-                      CONFIG.styles.box.strokeWidth *
-                        CONFIG.interaction.hover.strokeWidthMultiplier
-                    );
-                  d3.select(this)
-                    .style("font-weight", CONFIG.interaction.hover.fontWeight)
-                    .style("text-shadow", CONFIG.interaction.hover.textShadow);
+                  highlightFeature(featureGroup);
                 })
                 .on("mouseout", function () {
-                  featureGroup
-                    .selectAll("rect.box")
-                    .attr("stroke-width", CONFIG.styles.box.strokeWidth);
-                  d3.select(this)
-                    .style("font-weight", CONFIG.interaction.normal.fontWeight)
-                    .style("text-shadow", CONFIG.interaction.normal.textShadow);
+                  unhighlightFeature(featureGroup);
                 });
             }
           });
@@ -720,5 +605,114 @@ const LinearSequenceRenderer = ({
     </div>
   );
 };
+
+// 高亮和恢复函数
+function highlightFeature(featureGroup) {
+  featureGroup
+    .selectAll("rect.box, polygon.arrow-rect")
+    .attr(
+      "stroke-width",
+      CONFIG.styles.box.strokeWidth *
+        CONFIG.interaction.hover.strokeWidthMultiplier
+    );
+  featureGroup
+    .selectAll("text.annotation")
+    .style("font-weight", CONFIG.interaction.hover.fontWeight)
+    .style("fill", CONFIG.styles.annotation.fillDark)
+    .style("text-shadow", CONFIG.interaction.hover.textShadow);
+  featureGroup
+    .selectAll(".text-bg")
+    .style("fill", CONFIG.interaction.hover.textBackground.fill)
+    .style("stroke", CONFIG.interaction.hover.textBackground.stroke)
+    .style("stroke-width", CONFIG.interaction.hover.textBackground.strokeWidth)
+    .style("opacity", 1);
+  featureGroup
+    .selectAll(".annotation-leader")
+    .attr("stroke", CONFIG.interaction.hover.leader.stroke)
+    .attr("stroke-width", CONFIG.interaction.hover.leader.strokeWidth);
+}
+function unhighlightFeature(featureGroup) {
+  featureGroup
+    .selectAll("rect.box, polygon.arrow-rect")
+    .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+  featureGroup
+    .selectAll("text.annotation")
+    .style("font-weight", CONFIG.interaction.normal.fontWeight)
+    .style("text-shadow", CONFIG.interaction.normal.textShadow);
+  featureGroup
+    .selectAll(".text-bg")
+    .style("fill", CONFIG.interaction.normal.textBackground.fill)
+    .style("stroke", CONFIG.interaction.normal.textBackground.stroke)
+    .style("stroke-width", CONFIG.interaction.normal.textBackground.strokeWidth)
+    .style("opacity", 0);
+  featureGroup
+    .selectAll(".annotation-leader")
+    .attr("stroke", CONFIG.interaction.normal.leader.stroke)
+    .attr("stroke-width", CONFIG.interaction.normal.leader.strokeWidth);
+}
+
+function drawRect(
+  featureGroup,
+  feature,
+  segmentX,
+  y,
+  segmentW,
+  boxHeight,
+  colorConf,
+  onFeatureClick
+) {
+  return featureGroup
+    .append("rect")
+    .attr("class", `box ${feature.type}`)
+    .attr("x", segmentX)
+    .attr("y", y)
+    .attr("width", segmentW > 0 ? segmentW : 2)
+    .attr("height", boxHeight > 0 ? boxHeight : 2)
+    .attr("fill", colorConf && colorConf.fill ? colorConf.fill : "#ffcccc")
+    .attr("stroke", colorConf && colorConf.stroke ? colorConf.stroke : "#333")
+    .attr("stroke-width", CONFIG.styles.box.strokeWidth)
+    .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
+    .style("cursor", CONFIG.interaction.hover.cursor)
+    .on("click", () => onFeatureClick?.(feature))
+    .on("mouseover", function () {
+      highlightFeature(featureGroup);
+    })
+    .on("mouseout", function () {
+      unhighlightFeature(featureGroup);
+    });
+}
+
+function drawArrowHead(
+  featureGroup,
+  arrowX,
+  arrowY,
+  arrowWidth,
+  arrowHeight,
+  colorConf,
+  onFeatureClick,
+  feature
+) {
+  const points = [
+    [0, 0],
+    [-arrowWidth, -arrowHeight / 2],
+    [-arrowWidth, arrowHeight / 2],
+  ];
+  const arrowPath = d3.line()(points);
+  featureGroup
+    .append("path")
+    .attr("d", arrowPath + "Z")
+    .attr("class", "arrowhead")
+    .attr("fill", colorConf.fill || "#333")
+    .attr("stroke", colorConf.stroke || "#333")
+    .attr("transform", `translate(${arrowX},${arrowY})`)
+    .style("cursor", CONFIG.interaction.hover.cursor)
+    .on("click", () => onFeatureClick?.(feature))
+    .on("mouseover", function () {
+      highlightFeature(featureGroup);
+    })
+    .on("mouseout", function () {
+      unhighlightFeature(featureGroup);
+    });
+}
 
 export default LinearSequenceRenderer;
