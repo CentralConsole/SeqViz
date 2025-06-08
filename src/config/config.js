@@ -7,24 +7,24 @@ export const CONFIG = {
       bottom: 0.05,
       left: 0.05,
     },
-    unit: 10,
-    boxHeightMultiplier: 1.0,
-    fontSizeMultiplier: 0.7,
-    vSpace: 20,
-    safetyMargin: 10,
+    unit: 20,
+    boxHeightMultiplier: 2.0,
+    fontSizeMultiplier: 1.4,
+    vSpace: 40,
+    safetyMargin: 20,
   },
   styles: {
     box: {
-      strokeWidth: 1,
+      strokeWidth: 2,
       strokeColor: "#000",
       fillOpacity: 1.0,
       stroke: "#000", // 边框颜色
-      strokeWidth: 1, // 边框宽度
+      strokeWidth: 2, // 边框宽度
     },
     axis: {
       stroke: "#e0e0e0", // 坐标轴和刻度线的颜色
-      strokeWidth: 1, // 坐标轴和刻度线的宽度
-      tickLength: 2, // 刻度线长度
+      strokeWidth: 2, // 坐标轴和刻度线的宽度
+      tickLength: 4, // 刻度线长度
       background: {
         fill: "rgb(30, 30, 30)", // 半透明深色背景
         stroke: "none", // 无边框
@@ -33,7 +33,7 @@ export const CONFIG = {
     bone: {
       opacity: 0.5,
       strokeLinecap: "round",
-      strokeDasharray: "5,5",
+      strokeDasharray: "10,10",
     },
     gap: {
       strokeLinecap: "butt",
@@ -42,11 +42,11 @@ export const CONFIG = {
       strokeLinecap: "round",
     },
     annotation: {
-      fontSize: 7,
+      fontSize: 14,
       fontFamily: "Maple Mono CN, Maple Mono, Arial, sans-serif",
       fill: "#333",
       fillDark: "#e0e0e0", // 深色主题下的文本颜色
-      textPathRadialOffset: 11, // 文本路径的径向移动距离
+      textPathRadialOffset: 22, // 文本路径的径向移动距离
     },
   },
   colors: {

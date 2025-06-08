@@ -8,11 +8,16 @@
  * 4. 处理全局路由（如果后续需要）
  */
 
-import React from "react";
+import React, { useEffect } from "react";
 import SequenceViewer from "./components/SequenceViewer/SequenceViewer";
 import "./App.css";
 
 function App() {
+  useEffect(() => {
+    // 设置初始缩放
+    document.body.style.zoom = "100%";
+  }, []);
+
   const handleFeatureClick = (feature) => {
     console.log("点击的特征数据：", feature);
     // 这里可以添加更多的处理逻辑，比如显示在界面上

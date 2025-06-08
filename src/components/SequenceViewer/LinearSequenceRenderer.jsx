@@ -48,10 +48,9 @@ const LinearSequenceRenderer = ({
     };
     const contentWidth = initialWidth - margin.left - margin.right;
     const viewportHeight = height - margin.top - margin.bottom;
-    const fontSize =
-      CONFIG.dimensions.unit * CONFIG.dimensions.fontSizeMultiplier;
+    const fontSize = CONFIG.styles.annotation.fontSize;
     const boxHeight =
-      CONFIG.dimensions.unit * CONFIG.dimensions.boxHeightMultiplier;
+      (CONFIG.dimensions.unit * CONFIG.dimensions.boxHeightMultiplier) / 2;
     const vSpace = CONFIG.dimensions.vSpace;
     const totalLength = data.locus ? parseInt(data.locus.split(/\s+/)[1]) : 0;
 
@@ -115,7 +114,7 @@ const LinearSequenceRenderer = ({
     axisGroup
       .selectAll("text")
       .attr("fill", CONFIG.styles.annotation.fillDark)
-      .attr("font-size", `${CONFIG.styles.annotation.fontSize}px`)
+      .attr("font-size", `${fontSize}px`)
       .attr("font-family", CONFIG.fonts.primary.family);
 
     // 渲染所有特征并计算内容高度
