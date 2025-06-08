@@ -26,7 +26,7 @@ export const CONFIG = {
       strokeWidth: 1, // 坐标轴和刻度线的宽度
       tickLength: 2, // 刻度线长度
       background: {
-        fill: "rgba(30, 30, 30, 0.8)", // 半透明深色背景
+        fill: "rgb(30, 30, 30)", // 半透明深色背景
         stroke: "none", // 无边框
       },
     },
