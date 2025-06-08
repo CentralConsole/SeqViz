@@ -855,6 +855,10 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
     const zoom = d3
       .zoom()
       .scaleExtent([0.5, 3])
+      .translateExtent([
+        [-maxRadius, -maxRadius],
+        [maxRadius, maxRadius],
+      ])
       .on("zoom", (event) => {
         mainGroup.attr("transform", event.transform);
         setScale(event.transform.k);
