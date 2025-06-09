@@ -49,12 +49,6 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .domain([0, totalLength])
       .range([0, 2 * Math.PI]); // 从0度开始，到360度结束
 
-    // 创建颜色比例尺 - 使用config.js中的颜色
-    const colorScale = d3
-      .scaleOrdinal()
-      .domain(Object.keys(CONFIG.colors))
-      .range(Object.values(CONFIG.colors));
-
     // 绘制内圈
     mainGroup
       .append("circle")
@@ -72,6 +66,13 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       // 处理特征数据，计算径向位置和各段弧线
       const processedFeatures = data.features
         .map((feature) => {
+          // 检查特征类型是否应该显示
+          const typeConfig =
+            CONFIG.featureType[feature.type] || CONFIG.featureType.others;
+          if (!typeConfig.isDisplayed) {
+            return null;
+          }
+
           // 验证特征位置数据的有效性
           if (
             !feature.location ||
@@ -328,11 +329,11 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
               .attr("d", segmentD)
               .attr(
                 "fill",
-                (CONFIG.colors[d.type] || CONFIG.colors.others).fill
+                (CONFIG.featureType[d.type] || CONFIG.featureType.others).fill
               )
               .attr(
                 "stroke",
-                (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                (CONFIG.featureType[d.type] || CONFIG.featureType.others).stroke
               )
               .attr("stroke-width", CONFIG.styles.box.strokeWidth)
               .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
@@ -344,7 +345,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                   .selectAll("path")
                   .attr(
                     "stroke",
-                    (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                    (CONFIG.featureType[d.type] || CONFIG.featureType.others)
+                      .stroke
                   )
                   .attr(
                     "stroke-width",
@@ -378,7 +380,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                   .selectAll("path")
                   .attr(
                     "stroke",
-                    (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                    (CONFIG.featureType[d.type] || CONFIG.featureType.others)
+                      .stroke
                   )
                   .attr("stroke-width", CONFIG.styles.box.strokeWidth);
 
@@ -556,7 +559,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                     .selectAll("path")
                     .attr(
                       "stroke",
-                      (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                      (CONFIG.featureType[d.type] || CONFIG.featureType.others)
+                        .stroke
                     )
                     .attr(
                       "stroke-width",
@@ -575,7 +579,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                     .selectAll("path")
                     .attr(
                       "stroke",
-                      (CONFIG.colors[d.type] || CONFIG.colors.others).stroke
+                      (CONFIG.featureType[d.type] || CONFIG.featureType.others)
+                        .stroke
                     )
                     .attr("stroke-width", CONFIG.styles.box.strokeWidth);
 
@@ -831,9 +836,9 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           .attr("x", 0)
           .attr("y", 0)
           .attr("text-anchor", "middle")
-          .attr("fill", CONFIG.styles.annotation.fillDark)
-          .attr("font-family", CONFIG.styles.annotation.fontFamily)
-          .attr("font-size", `${CONFIG.styles.annotation.fontSize}px`)
+          .attr("fill", CONFIG.styles.axis.text.fill)
+          .attr("font-family", CONFIG.styles.axis.text.fontFamily)
+          .attr("font-size", `${CONFIG.styles.axis.text.fontSize}px`)
           .attr("transform", (d) => {
             const angle = angleScale(d);
             if (angle > Math.PI || angle < 0) {
@@ -845,7 +850,6 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             if (angle === Math.PI) {
               return "rotate(-90)"; //IMPORTANT: 180度时，文本需要旋转-90度，否则方向错误
             }
-
             return "";
           })
           .text(Math.floor(d));

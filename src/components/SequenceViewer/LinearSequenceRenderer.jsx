@@ -113,40 +113,46 @@ const LinearSequenceRenderer = ({
 
     axisGroup
       .selectAll("text")
-      .attr("fill", CONFIG.styles.annotation.fillDark)
-      .attr("font-size", `${fontSize}px`)
-      .attr("font-family", CONFIG.fonts.primary.family);
+      .attr("fill", CONFIG.styles.axis.text.fill)
+      .attr("font-size", `${CONFIG.styles.axis.text.fontSize}px`)
+      .attr("font-family", CONFIG.styles.axis.text.fontFamily);
 
     // 渲染所有特征并计算内容高度
     let currentRowY = vSpace * 2;
     const features = data.features || [];
 
     // 多行排布：贪心分配行号
-    const sorted = [...features].sort((a, b) => {
-      const aStart = Math.min(
-        ...a.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
-      );
-      const aEnd = Math.max(
-        ...a.location.map((loc) => {
-          const s = Number(DataUtils.cleanString(loc[0]));
-          return loc.length > 1
-            ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-            : s;
-        })
-      );
-      const bStart = Math.min(
-        ...b.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
-      );
-      const bEnd = Math.max(
-        ...b.location.map((loc) => {
-          const s = Number(DataUtils.cleanString(loc[0]));
-          return loc.length > 1
-            ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-            : s;
-        })
-      );
-      return bEnd - bStart - (aEnd - aStart);
-    });
+    const sorted = [...features]
+      .sort((a, b) => {
+        const aStart = Math.min(
+          ...a.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
+        );
+        const aEnd = Math.max(
+          ...a.location.map((loc) => {
+            const s = Number(DataUtils.cleanString(loc[0]));
+            return loc.length > 1
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : s;
+          })
+        );
+        const bStart = Math.min(
+          ...b.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
+        );
+        const bEnd = Math.max(
+          ...b.location.map((loc) => {
+            const s = Number(DataUtils.cleanString(loc[0]));
+            return loc.length > 1
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : s;
+          })
+        );
+        return bEnd - bStart - (aEnd - aStart);
+      })
+      .filter((feature) => {
+        const typeConfig =
+          CONFIG.featureType[feature.type] || CONFIG.featureType.others;
+        return typeConfig.isDisplayed;
+      });
     const rows = [];
     sorted.forEach((item) => {
       let assigned = false;
@@ -194,7 +200,7 @@ const LinearSequenceRenderer = ({
 
     // 按行分组特征
     const featuresByRow = new Map();
-    features.forEach((feature) => {
+    sorted.forEach((feature) => {
       const row = feature._row;
       if (!featuresByRow.has(row)) {
         featuresByRow.set(row, []);
@@ -210,7 +216,8 @@ const LinearSequenceRenderer = ({
       const rowTextNodes = [];
       // 渲染当前行的所有特征
       rowFeatures.forEach((feature, index) => {
-        const colorConf = CONFIG.colors[feature.type] || CONFIG.colors.others;
+        const typeConf =
+          CONFIG.featureType[feature.type] || CONFIG.featureType.others;
         const [start, end] = [
           Math.min(
             ...feature.location.map((loc) =>
@@ -267,7 +274,7 @@ const LinearSequenceRenderer = ({
               .attr("y1", current.y + boxHeight / 2)
               .attr("x2", next.x)
               .attr("y2", next.y + boxHeight / 2)
-              .attr("stroke", colorConf.stroke)
+              .attr("stroke", typeConf.stroke)
               .attr("stroke-width", CONFIG.styles.bone.strokeWidth)
               .attr("stroke-dasharray", CONFIG.styles.bone.strokeDasharray)
               .style("pointer-events", "none");
@@ -288,7 +295,7 @@ const LinearSequenceRenderer = ({
           // 计算arrow宽度
           let arrowWidth = 0;
           let arrowHeight = 0;
-          if (colorConf.shape === "arrow") {
+          if (typeConf.shape === "arrow") {
             // 七边形箭头参数
             const arrowWidth = Math.min(boxHeight * 1.2, segmentW / 3);
             const arrowNeck = boxHeight * 0.6;
@@ -319,8 +326,8 @@ const LinearSequenceRenderer = ({
             featureGroup
               .append("polygon")
               .attr("points", points.map((p) => p.join(",")).join(" "))
-              .attr("fill", colorConf.fill)
-              .attr("stroke", colorConf.stroke)
+              .attr("fill", typeConf.fill)
+              .attr("stroke", typeConf.stroke)
               .attr("class", "arrow-rect")
               .style("cursor", CONFIG.interaction.hover.cursor)
               .on("click", () => onFeatureClick?.(feature))
@@ -338,7 +345,7 @@ const LinearSequenceRenderer = ({
               y,
               segmentW,
               boxHeight,
-              colorConf,
+              typeConf,
               onFeatureClick
             );
           }
@@ -657,7 +664,7 @@ function drawRect(
   y,
   segmentW,
   boxHeight,
-  colorConf,
+  typeConf,
   onFeatureClick
 ) {
   return featureGroup
@@ -667,8 +674,8 @@ function drawRect(
     .attr("y", y)
     .attr("width", segmentW > 0 ? segmentW : 2)
     .attr("height", boxHeight > 0 ? boxHeight : 2)
-    .attr("fill", colorConf && colorConf.fill ? colorConf.fill : "#ffcccc")
-    .attr("stroke", colorConf && colorConf.stroke ? colorConf.stroke : "#333")
+    .attr("fill", typeConf && typeConf.fill ? typeConf.fill : "#ffcccc")
+    .attr("stroke", typeConf && typeConf.stroke ? typeConf.stroke : "#333")
     .attr("stroke-width", CONFIG.styles.box.strokeWidth)
     .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
     .style("cursor", CONFIG.interaction.hover.cursor)

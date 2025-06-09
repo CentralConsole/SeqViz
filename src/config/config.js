@@ -22,12 +22,18 @@ export const CONFIG = {
       strokeWidth: 2, // 边框宽度
     },
     axis: {
-      stroke: "#e0e0e0", // 坐标轴和刻度线的颜色
+      stroke: "rgb(161, 161, 161)", // 坐标轴和刻度线的颜色
       strokeWidth: 2, // 坐标轴和刻度线的宽度
       tickLength: 4, // 刻度线长度
       background: {
         fill: "rgb(30, 30, 30)", // 半透明深色背景
         stroke: "none", // 无边框
+      },
+      text: {
+        fill: "#e0e0e0", // 刻度文字颜色
+        fontSize: 14, // 刻度文字大小
+        fontFamily:
+          "Maple Mono CN, Maple Mono, Consolas, Monaco, 'Courier New', monospace", // 刻度文字字体
       },
     },
     bone: {
@@ -43,98 +49,116 @@ export const CONFIG = {
     },
     annotation: {
       fontSize: 14,
-      fontFamily: "Maple Mono CN, Maple Mono, Arial, sans-serif",
+      fontFamily:
+        "Maple Mono CN, Maple Mono, Consolas, Monaco, 'Courier New', monospace",
       fill: "#333",
       fillDark: "#e0e0e0", // 深色主题下的文本颜色
       textPathRadialOffset: 22, // 文本路径的径向移动距离
     },
   },
-  colors: {
+  featureType: {
     // 深色主题灰暗配色
     source: {
       fill: "#4A7A6C",
       stroke: "rgb(142, 209, 189)",
       shape: "arrow",
+      isDisplayed: false,
     },
     operon: {
       fill: "#3C6C8C",
-      stroke: "rgb(169, 146, 227)",
+      stroke: " rgb(169, 146, 227)",
       shape: "rect",
+      isDisplayed: true,
     },
     CDS: {
       fill: "#287733",
       stroke: "rgb(165, 216, 76)",
       shape: "arrow",
+      isDisplayed: true,
     },
     gene: {
       fill: " #333377",
       stroke: "rgb(143, 175, 211)",
       shape: "arrow",
+      isDisplayed: true,
     },
     tRNA: {
       fill: " #614D7C",
       stroke: "rgb(187, 156, 210)",
       shape: "rect",
+      isDisplayed: true,
     },
     rRNA: {
-      fill: "#7E4450",
+      fill: " #7E4450",
       stroke: "rgb(213, 112, 112)",
       shape: "rect",
+      isDisplayed: true,
     },
     misc_feature: {
       fill: "#607D8B",
-      stroke: "#405D6B",
+      stroke: " #405D6B",
       shape: "rect",
+      isDisplayed: true,
     },
     regulatory: {
       fill: "#475A66",
       stroke: "rgb(98, 195, 255)",
       shape: "rect",
+      isDisplayed: true,
     },
     STS: {
-      fill: " #7D5A40",
-      stroke: "rgb(204, 137, 66)",
+      fill: "rgb(121, 114, 32)",
+      stroke: "rgb(210, 216, 18)",
       shape: "arrow",
+      isDisplayed: false,
     },
     mRNA: {
       fill: "#FF9800",
       stroke: "#DF7800",
       shape: "arrow",
+      isDisplayed: true,
     },
     exon: {
       fill: "#9C27B0",
       stroke: "#7C0790",
       shape: "rect",
+      isDisplayed: true,
     },
     intron: {
       fill: "#E91E63",
       stroke: "#C90E43",
       shape: "rect",
+      isDisplayed: true,
     },
     promoter: {
       fill: "#FF5722",
       stroke: "#DF3702",
       shape: "rect",
+      isDisplayed: true,
     },
     terminator: {
       fill: "#F44336",
       stroke: "#D42326",
       shape: "rect",
+      isDisplayed: true,
     },
     variation: {
       fill: "#00BCD4",
       stroke: "#009CB4",
       shape: "rect",
+      isDisplayed: true,
     },
     gap: {
       fill: "#9E9E9E",
       stroke: "#7E7E7E",
       shape: "rect",
+      isDisplayed: true,
     },
     others: {
       fill: "#757575",
       stroke: "rgb(185, 185, 185)",
       shape: "rect",
+      isDisplayed: true,
     },
   },
   fonts: {
