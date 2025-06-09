@@ -55,6 +55,9 @@ export const CONFIG = {
       fillDark: "#e0e0e0", // 深色主题下的文本颜色
       textPathRadialOffset: 22, // 文本路径的径向移动距离
     },
+    background: {
+      color: "#121212", // 统一背景色配置
+    },
   },
   featureType: {
     // 深色主题灰暗配色
@@ -110,7 +113,7 @@ export const CONFIG = {
       fill: "rgb(121, 114, 32)",
       stroke: "rgb(210, 216, 18)",
       shape: "arrow",
-      isDisplayed: false,
+      isDisplayed: true,
     },
     mRNA: {
       fill: "#FF9800",
@@ -232,13 +235,14 @@ export const CONFIG = {
       height: "100%",
       position: "relative",
       overflow: "auto",
-      backgroundColor: "#121212",
+      backgroundColor: undefined, // 由 styles.background.color 控制
     },
     renderer: {
       position: "relative",
       width: "100%",
       height: "100%",
       overflow: "auto",
+      backgroundColor: undefined, // 由 styles.background.color 控制
     },
     svg: {
       display: "block",

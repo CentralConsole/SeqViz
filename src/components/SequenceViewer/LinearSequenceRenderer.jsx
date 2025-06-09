@@ -71,7 +71,8 @@ const LinearSequenceRenderer = ({
       .attr("viewBox", `0 0 ${width} ${height}`)
       .attr("preserveAspectRatio", "xMidYMid meet")
       .style("width", "100%")
-      .style("height", "100%");
+      .style("height", "100%")
+      .style("backgroundColor", CONFIG.styles.background.color);
 
     // 创建可滚动的内容组
     const contentGroup = svg
@@ -605,6 +606,7 @@ const LinearSequenceRenderer = ({
         style={{
           ...sequenceViewer.svg,
           overflow: "visible",
+          backgroundColor: CONFIG.styles.background.color,
         }}
         width={width}
       />

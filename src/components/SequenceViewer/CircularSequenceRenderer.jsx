@@ -542,7 +542,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                 normalizedMidAngle > Math.PI / 2 &&
                 normalizedMidAngle < (3 * Math.PI) / 2; // A flag for annotations in the bottom half of the circle
 
-              const radiusOffset = -5; // An offset correction to be applied to annotations in the bottom half of the circle
+              const radiusOffset = -CONFIG.styles.annotation.fontSize / 1.618; // IMPORTANT: An offset correction for annotations in the bottom half of the circle
               const dx = -radiusOffset * Math.sin(segmentMidAngle);
               const dy = radiusOffset * Math.cos(segmentMidAngle);
 
@@ -884,7 +884,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         ref={svgRef}
         style={{
           ...sequenceViewer.svg,
-          backgroundColor: sequenceViewer.renderer.backgroundColor,
+          backgroundColor: CONFIG.styles.background.color,
           fontSize: `${CONFIG.styles.annotation.fontSize}px`,
         }}
       />
