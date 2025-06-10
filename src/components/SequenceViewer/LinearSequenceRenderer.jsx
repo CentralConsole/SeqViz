@@ -86,15 +86,50 @@ const LinearSequenceRenderer = ({
       .attr("class", "axis-group")
       .attr("transform", `translate(${margin.left}, ${margin.top})`);
 
+    // 创建坐标轴和元信息的容器组
+    const axisContainer = axisGroup.append("g").attr("class", "axis-container");
+
     // 添加坐标轴背景
-    axisGroup
+    axisContainer
       .append("rect")
       .attr("x", -margin.left)
       .attr("y", -margin.top)
       .attr("width", width + margin.left + margin.right)
-      .attr("height", margin.top + 20) // 20是刻度线的高度
+      .attr("height", margin.top + 20)
       .attr("fill", CONFIG.styles.axis.background.fill)
       .attr("stroke", CONFIG.styles.axis.background.stroke);
+
+    // 添加元信息显示
+    const metaInfoGroup = axisContainer.append("g").attr("class", "meta-info");
+
+    // 添加标题
+    metaInfoGroup
+      .append("text")
+      .attr("class", "meta-title")
+      .attr("x", width / 2)
+      .attr("y", -margin.top + 20)
+      .attr("text-anchor", "middle")
+      .style("font-size", "14px")
+      .style("font-weight", "bold")
+      .style("fill", CONFIG.styles.axis.text.fill)
+      .text(data.definition || "");
+
+    // 添加描述信息
+    const description = [
+      `Length: ${data.locus?.sequenceLength?.toLocaleString() || 0} bp`,
+      `Type: ${data.locus?.moleculeType || ""}`,
+      `Division: ${data.locus?.division || ""}`,
+    ].join(" | ");
+
+    metaInfoGroup
+      .append("text")
+      .attr("class", "meta-description")
+      .attr("x", width / 2)
+      .attr("y", -margin.top + 40)
+      .attr("text-anchor", "middle")
+      .style("font-size", "12px")
+      .style("fill", CONFIG.styles.axis.text.fill)
+      .text(description);
 
     // 坐标轴
     const topAxis = d3
@@ -104,15 +139,15 @@ const LinearSequenceRenderer = ({
         return d.toLocaleString();
       });
 
-    axisGroup.append("g").call(topAxis);
+    axisContainer.append("g").call(topAxis);
 
     // 应用坐标轴样式
-    axisGroup
+    axisContainer
       .selectAll("path, line")
       .attr("stroke", CONFIG.styles.axis.stroke)
       .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
 
-    axisGroup
+    axisContainer
       .selectAll("text")
       .attr("fill", CONFIG.styles.axis.text.fill)
       .attr("font-size", `${CONFIG.styles.axis.text.fontSize}px`)
