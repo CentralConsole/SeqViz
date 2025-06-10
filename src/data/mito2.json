@@ -1,12 +1,5 @@
 {
-  "locus": {
-    "locusName": "NC_012920",
-    "sequenceLength": 16569,
-    "moleculeType": "DNA",
-    "topology": "circular",
-    "division": "PRI",
-    "date": "31-OCT-2014"
-  },
+  "locus": "NC_012920              16569 bp    DNA     circular PRI 31-OCT-2014",
   "definition": "Homo sapiens mitochondrion, complete genome.",
   "accession": "NC_012920 AC_000021",
   "version": "NC_012920.1",
@@ -18,7 +11,7 @@
   "features": [
     {
       "type": "source",
-      "location": [["1", false, "16569"]],
+      "location": [["1", "16569"]],
       "information": {
         "organism": "Homo sapiens",
         "organelle": "mitochondrion",
@@ -33,14 +26,14 @@
     {
       "type": "D-loop",
       "location": [
-        ["16024", true, "16569"],
-        ["1", true, "576"]
+        ["16024", "16569"],
+        ["1", "576"]
       ],
       "information": {}
     },
     {
       "type": "gene",
-      "location": [["577", false, "647"]],
+      "location": [["577", "647"]],
       "information": {
         "gene": "TRNF",
         "nomenclature": {
@@ -53,7 +46,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["577", false, "647"]],
+      "location": [["577", "647"]],
       "information": {
         "gene": "TRNF",
         "product": "tRNA-Phe",
@@ -65,7 +58,7 @@
     },
     {
       "type": "gene",
-      "location": [["648", false, "1601"]],
+      "location": [["648", "1601"]],
       "information": {
         "gene": "RNR1",
         "gene_synonym": "MTRNR1",
@@ -79,7 +72,7 @@
     },
     {
       "type": "rRNA",
-      "location": [["648", false, "1601"]],
+      "location": [["648", "1601"]],
       "information": {
         "gene": "RNR1",
         "gene_synonym": "MTRNR1",
@@ -90,7 +83,7 @@
     },
     {
       "type": "STS",
-      "location": [["1478", false, "2187"]],
+      "location": [["1478", "2187"]],
       "information": {
         "standard_name": "PMC316374P5",
         "db_xref": ["UniSTS:272966"]
@@ -98,7 +91,7 @@
     },
     {
       "type": "gene",
-      "location": [["1602", false, "1670"]],
+      "location": [["1602", "1670"]],
       "information": {
         "gene": "TRNV",
         "gene_synonym": "MTTV",
@@ -112,7 +105,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["1602", false, "1670"]],
+      "location": [["1602", "1670"]],
       "information": {
         "gene": "TRNV",
         "gene_synonym": "MTTV",
@@ -125,7 +118,7 @@
     },
     {
       "type": "gene",
-      "location": [["1671", false, "3229"]],
+      "location": [["1671", "3229"]],
       "information": {
         "gene": "RNR2",
         "gene_synonym": "MTRNR2",
@@ -139,7 +132,7 @@
     },
     {
       "type": "rRNA",
-      "location": [["1671", false, "3229"]],
+      "location": [["1671", "3229"]],
       "information": {
         "gene": "RNR2",
         "gene_synonym": "MTRNR2",
@@ -150,7 +143,7 @@
     },
     {
       "type": "STS",
-      "location": [["2062", false, "2203"]],
+      "location": [["2062", "2203"]],
       "information": {
         "gene": "RNR2",
         "gene_synonym": "MTRNR2",
@@ -160,7 +153,7 @@
     },
     {
       "type": "STS",
-      "location": [["2712", false, "2884"]],
+      "location": [["2712", "2884"]],
       "information": {
         "gene": "RNR2",
         "gene_synonym": "MTRNR2",
@@ -170,7 +163,7 @@
     },
     {
       "type": "STS",
-      "location": [["2806", false, "2946"]],
+      "location": [["2806", "2946"]],
       "information": {
         "gene": "RNR2",
         "gene_synonym": "MTRNR2",
@@ -180,14 +173,14 @@
     },
     {
       "type": "misc_feature",
-      "location": [["3107", false, null]],
+      "location": [["3107"]],
       "information": {
         "note": "preserves historical genome annotation numbering"
       }
     },
     {
       "type": "gene",
-      "location": [["3230", false, "3304"]],
+      "location": [["3230", "3304"]],
       "information": {
         "gene": "TRNL1",
         "gene_synonym": "MTTL1",
@@ -201,7 +194,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["3230", false, "3304"]],
+      "location": [["3230", "3304"]],
       "information": {
         "gene": "TRNL1",
         "gene_synonym": "MTTL1",
@@ -214,7 +207,7 @@
     },
     {
       "type": "gene",
-      "location": [["3307", false, "4262"]],
+      "location": [["3307", "4262"]],
       "information": {
         "gene": "ND1",
         "gene_synonym": "MTND1",
@@ -228,7 +221,7 @@
     },
     {
       "type": "CDS",
-      "location": [["3307", false, "4262"]],
+      "location": [["3307", "4262"]],
       "information": {
         "gene": "ND1",
         "gene_synonym": "MTND1",
@@ -244,7 +237,7 @@
     },
     {
       "type": "STS",
-      "location": [["3740", false, "3834"]],
+      "location": [["3740", "3834"]],
       "information": {
         "gene": "ND1",
         "gene_synonym": "MTND1",
@@ -254,7 +247,7 @@
     },
     {
       "type": "STS",
-      "location": [["4189", false, "4813"]],
+      "location": [["4189", "4813"]],
       "information": {
         "standard_name": "PMC55343P1",
         "db_xref": ["UniSTS:273322"]
@@ -262,7 +255,7 @@
     },
     {
       "type": "gene",
-      "location": [["4263", false, "4331"]],
+      "location": [["4263", "4331"]],
       "information": {
         "gene": "TRNI",
         "gene_synonym": "MTTI",
@@ -276,7 +269,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["4263", false, "4331"]],
+      "location": [["4263", "4331"]],
       "information": {
         "gene": "TRNI",
         "gene_synonym": "MTTI",
@@ -289,7 +282,7 @@
     },
     {
       "type": "gene",
-      "location": [["4329", true, "4400"]],
+      "location": [["4329", "4400"]],
       "information": {
         "gene": "TRNQ",
         "gene_synonym": "MTTQ",
@@ -303,7 +296,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["4329", true, "4400"]],
+      "location": [["4329", "4400"]],
       "information": {
         "gene": "TRNQ",
         "gene_synonym": "MTTQ",
@@ -316,7 +309,7 @@
     },
     {
       "type": "gene",
-      "location": [["4402", false, "4469"]],
+      "location": [["4402", "4469"]],
       "information": {
         "gene": "TRNM",
         "gene_synonym": "MTTM",
@@ -330,7 +323,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["4402", false, "4469"]],
+      "location": [["4402", "4469"]],
       "information": {
         "gene": "TRNM",
         "gene_synonym": "MTTM",
@@ -343,7 +336,7 @@
     },
     {
       "type": "gene",
-      "location": [["4470", false, "5511"]],
+      "location": [["4470", "5511"]],
       "information": {
         "gene": "ND2",
         "gene_synonym": "MTND2",
@@ -357,7 +350,7 @@
     },
     {
       "type": "CDS",
-      "location": [["4470", false, "5511"]],
+      "location": [["4470", "5511"]],
       "information": {
         "gene": "ND2",
         "gene_synonym": "MTND2",
@@ -373,7 +366,7 @@
     },
     {
       "type": "STS",
-      "location": [["4481", false, "5456"]],
+      "location": [["4481", "5456"]],
       "information": {
         "gene": "ND2",
         "gene_synonym": "MTND2",
@@ -383,7 +376,7 @@
     },
     {
       "type": "gene",
-      "location": [["5512", false, "5579"]],
+      "location": [["5512", "5579"]],
       "information": {
         "gene": "TRNW",
         "gene_synonym": "MTTW",
@@ -397,7 +390,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["5512", false, "5579"]],
+      "location": [["5512", "5579"]],
       "information": {
         "gene": "TRNW",
         "gene_synonym": "MTTW",
@@ -410,7 +403,7 @@
     },
     {
       "type": "gene",
-      "location": [["5587", true, "5655"]],
+      "location": [["5587", "5655"]],
       "information": {
         "gene": "TRNA",
         "gene_synonym": "MTTA",
@@ -424,7 +417,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["5587", true, "5655"]],
+      "location": [["5587", "5655"]],
       "information": {
         "gene": "TRNA",
         "gene_synonym": "MTTA",
@@ -437,7 +430,7 @@
     },
     {
       "type": "gene",
-      "location": [["5657", true, "5729"]],
+      "location": [["5657", "5729"]],
       "information": {
         "gene": "TRNN",
         "gene_synonym": "MTTN",
@@ -451,7 +444,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["5657", true, "5729"]],
+      "location": [["5657", "5729"]],
       "information": {
         "gene": "TRNN",
         "gene_synonym": "MTTN",
@@ -464,7 +457,7 @@
     },
     {
       "type": "gene",
-      "location": [["5761", true, "5826"]],
+      "location": [["5761", "5826"]],
       "information": {
         "gene": "TRNC",
         "gene_synonym": "MTTC",
@@ -478,7 +471,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["5761", true, "5826"]],
+      "location": [["5761", "5826"]],
       "information": {
         "gene": "TRNC",
         "gene_synonym": "MTTC",
@@ -491,7 +484,7 @@
     },
     {
       "type": "gene",
-      "location": [["5826", true, "5891"]],
+      "location": [["5826", "5891"]],
       "information": {
         "gene": "TRNY",
         "gene_synonym": "MTTY",
@@ -505,7 +498,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["5826", true, "5891"]],
+      "location": [["5826", "5891"]],
       "information": {
         "gene": "TRNY",
         "gene_synonym": "MTTY",
@@ -518,7 +511,7 @@
     },
     {
       "type": "gene",
-      "location": [["5904", false, "7445"]],
+      "location": [["5904", "7445"]],
       "information": {
         "gene": "COX1",
         "gene_synonym": "COI; MTCO1",
@@ -532,7 +525,7 @@
     },
     {
       "type": "CDS",
-      "location": [["5904", false, "7445"]],
+      "location": [["5904", "7445"]],
       "information": {
         "gene": "COX1",
         "gene_synonym": "COI; MTCO1",
@@ -547,7 +540,7 @@
     },
     {
       "type": "STS",
-      "location": [["6318", false, "6918"]],
+      "location": [["6318", "6918"]],
       "information": {
         "gene": "COX1",
         "gene_synonym": "COI; MTCO1",
@@ -557,7 +550,7 @@
     },
     {
       "type": "STS",
-      "location": [["7125", false, "7672"]],
+      "location": [["7125", "7672"]],
       "information": {
         "standard_name": "PMC20756P3",
         "db_xref": ["UniSTS:271963"]
@@ -565,7 +558,7 @@
     },
     {
       "type": "STS",
-      "location": [["7166", false, "7361"]],
+      "location": [["7166", "7361"]],
       "information": {
         "gene": "COX1",
         "gene_synonym": "COI; MTCO1",
@@ -575,7 +568,7 @@
     },
     {
       "type": "STS",
-      "location": [["7358", false, "7937"]],
+      "location": [["7358", "7937"]],
       "information": {
         "standard_name": "PMC55343P3",
         "db_xref": ["UniSTS:273326"]
@@ -583,7 +576,7 @@
     },
     {
       "type": "STS",
-      "location": [["7386", false, "7513"]],
+      "location": [["7386", "7513"]],
       "information": {
         "standard_name": "RH98513",
         "db_xref": ["UniSTS:83580"]
@@ -591,7 +584,7 @@
     },
     {
       "type": "gene",
-      "location": [["7446", true, "7514"]],
+      "location": [["7446", "7514"]],
       "information": {
         "gene": "TRNS1",
         "gene_synonym": "MTTS1",
@@ -604,7 +597,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["7446", true, "7514"]],
+      "location": [["7446", "7514"]],
       "information": {
         "gene": "TRNS1",
         "gene_synonym": "MTTS1",
@@ -617,7 +610,7 @@
     },
     {
       "type": "STS",
-      "location": [["7483", false, "8383"]],
+      "location": [["7483", "8383"]],
       "information": {
         "standard_name": "PMC20756P2",
         "db_xref": ["UniSTS:271962"]
@@ -625,7 +618,7 @@
     },
     {
       "type": "STS",
-      "location": [["7483", false, "8364"]],
+      "location": [["7483", "8364"]],
       "information": {
         "standard_name": "PMC109173P1",
         "db_xref": ["UniSTS:270154"]
@@ -633,7 +626,7 @@
     },
     {
       "type": "STS",
-      "location": [["7483", false, "7570"]],
+      "location": [["7483", "7570"]],
       "information": {
         "standard_name": "PMC20756P1",
         "db_xref": ["UniSTS:271961"]
@@ -641,7 +634,7 @@
     },
     {
       "type": "gene",
-      "location": [["7518", false, "7585"]],
+      "location": [["7518", "7585"]],
       "information": {
         "gene": "TRND",
         "gene_synonym": "MTTD",
@@ -655,7 +648,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["7518", false, "7585"]],
+      "location": [["7518", "7585"]],
       "information": {
         "gene": "TRND",
         "gene_synonym": "MTTD",
@@ -668,7 +661,7 @@
     },
     {
       "type": "STS",
-      "location": [["7561", false, "7983"]],
+      "location": [["7561", "7983"]],
       "information": {
         "standard_name": "PMC196577P3",
         "db_xref": ["UniSTS:271816"]
@@ -676,7 +669,7 @@
     },
     {
       "type": "gene",
-      "location": [["7586", false, "8269"]],
+      "location": [["7586", "8269"]],
       "information": {
         "gene": "COX2",
         "gene_synonym": "COII; MTCO2",
@@ -690,7 +683,7 @@
     },
     {
       "type": "CDS",
-      "location": [["7586", false, "8269"]],
+      "location": [["7586", "8269"]],
       "information": {
         "gene": "COX2",
         "gene_synonym": "COII; MTCO2",
@@ -705,7 +698,7 @@
     },
     {
       "type": "STS",
-      "location": [["7690", false, "7773"]],
+      "location": [["7690", "7773"]],
       "information": {
         "gene": "COX2",
         "gene_synonym": "COII; MTCO2",
@@ -715,7 +708,7 @@
     },
     {
       "type": "STS",
-      "location": [["8164", false, "8291"]],
+      "location": [["8164", "8291"]],
       "information": {
         "standard_name": "SHGC-57364",
         "db_xref": ["UniSTS:67674"]
@@ -723,7 +716,7 @@
     },
     {
       "type": "STS",
-      "location": [["8280", false, "8882"]],
+      "location": [["8280", "8882"]],
       "information": {
         "standard_name": "PMC55343P5",
         "db_xref": ["UniSTS:273328"]
@@ -731,7 +724,7 @@
     },
     {
       "type": "STS",
-      "location": [["8280", false, "8366"]],
+      "location": [["8280", "8366"]],
       "information": {
         "standard_name": "PMC55343P4",
         "db_xref": ["UniSTS:273327"]
@@ -739,7 +732,7 @@
     },
     {
       "type": "gene",
-      "location": [["8295", false, "8364"]],
+      "location": [["8295", "8364"]],
       "information": {
         "gene": "TRNK",
         "gene_synonym": "MTTK",
@@ -753,7 +746,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["8295", false, "8364"]],
+      "location": [["8295", "8364"]],
       "information": {
         "gene": "TRNK",
         "gene_synonym": "MTTK",
@@ -766,7 +759,7 @@
     },
     {
       "type": "gene",
-      "location": [["8366", false, "8572"]],
+      "location": [["8366", "8572"]],
       "information": {
         "gene": "ATP8",
         "gene_synonym": "ATPase8; MTATP8",
@@ -780,7 +773,7 @@
     },
     {
       "type": "CDS",
-      "location": [["8366", false, "8572"]],
+      "location": [["8366", "8572"]],
       "information": {
         "gene": "ATP8",
         "gene_synonym": "ATPase8; MTATP8",
@@ -795,7 +788,7 @@
     },
     {
       "type": "gene",
-      "location": [["8527", false, "9207"]],
+      "location": [["8527", "9207"]],
       "information": {
         "gene": "ATP6",
         "gene_synonym": "ATPase6; MTATP6",
@@ -809,7 +802,7 @@
     },
     {
       "type": "CDS",
-      "location": [["8527", false, "9207"]],
+      "location": [["8527", "9207"]],
       "information": {
         "gene": "ATP6",
         "gene_synonym": "ATPase6; MTATP6",
@@ -824,7 +817,7 @@
     },
     {
       "type": "STS",
-      "location": [["8779", false, "9416"]],
+      "location": [["8779", "9416"]],
       "information": {
         "standard_name": "PMC55343P7",
         "db_xref": ["UniSTS:273330"]
@@ -832,7 +825,7 @@
     },
     {
       "type": "STS",
-      "location": [["8779", false, "8882"]],
+      "location": [["8779", "8882"]],
       "information": {
         "gene": "ATP6",
         "gene_synonym": "ATPase6; MTATP6",
@@ -842,7 +835,7 @@
     },
     {
       "type": "gene",
-      "location": [["9207", false, "9990"]],
+      "location": [["9207", "9990"]],
       "information": {
         "gene": "COX3",
         "gene_synonym": "COIII; MTCO3",
@@ -856,7 +849,7 @@
     },
     {
       "type": "CDS",
-      "location": [["9207", false, "9990"]],
+      "location": [["9207", "9990"]],
       "information": {
         "gene": "COX3",
         "gene_synonym": "COIII; MTCO3",
@@ -872,7 +865,7 @@
     },
     {
       "type": "STS",
-      "location": [["9342", false, "9416"]],
+      "location": [["9342", "9416"]],
       "information": {
         "gene": "COX3",
         "gene_synonym": "COIII; MTCO3",
@@ -882,7 +875,7 @@
     },
     {
       "type": "gene",
-      "location": [["9991", false, "10058"]],
+      "location": [["9991", "10058"]],
       "information": {
         "gene": "TRNG",
         "gene_synonym": "MTTG",
@@ -896,7 +889,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["9991", false, "10058"]],
+      "location": [["9991", "10058"]],
       "information": {
         "gene": "TRNG",
         "gene_synonym": "MTTG",
@@ -909,7 +902,7 @@
     },
     {
       "type": "gene",
-      "location": [["10059", false, "10404"]],
+      "location": [["10059", "10404"]],
       "information": {
         "gene": "ND3",
         "gene_synonym": "MTND3",
@@ -923,7 +916,7 @@
     },
     {
       "type": "CDS",
-      "location": [["10059", false, "10404"]],
+      "location": [["10059", "10404"]],
       "information": {
         "gene": "ND3",
         "gene_synonym": "MTND3",
@@ -939,7 +932,7 @@
     },
     {
       "type": "gene",
-      "location": [["10405", false, "10469"]],
+      "location": [["10405", "10469"]],
       "information": {
         "gene": "TRNR",
         "gene_synonym": "MTTR",
@@ -953,7 +946,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["10405", false, "10469"]],
+      "location": [["10405", "10469"]],
       "information": {
         "gene": "TRNR",
         "gene_synonym": "MTTR",
@@ -966,7 +959,7 @@
     },
     {
       "type": "gene",
-      "location": [["10470", false, "10766"]],
+      "location": [["10470", "10766"]],
       "information": {
         "gene": "ND4L",
         "gene_synonym": "MTND4L",
@@ -980,7 +973,7 @@
     },
     {
       "type": "CDS",
-      "location": [["10470", false, "10766"]],
+      "location": [["10470", "10766"]],
       "information": {
         "gene": "ND4L",
         "gene_synonym": "MTND4L",
@@ -995,7 +988,7 @@
     },
     {
       "type": "gene",
-      "location": [["10760", false, "12137"]],
+      "location": [["10760", "12137"]],
       "information": {
         "gene": "ND4",
         "gene_synonym": "MTND4",
@@ -1009,7 +1002,7 @@
     },
     {
       "type": "CDS",
-      "location": [["10760", false, "12137"]],
+      "location": [["10760", "12137"]],
       "information": {
         "gene": "ND4",
         "gene_synonym": "MTND4",
@@ -1025,7 +1018,7 @@
     },
     {
       "type": "gene",
-      "location": [["12138", false, "12206"]],
+      "location": [["12138", "12206"]],
       "information": {
         "gene": "TRNH",
         "gene_synonym": "MTTH",
@@ -1039,7 +1032,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["12138", false, "12206"]],
+      "location": [["12138", "12206"]],
       "information": {
         "gene": "TRNH",
         "gene_synonym": "MTTH",
@@ -1052,7 +1045,7 @@
     },
     {
       "type": "gene",
-      "location": [["12207", false, "12265"]],
+      "location": [["12207", "12265"]],
       "information": {
         "gene": "TRNS2",
         "gene_synonym": "MTTS2",
@@ -1066,7 +1059,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["12207", false, "12265"]],
+      "location": [["12207", "12265"]],
       "information": {
         "gene": "TRNS2",
         "gene_synonym": "MTTS2",
@@ -1079,7 +1072,7 @@
     },
     {
       "type": "gene",
-      "location": [["12266", false, "12336"]],
+      "location": [["12266", "12336"]],
       "information": {
         "gene": "TRNL2",
         "gene_synonym": "MTTL2",
@@ -1093,7 +1086,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["12266", false, "12336"]],
+      "location": [["12266", "12336"]],
       "information": {
         "gene": "TRNL2",
         "gene_synonym": "MTTL2",
@@ -1106,7 +1099,7 @@
     },
     {
       "type": "gene",
-      "location": [["12337", false, "14148"]],
+      "location": [["12337", "14148"]],
       "information": {
         "gene": "ND5",
         "gene_synonym": "MTND5",
@@ -1120,7 +1113,7 @@
     },
     {
       "type": "CDS",
-      "location": [["12337", false, "14148"]],
+      "location": [["12337", "14148"]],
       "information": {
         "gene": "ND5",
         "gene_synonym": "MTND5",
@@ -1135,7 +1128,7 @@
     },
     {
       "type": "STS",
-      "location": [["13068", false, "13143"]],
+      "location": [["13068", "13143"]],
       "information": {
         "gene": "ND5",
         "gene_synonym": "MTND5",
@@ -1145,7 +1138,7 @@
     },
     {
       "type": "STS",
-      "location": [["13593", false, "14206"]],
+      "location": [["13593", "14206"]],
       "information": {
         "standard_name": "PMC55343P10",
         "db_xref": ["UniSTS:273323"]
@@ -1153,7 +1146,7 @@
     },
     {
       "type": "STS",
-      "location": [["14104", false, "14206"]],
+      "location": [["14104", "14206"]],
       "information": {
         "standard_name": "PMC55343P12",
         "db_xref": ["UniSTS:273324"]
@@ -1161,7 +1154,7 @@
     },
     {
       "type": "gene",
-      "location": [["14149", true, "14673"]],
+      "location": [["14149", "14673"]],
       "information": {
         "gene": "ND6",
         "gene_synonym": "MTND6",
@@ -1175,7 +1168,7 @@
     },
     {
       "type": "CDS",
-      "location": [["14149", true, "14673"]],
+      "location": [["14149", "14673"]],
       "information": {
         "gene": "ND6",
         "gene_synonym": "MTND6",
@@ -1190,7 +1183,7 @@
     },
     {
       "type": "gene",
-      "location": [["14674", true, "14742"]],
+      "location": [["14674", "14742"]],
       "information": {
         "gene": "TRNE",
         "gene_synonym": "MTTE",
@@ -1204,7 +1197,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["14674", true, "14742"]],
+      "location": [["14674", "14742"]],
       "information": {
         "gene": "TRNE",
         "gene_synonym": "MTTE",
@@ -1217,7 +1210,7 @@
     },
     {
       "type": "gene",
-      "location": [["14747", false, "15887"]],
+      "location": [["14747", "15887"]],
       "information": {
         "gene": "CYTB",
         "gene_synonym": "MTCYB",
@@ -1231,7 +1224,7 @@
     },
     {
       "type": "CDS",
-      "location": [["14747", false, "15887"]],
+      "location": [["14747", "15887"]],
       "information": {
         "gene": "CYTB",
         "gene_synonym": "MTCYB",
@@ -1247,7 +1240,7 @@
     },
     {
       "type": "STS",
-      "location": [["15191", false, "15307"]],
+      "location": [["15191", "15307"]],
       "information": {
         "gene": "CYTB",
         "gene_synonym": "MTCYB",
@@ -1257,7 +1250,7 @@
     },
     {
       "type": "STS",
-      "location": [["15698", false, "15777"]],
+      "location": [["15698", "15777"]],
       "information": {
         "gene": "CYTB",
         "gene_synonym": "MTCYB",
@@ -1267,7 +1260,7 @@
     },
     {
       "type": "gene",
-      "location": [["15888", false, "15953"]],
+      "location": [["15888", "15953"]],
       "information": {
         "gene": "TRNT",
         "gene_synonym": "MTTT",
@@ -1281,7 +1274,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["15888", false, "15953"]],
+      "location": [["15888", "15953"]],
       "information": {
         "gene": "TRNT",
         "gene_synonym": "MTTT",
@@ -1294,7 +1287,7 @@
     },
     {
       "type": "gene",
-      "location": [["15956", true, "16023"]],
+      "location": [["15956", "16023"]],
       "information": {
         "gene": "TRNP",
         "gene_synonym": "MTTP",
@@ -1308,7 +1301,7 @@
     },
     {
       "type": "tRNA",
-      "location": [["15956", true, "16023"]],
+      "location": [["15956", "16023"]],
       "information": {
         "gene": "TRNP",
         "gene_synonym": "MTTP",

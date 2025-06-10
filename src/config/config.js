@@ -56,7 +56,7 @@ export const CONFIG = {
       textPathRadialOffset: 22, // 文本路径的径向移动距离
     },
     background: {
-      color: "#121212", // 统一背景色配置
+      color: "rgb(8, 8, 26)", // 统一背景色配置
     },
   },
   featureType: {

@@ -52,7 +52,7 @@ const LinearSequenceRenderer = ({
     const boxHeight =
       (CONFIG.dimensions.unit * CONFIG.dimensions.boxHeightMultiplier) / 2;
     const vSpace = CONFIG.dimensions.vSpace;
-    const totalLength = data.locus ? parseInt(data.locus.split(/\s+/)[1]) : 0;
+    const totalLength = data.locus ? data.locus.sequenceLength : 0;
 
     // 创建比例尺
     const lengthScale = d3
@@ -131,7 +131,9 @@ const LinearSequenceRenderer = ({
         const aEnd = Math.max(
           ...a.location.map((loc) => {
             const s = Number(DataUtils.cleanString(loc[0]));
-            return loc.length > 1
+            return loc[2] === null
+              ? s + minVisibleWidth
+              : loc.length > 1
               ? Number(DataUtils.cleanString(loc[loc.length - 1]))
               : s;
           })
@@ -142,7 +144,9 @@ const LinearSequenceRenderer = ({
         const bEnd = Math.max(
           ...b.location.map((loc) => {
             const s = Number(DataUtils.cleanString(loc[0]));
-            return loc.length > 1
+            return loc[2] === null
+              ? s + minVisibleWidth
+              : loc.length > 1
               ? Number(DataUtils.cleanString(loc[loc.length - 1]))
               : s;
           })
@@ -165,7 +169,9 @@ const LinearSequenceRenderer = ({
         const aEnd = Math.max(
           ...item.location.map((loc) => {
             const s = Number(DataUtils.cleanString(loc[0]));
-            return loc.length > 1
+            return loc[2] === null
+              ? s + minVisibleWidth
+              : loc.length > 1
               ? Number(DataUtils.cleanString(loc[loc.length - 1]))
               : s;
           })
@@ -179,7 +185,9 @@ const LinearSequenceRenderer = ({
           const bEnd = Math.max(
             ...other.location.map((loc) => {
               const s = Number(DataUtils.cleanString(loc[0]));
-              return loc.length > 1
+              return loc[2] === null
+                ? s + minVisibleWidth
+                : loc.length > 1
                 ? Number(DataUtils.cleanString(loc[loc.length - 1]))
                 : s;
             })
@@ -228,7 +236,9 @@ const LinearSequenceRenderer = ({
           Math.max(
             ...feature.location.map((loc) => {
               const s = Number(DataUtils.cleanString(loc[0]));
-              return loc.length > 1
+              return loc[2] === null
+                ? s + minVisibleWidth
+                : loc.length > 1
                 ? Number(DataUtils.cleanString(loc[loc.length - 1]))
                 : s;
             })
@@ -247,15 +257,16 @@ const LinearSequenceRenderer = ({
         feature.location.forEach((loc, segmentIndex) => {
           const segmentStart = Number(DataUtils.cleanString(loc[0]));
           const segmentEnd =
-            loc.length > 1
+            loc[2] === null
+              ? segmentStart
+              : loc.length > 1
               ? Number(DataUtils.cleanString(loc[loc.length - 1]))
               : segmentStart;
           const segmentX = lengthScale(segmentStart);
-          // 计算实际宽度，确保至少显示最小可见宽度
-          const segmentW = Math.max(
-            minVisibleWidth,
-            lengthScale(segmentEnd) - segmentX
-          );
+          const segmentW =
+            loc[2] === null
+              ? minVisibleWidth
+              : Math.max(2, lengthScale(segmentEnd) - segmentX);
 
           // 计算段的中心点
           const segmentCenterX = segmentX + segmentW / 2;
@@ -286,11 +297,16 @@ const LinearSequenceRenderer = ({
         feature.location.forEach((loc, segmentIndex) => {
           const segmentStart = Number(DataUtils.cleanString(loc[0]));
           const segmentEnd =
-            loc.length > 1
+            loc[2] === null
+              ? segmentStart
+              : loc.length > 1
               ? Number(DataUtils.cleanString(loc[loc.length - 1]))
               : segmentStart;
           const segmentX = lengthScale(segmentStart);
-          const segmentW = Math.max(2, lengthScale(segmentEnd) - segmentX);
+          const segmentW =
+            loc[2] === null
+              ? minVisibleWidth
+              : Math.max(2, lengthScale(segmentEnd) - segmentX);
           const segmentCenterX = segmentCenters[segmentIndex].x;
 
           // 计算arrow宽度
@@ -329,6 +345,7 @@ const LinearSequenceRenderer = ({
               .attr("points", points.map((p) => p.join(",")).join(" "))
               .attr("fill", typeConf.fill)
               .attr("stroke", typeConf.stroke)
+              .attr("stroke-width", CONFIG.styles.box.strokeWidth)
               .attr("class", "arrow-rect")
               .style("cursor", CONFIG.interaction.hover.cursor)
               .on("click", () => onFeatureClick?.(feature))
@@ -445,11 +462,16 @@ const LinearSequenceRenderer = ({
           feature.location.forEach((loc) => {
             const segmentStart = Number(DataUtils.cleanString(loc[0]));
             const segmentEnd =
-              loc.length > 1
+              loc[2] === null
+                ? segmentStart
+                : loc.length > 1
                 ? Number(DataUtils.cleanString(loc[loc.length - 1]))
                 : segmentStart;
             const segmentX = lengthScale(segmentStart);
-            const segmentW = Math.max(2, lengthScale(segmentEnd) - segmentX);
+            const segmentW =
+              loc[2] === null
+                ? minVisibleWidth
+                : Math.max(2, lengthScale(segmentEnd) - segmentX);
             const segmentCenterX = segmentX + segmentW / 2;
             const textWidth = TextUtils.measureTextWidth(
               text,
@@ -712,6 +734,7 @@ function drawArrowHead(
     .attr("class", "arrowhead")
     .attr("fill", colorConf.fill || "#333")
     .attr("stroke", colorConf.stroke || "#333")
+    .attr("stroke-width", CONFIG.styles.box.strokeWidth)
     .attr("transform", `translate(${arrowX},${arrowY})`)
     .style("cursor", CONFIG.interaction.hover.cursor)
     .on("click", () => onFeatureClick?.(feature))

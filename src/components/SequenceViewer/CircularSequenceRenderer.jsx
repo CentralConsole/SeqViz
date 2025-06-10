@@ -36,8 +36,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
     const mainGroup = svg.append("g");
 
     // 获取序列总长度
-    const locusMatch = data.locus.match(/(\d+)\s+bp/);
-    const totalLength = locusMatch ? parseInt(locusMatch[1], 10) : 0;
+    const totalLength = data.locus ? data.locus.sequenceLength : 0;
 
     // 计算半径 - 调整半径计算方式
     const radius = Math.min(width, height) * 0.35; // 基础半径
