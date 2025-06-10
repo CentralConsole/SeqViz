@@ -310,36 +310,64 @@ const LinearSequenceRenderer = ({
           const segmentCenterX = segmentCenters[segmentIndex].x;
 
           // 计算arrow宽度
-          let arrowWidth = 0;
-          let arrowHeight = 0;
           if (typeConf.shape === "arrow") {
             // 七边形箭头参数
             const arrowWidth = Math.min(boxHeight * 1.2, segmentW / 3);
             const arrowNeck = boxHeight * 0.6;
             const rectW = segmentW - arrowWidth;
-            //点坐标
-            const leftTop = [segmentX, y];
-            const rightTop = [segmentX + rectW, y];
-            const neckTop = [
-              segmentX + rectW,
-              y + boxHeight / 2 - (boxHeight + arrowNeck) / 2,
-            ];
-            const tip = [segmentX + segmentW, y + boxHeight / 2];
-            const neckBottom = [
-              segmentX + rectW,
-              y + boxHeight / 2 + (boxHeight + arrowNeck) / 2,
-            ];
-            const rightBottom = [segmentX + rectW, y + boxHeight];
-            const leftBottom = [segmentX, y + boxHeight];
-            const points = [
-              leftTop,
-              rightTop,
-              neckTop,
-              tip,
-              neckBottom,
-              rightBottom,
-              leftBottom,
-            ];
+
+            // 根据location中的第二个布尔值决定箭头方向
+            const isComplementary = feature.location[0][1];
+            let points;
+            if (isComplementary) {
+              // 向左箭头
+              const leftTop = [segmentX + segmentW, y];
+              const rightTop = [segmentX + arrowWidth, y];
+              const neckTop = [
+                segmentX + arrowWidth,
+                y + boxHeight / 2 - (boxHeight + arrowNeck) / 2,
+              ];
+              const tip = [segmentX, y + boxHeight / 2];
+              const neckBottom = [
+                segmentX + arrowWidth,
+                y + boxHeight / 2 + (boxHeight + arrowNeck) / 2,
+              ];
+              const rightBottom = [segmentX + arrowWidth, y + boxHeight];
+              const leftBottom = [segmentX + segmentW, y + boxHeight];
+              points = [
+                leftTop,
+                rightTop,
+                neckTop,
+                tip,
+                neckBottom,
+                rightBottom,
+                leftBottom,
+              ];
+            } else {
+              // 向右箭头
+              const leftTop = [segmentX, y];
+              const rightTop = [segmentX + rectW, y];
+              const neckTop = [
+                segmentX + rectW,
+                y + boxHeight / 2 - (boxHeight + arrowNeck) / 2,
+              ];
+              const tip = [segmentX + segmentW, y + boxHeight / 2];
+              const neckBottom = [
+                segmentX + rectW,
+                y + boxHeight / 2 + (boxHeight + arrowNeck) / 2,
+              ];
+              const rightBottom = [segmentX + rectW, y + boxHeight];
+              const leftBottom = [segmentX, y + boxHeight];
+              points = [
+                leftTop,
+                rightTop,
+                neckTop,
+                tip,
+                neckBottom,
+                rightBottom,
+                leftBottom,
+              ];
+            }
             featureGroup
               .append("polygon")
               .attr("points", points.map((p) => p.join(",")).join(" "))
