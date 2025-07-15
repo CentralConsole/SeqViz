@@ -104,12 +104,16 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             const startAngle = angleScale(start);
             const stopAngle = angleScale(stop);
 
+            // 获取方向信息（第二个元素的布尔值）
+            const isReverse = loc.length > 1 ? loc[1] : false;
+
             //段
             processedSegments.push({
               start,
               stop,
               isFirst: locIndex === 0,
               isTextSegment: locIndex === 0,
+              isReverse, // 添加方向信息
             });
 
             // 计算原始段的中点角度（用于确定特征的主角度）
@@ -305,7 +309,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           .append("g")
           .attr("class", "feature");
 
-        // 绘制特征的每个段弧线
+        // 绘制特征的每个段的弧框
         featureElements.each(function (d, featureIndex) {
           const featureElement = d3.select(this);
 
@@ -315,6 +319,37 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
 
             if (startAngle > stopAngle) {
               [startAngle, stopAngle] = [stopAngle, startAngle];
+            }
+
+            // 如果特征类型需要箭头，则缩短弧长以补偿箭头占用的空间
+            const typeConfig =
+              CONFIG.featureType[d.type] || CONFIG.featureType.others;
+            if (typeConfig.shape === "arrow") {
+              const currentLayerRadii = layerRadii.get(d.radialOffset);
+              const innerR =
+                currentLayerRadii?.inner ||
+                innerRadius + 8 + d.radialOffset * layerSpacing;
+              const outerR =
+                currentLayerRadii?.outer ||
+                innerRadius + 24 + d.radialOffset * layerSpacing;
+
+              // 计算弧长并确定箭头占用的角度
+              const arcLength =
+                ((stopAngle - startAngle) * (innerR + outerR)) / 2;
+              const maxArrowHeight = arcLength / 3;
+              const baseArrowLength = (outerR - innerR) * 1.0;
+              const arrowLength = Math.min(baseArrowLength, maxArrowHeight);
+
+              // 计算箭头在角度上占用的空间
+              const midRadius = (innerR + outerR) / 2;
+              const arrowAngleOffset = arrowLength / midRadius;
+
+              // 根据方向缩短弧长
+              if (segment.isReverse) {
+                startAngle += arrowAngleOffset; // 反向箭头在起点，缩短起点
+              } else {
+                stopAngle -= arrowAngleOffset; // 正向箭头在终点，缩短终点
+              }
             }
 
             const segmentD = segmentArc({
@@ -492,6 +527,275 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                         .attr("fill", "none")
                         .attr("stroke", "none")
                         .style("opacity", 0); // 完全不可见
+                    }
+                  }
+                }
+              })
+              .each(function () {
+                // 检查特征类型的shape属性，只对arrow类型生成箭头
+                const typeConfig =
+                  CONFIG.featureType[d.type] || CONFIG.featureType.others;
+                if (typeConfig.shape !== "arrow") {
+                  return; // 如果不是arrow类型，跳过箭头生成
+                }
+
+                // 从SVG字符串中提取路径信息用于生成箭头
+                const pathElement = d3.select(this);
+                const pathNode = pathElement.node();
+                if (pathNode) {
+                  const svgString = pathNode.outerHTML;
+
+                  // 从SVG字符串中提取d属性（路径数据）
+                  const dAttributeMatch = svgString.match(/d="([^"]+)"/);
+                  if (dAttributeMatch) {
+                    const pathData = dAttributeMatch[1];
+
+                    console.log("实际路径数据:", pathData);
+
+                    // 使用宽松的弧形匹配来提取所有弧形命令
+                    const looseArcMatches = [
+                      ...pathData.matchAll(/A[^A]*?(?=A|L|Z|$)/g),
+                    ];
+                    console.log("宽松弧形匹配结果:", looseArcMatches);
+
+                    let outerArc = null;
+                    let innerArc = null;
+
+                    if (looseArcMatches.length > 0) {
+                      // 手动解析每个弧形命令
+                      const parseArcCommand = (arcString) => {
+                        // 移除开头的'A'并清理字符串
+                        const paramString = arcString
+                          .replace(/^A\s*/, "")
+                          .trim();
+                        console.log("解析弧形参数字符串:", paramString);
+
+                        // 使用更灵活的方式提取数字 - 支持逗号、空格分隔和科学记数法
+                        const numbers = paramString.match(
+                          /([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/g
+                        );
+                        console.log("提取的数字:", numbers);
+
+                        if (numbers && numbers.length >= 7) {
+                          return {
+                            rx: parseFloat(numbers[0]),
+                            ry: parseFloat(numbers[1]),
+                            rotation: parseFloat(numbers[2]),
+                            largeArcFlag: parseInt(numbers[3]),
+                            sweepFlag: parseInt(numbers[4]),
+                            endX: parseFloat(numbers[5]),
+                            endY: parseFloat(numbers[6]),
+                            command: arcString.trim(),
+                          };
+                        }
+                        return null;
+                      };
+
+                      // 解析第一个弧形（外圆弧）
+                      outerArc = parseArcCommand(looseArcMatches[0][0]);
+                      console.log("解析的外圆弧:", outerArc);
+
+                      // 如果有第二个弧形，解析为内圆弧
+                      if (looseArcMatches.length >= 2) {
+                        innerArc = parseArcCommand(looseArcMatches[1][0]);
+                        console.log("解析的内圆弧:", innerArc);
+                      }
+                    } else {
+                      console.log("没有找到任何弧形命令");
+                    }
+
+                    // 提取直线段
+                    const lineMatches = [
+                      ...pathData.matchAll(/L\s*([-\d.]+)[,\s]+([-\d.]+)/g),
+                    ];
+
+                    if (lineMatches.length >= 2) {
+                      startLineSegment = {
+                        type: "start",
+                        index: 0,
+                        x: parseFloat(lineMatches[0][1]),
+                        y: parseFloat(lineMatches[0][2]),
+                        command: lineMatches[0][0],
+                        description: "起点到外圆弧的连接线",
+                      };
+
+                      endLineSegment = {
+                        type: "end",
+                        index: 1,
+                        x: parseFloat(lineMatches[1][1]),
+                        y: parseFloat(lineMatches[1][2]),
+                        command: lineMatches[1][0],
+                        description: "外圆弧到内圆弧的连接线",
+                      };
+                    }
+
+                    // 根据方向在弧的起点或终点添加箭头
+                    if (outerArc) {
+                      console.log("开始生成箭头 - outerArc:", outerArc);
+                      console.log("innerArc:", innerArc);
+                      console.log("segment isReverse:", segment.isReverse);
+
+                      // 根据方向决定箭头位置
+                      let arrowX, arrowY, arrowAngle, tangentAngle;
+
+                      if (segment.isReverse) {
+                        // 箭头在弧的起点处（路径的起始位置）
+                        const startMatch = pathData.match(
+                          /M\s*([-\d.e]+)[,\s]+([-\d.e]+)/
+                        );
+                        if (startMatch) {
+                          arrowX = parseFloat(startMatch[1]);
+                          arrowY = parseFloat(startMatch[2]);
+                          arrowAngle = Math.atan2(arrowY, arrowX);
+                          tangentAngle = arrowAngle - Math.PI / 2; // 反向切线
+                        }
+                      } else {
+                        // 箭头在弧的终点处（默认行为）
+                        arrowX = outerArc.endX;
+                        arrowY = outerArc.endY;
+                        arrowAngle = Math.atan2(arrowY, arrowX);
+                        tangentAngle = arrowAngle + Math.PI / 2; // 正向切线
+                      }
+
+                      // 获取当前层的内外半径
+                      const currentLayerRadii = layerRadii.get(d.radialOffset);
+                      const innerR = currentLayerRadii?.inner;
+                      const outerR = currentLayerRadii?.outer;
+
+                      // 获取原始路径的起点
+                      const startMatch = pathData.match(
+                        /M\s*([-\d.e]+)[,\s]+([-\d.e]+)/
+                      );
+                      if (startMatch) {
+                        let arrowPath;
+
+                        // 箭头参数
+                        const arrowHalf = 5; // 箭头宽度的一半
+
+                        if (innerArc && innerR && outerR) {
+                          // 有内外圆弧的情况：重新构建完整的带箭头弧形
+
+                          // 计算弧长并限制箭头高度
+                          const arcLength =
+                            ((stopAngle - startAngle) * (innerR + outerR)) / 2; // 使用中间半径计算弧长
+                          const maxArrowHeight = arcLength / 3; // 箭头高度不超过弧长的1/3
+                          const baseArrowLength = (outerR - innerR) * 1.0; // 基于弧厚度的初始箭头长度
+                          const arrowLength = Math.min(
+                            baseArrowLength,
+                            maxArrowHeight
+                          ); // 取较小值作为最终箭头高度
+
+                          // 提取弧形的实际端点坐标
+                          let outerEndPoint, innerEndPoint;
+
+                          if (segment.isReverse) {
+                            // 反向：箭头在弧的起点
+                            outerEndPoint = [arrowX, arrowY]; // 外圆弧起点
+
+                            // 提取内圆弧起点（路径末尾的坐标）
+                            const innerArcEndMatch = pathData.match(
+                              /.*\s+([-\d.e]+)[,\s]+([-\d.e]+)\s*Z?\s*$/
+                            );
+                            innerEndPoint = innerArcEndMatch
+                              ? [
+                                  parseFloat(innerArcEndMatch[1]),
+                                  parseFloat(innerArcEndMatch[2]),
+                                ]
+                              : [
+                                  Math.cos(arrowAngle) * innerR,
+                                  Math.sin(arrowAngle) * innerR,
+                                ];
+                          } else {
+                            // 正向：箭头在弧的终点
+                            outerEndPoint = [outerArc.endX, outerArc.endY]; // 外圆弧终点
+
+                            // 提取内圆弧起点（第一个L命令后的坐标）
+                            const innerArcStartMatch = pathData.match(
+                              /L\s*([-\d.e]+)[,\s]+([-\d.e]+)/
+                            );
+                            innerEndPoint = innerArcStartMatch
+                              ? [
+                                  parseFloat(innerArcStartMatch[1]),
+                                  parseFloat(innerArcStartMatch[2]),
+                                ]
+                              : [
+                                  Math.cos(arrowAngle) * innerR,
+                                  Math.sin(arrowAngle) * innerR,
+                                ];
+                          }
+
+                          // 计算箭头尖端：从弧端点的中点沿切线方向延伸
+                          const midX =
+                            (outerEndPoint[0] + innerEndPoint[0]) / 2;
+                          const midY =
+                            (outerEndPoint[1] + innerEndPoint[1]) / 2;
+                          const tip = [
+                            midX + Math.cos(tangentAngle) * arrowLength,
+                            midY + Math.sin(tangentAngle) * arrowLength,
+                          ];
+
+                          // 解决方案：在原始弧的特定位置插入箭头，而不是修改弧的几何参数
+                          // 使用原始的外圆弧和内圆弧路径，在外圆弧的终点位置插入箭头三角形
+
+                          // 提取原始路径的各个部分
+                          const startPoint = [
+                            parseFloat(startMatch[1]),
+                            parseFloat(startMatch[2]),
+                          ];
+
+                          // 根据方向构建路径
+                          if (segment.isReverse) {
+                            // 反向：箭头在起点，需要重新构建完整的连续路径
+                            const firstLIndex = pathData.indexOf("L");
+                            const beforeFirstL = pathData.substring(
+                              0,
+                              firstLIndex
+                            ); // M...A 外圆弧部分
+                            const fromFirstL = pathData.substring(firstLIndex); // L... 剩余部分
+
+                            // 从原始起点开始，但立即画箭头，然后连续画弧形
+                            const originalStart = pathData.match(
+                              /M\s*([-\d.e]+)[,\s]+([-\d.e]+)/
+                            );
+                            if (originalStart) {
+                              // 构建连续的反向箭头路径：
+                              // 1. 从内圆弧对应的起点开始
+                              // 2. 画箭头三角形
+                              // 3. 连接到外圆弧起点
+                              // 4. 沿外圆弧画到结束点
+                              // 5. 连接到内圆弧结束点
+                              // 6. 沿内圆弧回到起点
+                              arrowPath = `M ${innerEndPoint[0]} ${
+                                innerEndPoint[1]
+                              } L ${tip[0]} ${tip[1]} L ${originalStart[1]} ${
+                                originalStart[2]
+                              } ${beforeFirstL.substring(
+                                beforeFirstL.indexOf("A")
+                              )} ${fromFirstL} Z`;
+                            }
+                          } else {
+                            // 正向箭头路径：原始外圆弧 -> 箭头尖端 -> 内圆弧端点 -> 原始内圆弧路径
+                            const firstLIndex = pathData.indexOf("L");
+                            const beforeFirstL = pathData.substring(
+                              0,
+                              firstLIndex
+                            ); // M...A 外圆弧部分
+                            const fromFirstL = pathData.substring(firstLIndex); // L... 剩余部分
+
+                            arrowPath = `${beforeFirstL} L ${tip[0]} ${tip[1]} L ${innerEndPoint[0]} ${innerEndPoint[1]} ${fromFirstL}`;
+                          }
+                        }
+
+                        console.log("生成的箭头路径:", arrowPath);
+
+                        // 替换原有的弧段路径，使用带箭头的路径
+                        pathElement.attr("d", arrowPath);
+                        console.log("箭头路径已应用");
+                      } else {
+                        console.warn("无法找到起点:", pathData);
+                      }
+                    } else {
+                      console.log("无法生成箭头 - 没有找到外圆弧");
                     }
                   }
                 }
