@@ -57,10 +57,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .style("width", "100%")
       .style("height", "100%");
 
-    // 创建主容器组，并设置初始变换为画布中心
-    const mainGroup = svg
-      .append("g")
-      .attr("transform", `translate(${width / 2}, ${height / 2})`);
+    // 创建主容器组（不设置静态变换，让zoom behavior统一管理）
+    const mainGroup = svg.append("g");
 
     // 获取序列总长度
     const totalLength = data.locus ? data.locus.sequenceLength : 0;
@@ -1329,8 +1327,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .zoom()
       .scaleExtent([0.3, 5]) // 扩大缩放范围，允许更大的缩放倍数
       .translateExtent([
-        [-width / 2 - maxRadius, -height / 2 - maxRadius],
-        [width / 2 + maxRadius, height / 2 + maxRadius],
+        [-maxRadius, -maxRadius],
+        [width + maxRadius, height + maxRadius],
       ])
       .wheelDelta((event) => {
         // 降低滚轮缩放的灵敏度，使缩放更平滑
@@ -1384,8 +1382,16 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         svg.style("cursor", isCtrlCurrentlyPressed ? "grab" : "default");
       });
 
-    // 应用缩放行为到SVG，初始变换为identity（主容器组已经居中）
-    svg.call(zoom).call(zoom.transform, d3.zoomIdentity.scale(1));
+    // 应用缩放行为到SVG，初始变换为居中位置
+    const initialTransform = d3.zoomIdentity
+      .translate(width / 2, height / 2)
+      .scale(1);
+    svg.call(zoom).call(zoom.transform, initialTransform);
+
+    // 确保初始变换立即应用到视觉上
+    mainGroup.attr("transform", initialTransform);
+    setScale(initialTransform.k);
+    setTranslate({ x: initialTransform.x, y: initialTransform.y });
 
     // 额外的wheel事件处理来阻止浏览器默认缩放
     svg.on("wheel.prevent", (event) => {
