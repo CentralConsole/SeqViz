@@ -14,10 +14,35 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
   const svgRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const { sequenceViewer } = CONFIG;
 
   useEffect(() => {
     if (!svgRef.current || !data) return;
+
+    // 键盘事件处理：监听Ctrl键状态
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey || event.metaKey) {
+        // 支持Mac的Command键
+        setIsCtrlPressed(true);
+      }
+    };
+
+    const handleKeyUp = (event) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        setIsCtrlPressed(false);
+      }
+    };
+
+    // 处理窗口失焦时的情况
+    const handleWindowBlur = () => {
+      setIsCtrlPressed(false);
+    };
+
+    // 添加键盘事件监听器
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleWindowBlur);
 
     // 清除之前的SVG内容
     d3.select(svgRef.current).selectAll("*").remove();
@@ -32,8 +57,10 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .style("width", "100%")
       .style("height", "100%");
 
-    // 创建主容器组，不做初始平移
-    const mainGroup = svg.append("g");
+    // 创建主容器组，并设置初始变换为画布中心
+    const mainGroup = svg
+      .append("g")
+      .attr("transform", `translate(${width / 2}, ${height / 2})`);
 
     // 获取序列总长度
     const totalLength = data.locus ? data.locus.sequenceLength : 0;
@@ -55,6 +82,141 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .attr("fill", "none")
       .attr("stroke", CONFIG.styles.axis.stroke)
       .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
+
+    // 添加圆心处的元信息显示
+    const metaInfoGroup = mainGroup.append("g").attr("class", "meta-info");
+
+    // 计算内切四边形的尺寸 (内圆的内切正方形)
+    // 内切正方形的边长 = 半径 * √2，但我们留一些边距
+    const inscribedSquareSize = innerRadius * Math.sqrt(2) * 0.8; // 80%的内切正方形尺寸作为安全区域
+    const maxTextWidth = inscribedSquareSize;
+
+    // 多行文本处理函数
+    const wrapText = (text, maxWidth, fontSize, maxLines = 3) => {
+      if (!text) return [];
+
+      // 估算字符宽度（粗略估计）
+      const avgCharWidth = fontSize * 0.6;
+      const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth);
+
+      const words = text.split(" ");
+      const lines = [];
+      let currentLine = "";
+
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+
+        if (testLine.length <= maxCharsPerLine) {
+          currentLine = testLine;
+        } else {
+          if (currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+          } else {
+            // 单个词太长，强制截断
+            lines.push(word.substring(0, maxCharsPerLine - 3) + "...");
+            currentLine = "";
+          }
+
+          // 限制最大行数
+          if (lines.length >= maxLines) {
+            break;
+          }
+        }
+      }
+
+      if (currentLine && lines.length < maxLines) {
+        lines.push(currentLine);
+      }
+
+      // 如果超过最大行数，在最后一行添加省略号
+      if (
+        lines.length === maxLines &&
+        words.length > lines.join(" ").split(" ").length
+      ) {
+        const lastLine = lines[maxLines - 1];
+        lines[maxLines - 1] =
+          lastLine.substring(0, lastLine.length - 3) + "...";
+      }
+
+      return lines;
+    };
+
+    // 添加标题 - 支持多行显示
+    const titleText = data.definition || "";
+    const titleLines = wrapText(titleText, maxTextWidth, 14, 3);
+    const lineHeight = 16;
+    const titleStartY = -50; // 给标题更多上方空间
+
+    titleLines.forEach((line, index) => {
+      metaInfoGroup
+        .append("text")
+        .attr("class", "meta-title")
+        .attr("x", 0)
+        .attr("y", titleStartY + index * lineHeight)
+        .attr("text-anchor", "middle")
+        .style("font-size", "14px")
+        .style("font-weight", "bold")
+        .style("fill", CONFIG.styles.axis.text.fill)
+        .style("font-family", CONFIG.styles.axis.text.fontFamily)
+        .text(line);
+    });
+
+    // 如果有标题内容，添加完整标题作为tooltip到第一行
+    if (titleText && titleLines.length > 0) {
+      metaInfoGroup
+        .selectAll(".meta-title")
+        .filter((d, i) => i === 0)
+        .append("title")
+        .text(titleText);
+    }
+
+    // 计算其他元素的起始位置（基于标题行数动态调整）
+    const otherElementsStartY =
+      titleStartY + titleLines.length * lineHeight + 10;
+
+    // 添加序列长度信息
+    metaInfoGroup
+      .append("text")
+      .attr("class", "meta-length")
+      .attr("x", 0)
+      .attr("y", otherElementsStartY)
+      .attr("text-anchor", "middle")
+      .style("font-size", "12px")
+      .style("font-weight", "bold")
+      .style("fill", CONFIG.styles.axis.text.fill)
+      .style("font-family", CONFIG.styles.axis.text.fontFamily)
+      .text(`Length: ${data.locus?.sequenceLength?.toLocaleString() || 0} bp`);
+
+    // 添加分子类型信息
+    const moleculeType = data.locus?.moleculeType || "";
+    if (moleculeType) {
+      metaInfoGroup
+        .append("text")
+        .attr("class", "meta-molecule-type")
+        .attr("x", 0)
+        .attr("y", otherElementsStartY + 18)
+        .attr("text-anchor", "middle")
+        .style("font-size", "12px")
+        .style("fill", CONFIG.styles.axis.text.fill)
+        .style("font-family", CONFIG.styles.axis.text.fontFamily)
+        .text(`Type: ${moleculeType}`);
+    }
+
+    // 添加分区信息
+    const division = data.locus?.division || "";
+    if (division) {
+      metaInfoGroup
+        .append("text")
+        .attr("class", "meta-division")
+        .attr("x", 0)
+        .attr("y", otherElementsStartY + 36)
+        .attr("text-anchor", "middle")
+        .style("font-size", "12px")
+        .style("fill", CONFIG.styles.axis.text.fill)
+        .style("font-family", CONFIG.styles.axis.text.fontFamily)
+        .text(`Division: ${division}`);
+    }
 
     let maxRadius = innerRadius; // 初始化最大半径
 
@@ -170,7 +332,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       // 计算特征之间的重叠并调整径向位置
       const labelHeight = CONFIG.dimensions.vSpace; // 标签高度
       const minSpacing = 0; // 最小安全间距
-      const layerSpacing = CONFIG.dimensions.vSpace * 2; // 层间距
+      const layerSpacing = CONFIG.dimensions.vSpace; // 层间距
 
       // 按特征的总长度降序排序，优先处理较长的特征
       processedFeatures.sort((a, b) => b.totalLength - a.totalLength);
@@ -948,7 +1110,11 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             .velocityDecay(0.7)
             .force(
               "repel",
-              d3.forceManyBody().strength(-0.001).distanceMax(50).distanceMin(0)
+              d3
+                .forceManyBody()
+                .strength(-0.00001)
+                .distanceMax(30)
+                .distanceMin(0)
             )
             .force("centerX", d3.forceX(() => 0).strength(centerStrength))
             .force("centerY", d3.forceY(() => 0).strength(centerStrength))
@@ -956,8 +1122,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
               "collide",
               d3
                 .forceCollide()
-                .radius((d) => d.width + 5)
-                .iterations(2)
+                .radius((d) => d.width / 2)
+                .iterations(3)
             )
             .stop();
 
@@ -1161,24 +1327,147 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
     // 在特征渲染完成后创建缩放行为
     const zoom = d3
       .zoom()
-      .scaleExtent([0.5, 3])
+      .scaleExtent([0.3, 5]) // 扩大缩放范围，允许更大的缩放倍数
       .translateExtent([
-        [-maxRadius, -maxRadius],
-        [maxRadius, maxRadius],
+        [-width / 2 - maxRadius, -height / 2 - maxRadius],
+        [width / 2 + maxRadius, height / 2 + maxRadius],
       ])
+      .wheelDelta((event) => {
+        // 降低滚轮缩放的灵敏度，使缩放更平滑
+        // 默认是 -event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002) * (event.ctrlKey ? 10 : 1)
+        // 我们将灵敏度降低到原来的1/3
+        return (
+          -event.deltaY *
+          (event.deltaMode === 1 ? 0.017 : event.deltaMode ? 0.33 : 0.0007) *
+          (event.ctrlKey ? 10 : 1)
+        );
+      })
+      .filter((event) => {
+        // 禁用浏览器默认的Ctrl+滚轮缩放
+        if (event.type === "wheel" && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+        }
+        // 实时检查Ctrl键状态，而不是依赖状态变量
+        const isCtrlCurrentlyPressed = event.ctrlKey || event.metaKey;
+        // 同步更新状态变量
+        if (isCtrlCurrentlyPressed !== isCtrlPressed) {
+          setIsCtrlPressed(isCtrlCurrentlyPressed);
+        }
+        // 只有在实际按住Ctrl键时才允许缩放和拖动
+        return isCtrlCurrentlyPressed;
+      })
+      .on("start", (event) => {
+        // 实时检查Ctrl键状态
+        const isCtrlCurrentlyPressed =
+          event.sourceEvent?.ctrlKey || event.sourceEvent?.metaKey;
+        if (!isCtrlCurrentlyPressed) {
+          return; // 如果没有按Ctrl键，停止操作
+        }
+        // 开始拖动时改变鼠标样式
+        svg.style("cursor", "grabbing");
+      })
       .on("zoom", (event) => {
+        // 实时检查Ctrl键状态
+        const isCtrlCurrentlyPressed =
+          event.sourceEvent?.ctrlKey || event.sourceEvent?.metaKey;
+        if (!isCtrlCurrentlyPressed) {
+          return; // 如果Ctrl键被松开，停止应用变换
+        }
         mainGroup.attr("transform", event.transform);
         setScale(event.transform.k);
         setTranslate({ x: event.transform.x, y: event.transform.y });
+      })
+      .on("end", (event) => {
+        // 结束拖动时恢复鼠标样式
+        const isCtrlCurrentlyPressed =
+          event.sourceEvent?.ctrlKey || event.sourceEvent?.metaKey;
+        svg.style("cursor", isCtrlCurrentlyPressed ? "grab" : "default");
       });
 
-    // 应用缩放行为到SVG，并设置初始变换为画布中心
+    // 应用缩放行为到SVG，初始变换为identity（主容器组已经居中）
+    svg.call(zoom).call(zoom.transform, d3.zoomIdentity.scale(1));
+
+    // 额外的wheel事件处理来阻止浏览器默认缩放
+    svg.on("wheel.prevent", (event) => {
+      // 总是阻止浏览器默认的Ctrl+滚轮页面缩放
+      event.preventDefault();
+      event.stopPropagation();
+
+      // 更新状态变量以保持同步
+      const isCurrentlyPressed = event.ctrlKey || event.metaKey;
+      setIsCtrlPressed(isCurrentlyPressed);
+
+      // 如果没有按Ctrl键，完全阻止D3处理这个事件
+      if (!isCurrentlyPressed) {
+        event.stopImmediatePropagation();
+        return false;
+      }
+    });
+
+    // 添加鼠标样式提示：根据Ctrl键状态改变鼠标样式
+    const updateCursor = () => {
+      const cursor = isCtrlPressed ? "grab" : "default";
+      svg.style("cursor", cursor);
+    };
+
+    // 初始设置鼠标样式
+    updateCursor();
+
+    // 监听Ctrl键状态变化并更新鼠标样式
+    const ctrlStateHandler = (event) => {
+      const isCurrentlyPressed = event.ctrlKey || event.metaKey;
+      setIsCtrlPressed(isCurrentlyPressed);
+      updateCursor();
+    };
+    document.addEventListener("keydown", ctrlStateHandler);
+    document.addEventListener("keyup", ctrlStateHandler);
+
+    // 添加额外的鼠标事件处理
+    svg.on("mousedown.prevent", (event) => {
+      // 实时检查Ctrl键状态并更新
+      const isCurrentlyPressed = event.ctrlKey || event.metaKey;
+      setIsCtrlPressed(isCurrentlyPressed);
+
+      // 如果没有按Ctrl键，完全阻止事件
+      if (!isCurrentlyPressed) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return false;
+      }
+    });
+
+    svg.on("mousemove.update", (event) => {
+      // 实时更新Ctrl键状态
+      const isCurrentlyPressed = event.ctrlKey || event.metaKey;
+      if (isCurrentlyPressed !== isCtrlPressed) {
+        setIsCtrlPressed(isCurrentlyPressed);
+        updateCursor();
+      }
+    });
+
+    // 添加交互提示文本
     svg
-      .call(zoom)
-      .call(
-        zoom.transform,
-        d3.zoomIdentity.translate(width / 2, height / 2).scale(1)
-      );
+      .append("text")
+      .attr("class", "interaction-hint")
+      .attr("x", width / 2)
+      .attr("y", height - 10)
+      .attr("text-anchor", "middle")
+      .style("font-size", "12px")
+      .style("fill", "#888")
+      .style("font-family", CONFIG.styles.axis.text.fontFamily)
+      .style("pointer-events", "none")
+      .style("user-select", "none")
+      .text("按住 Ctrl 键 + 鼠标拖动/滚轮缩放");
+
+    // 清理函数：移除事件监听器
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleWindowBlur);
+      document.removeEventListener("keydown", ctrlStateHandler);
+      document.removeEventListener("keyup", ctrlStateHandler);
+    };
   }, [data, width, height, onFeatureClick]);
 
   return (

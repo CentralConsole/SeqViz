@@ -154,7 +154,7 @@ const LinearSequenceRenderer = ({
       .attr("font-family", CONFIG.styles.axis.text.fontFamily);
 
     // 渲染所有特征并计算内容高度
-    let currentRowY = vSpace * 2;
+    let currentRowY = vSpace * 5; // location of the 1st row
     const features = data.features || [];
 
     // 多行排布：贪心分配行号
@@ -491,21 +491,21 @@ const LinearSequenceRenderer = ({
           .velocityDecay(0.5)
           .force(
             "repel",
-            d3.forceManyBody().strength(-1).distanceMax(50).distanceMin(0)
+            d3.forceManyBody().strength(-0.02).distanceMax(50).distanceMin(0)
           )
           .force(
             "attract",
-            d3.forceManyBody().strength(0.5).distanceMax(100).distanceMin(50)
+            d3.forceManyBody().strength(0.02).distanceMax(100).distanceMin(50)
           )
           .force("x", d3.forceX((d) => d.targetX).strength(1))
           .force("y", d3.forceY((d) => d.targetY).strength(1))
-          .force("gravity", d3.forceY(() => 0).strength(-0.35 / (1 + row)))
+          .force("gravity", d3.forceY(() => 0).strength(-0.3 / (1 + row)))
           .force(
             "collide",
             d3
               .forceCollide()
-              .radius((d) => d.width / 2 + 5)
-              .iterations(4)
+              .radius((d) => d.width / 2)
+              .iterations(3)
           )
           .stop();
         for (let i = 0; i < 75; ++i) simulation.tick();
@@ -647,7 +647,9 @@ const LinearSequenceRenderer = ({
     }
 
     // 计算内容高度和可滚动范围
-    const contentHeight = currentRowY - margin.top;
+    // 添加额外缓冲空间以确保圈外文字可见
+    const textBuffer = vSpace * 8; // 为圈外文字预留足够空间
+    const contentHeight = currentRowY - margin.top + textBuffer;
     const maxScroll = Math.max(
       0,
       contentHeight - viewportHeight + margin.bottom

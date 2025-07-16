@@ -10,7 +10,7 @@ export const CONFIG = {
     unit: 20,
     boxHeightMultiplier: 2.0,
     fontSizeMultiplier: 1.4,
-    vSpace: 40,
+    vSpace: 5,
     safetyMargin: 20,
   },
   styles: {
