@@ -1481,8 +1481,12 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
     };
 
     const toAngle = (x, y) => {
+      // 统一将角度顺时针旋转90°，与坐标轴显示一致
       let ang = Math.atan2(y, x);
+      // 归一化到 [0, 2π)
       if (ang < 0) ang += Math.PI * 2;
+      // 顺时针旋转90° 等价于加上 π/2
+      ang = (ang + Math.PI / 2) % (Math.PI * 2);
       return ang;
     };
 
@@ -1507,11 +1511,12 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
 
       if (startLine) startLine.remove();
       if (endLine) endLine.remove();
-      // 起点线段：沿径向从 innerRadius 到 maxRadius
-      const sx0 = Math.cos(startAngle) * innerRadius;
-      const sy0 = Math.sin(startAngle) * innerRadius;
-      const sx1 = Math.cos(startAngle) * (maxRadius + 8);
-      const sy1 = Math.sin(startAngle) * (maxRadius + 8);
+      // 起点线段：沿径向从 innerRadius 到 maxRadius（线的角度需补回 π/2）
+      const angleForStartLine = startAngle - Math.PI / 2;
+      const sx0 = Math.cos(angleForStartLine) * innerRadius;
+      const sy0 = Math.sin(angleForStartLine) * innerRadius;
+      const sx1 = Math.cos(angleForStartLine) * (maxRadius + 8);
+      const sy1 = Math.sin(angleForStartLine) * (maxRadius + 8);
       startLine = selectionOverlayGroup
         .append("line")
         .attr("class", "selection-start-line")
@@ -1541,28 +1546,29 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       if (r <= innerRadius) return; // 仍需在外圈
       const currentAngle = toAngle(lx, ly);
 
-      let a0 = startAngle;
-      let a1 = currentAngle;
-      if (a1 < a0) {
-        const tmp = a0;
-        a0 = a1;
-        a1 = tmp;
-      }
+      const a0 = startAngle;
+      const a1 = currentAngle;
+      // 计算双向差，选择较小弧段，避免“0”点特殊性且与拖拽方向无关
+      const forward = (a1 - a0 + Math.PI * 2) % (Math.PI * 2);
+      const backward = (a0 - a1 + Math.PI * 2) % (Math.PI * 2);
+      const startForArc = backward < forward ? a1 : a0;
+      const delta = Math.min(forward, backward);
 
       const arcGen = d3
         .arc()
         .innerRadius(innerRadius)
         .outerRadius(maxRadius + 8)
-        .startAngle(a0)
-        .endAngle(a1);
+        .startAngle(startForArc)
+        .endAngle(startForArc + delta);
 
       selectionPath.attr("d", arcGen());
 
-      // 更新终点径向线
-      const ex0 = Math.cos(currentAngle) * innerRadius;
-      const ey0 = Math.sin(currentAngle) * innerRadius;
-      const ex1 = Math.cos(currentAngle) * (maxRadius + 8);
-      const ey1 = Math.sin(currentAngle) * (maxRadius + 8);
+      // 更新终点径向线（角度需补回 π/2）
+      const angleForEndLine = currentAngle - Math.PI / 2;
+      const ex0 = Math.cos(angleForEndLine) * innerRadius;
+      const ey0 = Math.sin(angleForEndLine) * innerRadius;
+      const ex1 = Math.cos(angleForEndLine) * (maxRadius + 8);
+      const ey1 = Math.sin(angleForEndLine) * (maxRadius + 8);
       if (endLine) {
         endLine.attr("x1", ex0).attr("y1", ey0).attr("x2", ex1).attr("y2", ey1);
       }
