@@ -684,6 +684,93 @@ const LinearSequenceRenderer = ({
       // 应用新的变换
       svg.call(zoom.transform, d3.zoomIdentity.translate(0, limitedY));
     });
+
+    // 右键拖拽选择（排除坐标轴与Meta区域）
+    const overlayGroup = svg
+      .append("g")
+      .attr("class", "selection-overlay")
+      .style("pointer-events", "none");
+
+    let isRightSelecting = false;
+    let selectStart = null;
+    let selectionRect = null;
+    let startLine = null;
+    let endLine = null;
+
+    // 阻止右键菜单
+    svg.on("contextmenu.selection", (event) => {
+      event.preventDefault();
+    });
+
+    svg.on("mousedown.selection", (event) => {
+      if (event.button !== 2) return; // 仅右键
+      const [px, py] = d3.pointer(event, svg.node());
+      // 轴与Meta区域为 [0, margin.top + 20]
+      if (py <= margin.top + 20) return;
+
+      isRightSelecting = true;
+      selectStart = [px, py];
+
+      if (selectionRect) selectionRect.remove();
+      selectionRect = overlayGroup
+        .append("rect")
+        .attr("class", "selection-rect")
+        .attr("x", px)
+        .attr("y", 0)
+        .attr("width", 0)
+        .attr("height", height)
+        .attr("fill", "#1e90ff")
+        .attr("fill-opacity", 0.15)
+        .attr("stroke", "#1e90ff")
+        .attr("stroke-width", 1)
+        .attr("pointer-events", "none");
+
+      if (startLine) startLine.remove();
+      if (endLine) endLine.remove();
+      startLine = overlayGroup
+        .append("line")
+        .attr("class", "selection-start-line")
+        .attr("x1", px)
+        .attr("y1", 0)
+        .attr("x2", px)
+        .attr("y2", height)
+        .attr("stroke", "#1e90ff")
+        .attr("stroke-width", 1.5)
+        .attr("pointer-events", "none");
+      endLine = overlayGroup
+        .append("line")
+        .attr("class", "selection-end-line")
+        .attr("x1", px)
+        .attr("y1", 0)
+        .attr("x2", px)
+        .attr("y2", height)
+        .attr("stroke", "#1e90ff")
+        .attr("stroke-width", 1.5)
+        .attr("pointer-events", "none");
+
+      event.preventDefault();
+    });
+
+    svg.on("mousemove.selection", (event) => {
+      if (!isRightSelecting || !selectionRect) return;
+      const [cx] = d3.pointer(event, svg.node());
+      const x = Math.min(cx, selectStart[0]);
+      const w = Math.abs(cx - selectStart[0]);
+      selectionRect.attr("x", x).attr("width", w);
+      if (endLine) {
+        endLine.attr("x1", cx).attr("x2", cx);
+      }
+      event.preventDefault();
+    });
+
+    const endRightSelection = (event) => {
+      if (event && event.button !== undefined && event.button !== 2) return;
+      if (!isRightSelecting) return;
+      isRightSelecting = false;
+    };
+
+    svg.on("mouseup.selection", endRightSelection);
+    svg.on("mouseleave.selection", endRightSelection);
   }, [data, width, height, onFeatureClick]);
 
   return (

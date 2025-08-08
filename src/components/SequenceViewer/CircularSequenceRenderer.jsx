@@ -1436,6 +1436,10 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
 
       // 如果没有按Ctrl键，完全阻止事件
       if (!isCurrentlyPressed) {
+        // 允许右键用于选择，不阻止传播
+        if (event.button === 2) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
@@ -1451,6 +1455,127 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         updateCursor();
       }
     });
+
+    // 右键拖拽扇形选择（圆轴外部）
+    const selectionOverlayGroup = mainGroup
+      .append("g")
+      .attr("class", "selection-overlay")
+      .style("pointer-events", "none");
+
+    let isRightSelecting = false;
+    let startAngle = null;
+    let selectionPath = null;
+    let startLine = null;
+    let endLine = null;
+
+    // 禁用默认右键菜单
+    svg.on("contextmenu.selection", (event) => {
+      event.preventDefault();
+    });
+
+    const getLocalPointer = (event) => {
+      const t = d3.zoomTransform(svg.node());
+      const [px, py] = d3.pointer(event, svg.node());
+      const inv = t.invert([px, py]);
+      return inv; // 相对于mainGroup中心(0,0)
+    };
+
+    const toAngle = (x, y) => {
+      let ang = Math.atan2(y, x);
+      if (ang < 0) ang += Math.PI * 2;
+      return ang;
+    };
+
+    svg.on("mousedown.selection", (event) => {
+      if (event.button !== 2) return; // 仅右键
+      const [lx, ly] = getLocalPointer(event);
+      const r = Math.hypot(lx, ly);
+      if (r <= innerRadius) return; // 必须在坐标轴之外
+
+      isRightSelecting = true;
+      startAngle = toAngle(lx, ly);
+
+      if (selectionPath) selectionPath.remove();
+      selectionPath = selectionOverlayGroup
+        .append("path")
+        .attr("class", "selection-sector")
+        .attr("fill", "#1e90ff")
+        .attr("fill-opacity", 0.15)
+        .attr("stroke", "#1e90ff")
+        .attr("stroke-width", 1)
+        .attr("pointer-events", "none");
+
+      if (startLine) startLine.remove();
+      if (endLine) endLine.remove();
+      // 起点线段：沿径向从 innerRadius 到 maxRadius
+      const sx0 = Math.cos(startAngle) * innerRadius;
+      const sy0 = Math.sin(startAngle) * innerRadius;
+      const sx1 = Math.cos(startAngle) * (maxRadius + 8);
+      const sy1 = Math.sin(startAngle) * (maxRadius + 8);
+      startLine = selectionOverlayGroup
+        .append("line")
+        .attr("class", "selection-start-line")
+        .attr("x1", sx0)
+        .attr("y1", sy0)
+        .attr("x2", sx1)
+        .attr("y2", sy1)
+        .attr("stroke", "#1e90ff")
+        .attr("stroke-width", 1.5)
+        .attr("pointer-events", "none");
+      endLine = selectionOverlayGroup
+        .append("line")
+        .attr("class", "selection-end-line")
+        .attr("x1", sx0)
+        .attr("y1", sy0)
+        .attr("x2", sx1)
+        .attr("y2", sy1)
+        .attr("stroke", "#1e90ff")
+        .attr("stroke-width", 1.5)
+        .attr("pointer-events", "none");
+    });
+
+    svg.on("mousemove.selection", (event) => {
+      if (!isRightSelecting || !selectionPath) return;
+      const [lx, ly] = getLocalPointer(event);
+      const r = Math.hypot(lx, ly);
+      if (r <= innerRadius) return; // 仍需在外圈
+      const currentAngle = toAngle(lx, ly);
+
+      let a0 = startAngle;
+      let a1 = currentAngle;
+      if (a1 < a0) {
+        const tmp = a0;
+        a0 = a1;
+        a1 = tmp;
+      }
+
+      const arcGen = d3
+        .arc()
+        .innerRadius(innerRadius)
+        .outerRadius(maxRadius + 8)
+        .startAngle(a0)
+        .endAngle(a1);
+
+      selectionPath.attr("d", arcGen());
+
+      // 更新终点径向线
+      const ex0 = Math.cos(currentAngle) * innerRadius;
+      const ey0 = Math.sin(currentAngle) * innerRadius;
+      const ex1 = Math.cos(currentAngle) * (maxRadius + 8);
+      const ey1 = Math.sin(currentAngle) * (maxRadius + 8);
+      if (endLine) {
+        endLine.attr("x1", ex0).attr("y1", ey0).attr("x2", ex1).attr("y2", ey1);
+      }
+    });
+
+    const endRightSelection = (event) => {
+      if (event && event.button !== undefined && event.button !== 2) return;
+      if (!isRightSelecting) return;
+      isRightSelecting = false;
+    };
+
+    svg.on("mouseup.selection", endRightSelection);
+    svg.on("mouseleave.selection", endRightSelection);
 
     // 添加交互提示文本
     svg
