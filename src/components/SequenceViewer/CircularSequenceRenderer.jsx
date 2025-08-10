@@ -1266,6 +1266,16 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       }
     }
 
+    // 基于当前内容最大半径，计算一个“适屏”初始缩放比例
+    const fitPadding = 20; // 适当的留白（像素）
+    let fitScale = 1;
+    if (maxRadius > 0) {
+      const sx = (width / 2 - fitPadding) / maxRadius;
+      const sy = (height / 2 - fitPadding) / maxRadius;
+      fitScale = Math.min(sx, sy);
+      if (!isFinite(fitScale) || fitScale <= 0) fitScale = 1;
+    }
+
     // 绘制刻度
     const tickCount = 12;
     const ticks = d3.range(tickCount).map((i) => (i * totalLength) / tickCount);
@@ -1323,7 +1333,8 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       });
 
     // 在特征渲染完成后创建缩放行为
-    const minScale = 0.3;
+    // 允许初始适屏缩放值作为最小缩放下限（避免 fitScale 小于固定下限导致初始化无法套用）
+    const minScale = Math.min(0.3, fitScale || 1);
     const maxScale = 5;
 
     // 为了在最小缩放下仍可自由移动到视口中心，放宽平移范围：
@@ -1395,9 +1406,10 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       });
 
     // 应用缩放行为到SVG，初始变换为居中位置
+    const initialScale = Math.max(minScale, Math.min(maxScale, fitScale || 1));
     const initialTransform = d3.zoomIdentity
       .translate(width / 2, height / 2)
-      .scale(1);
+      .scale(initialScale);
     svg.call(zoom).call(zoom.transform, initialTransform);
 
     // 额外的wheel事件处理来阻止浏览器默认缩放
