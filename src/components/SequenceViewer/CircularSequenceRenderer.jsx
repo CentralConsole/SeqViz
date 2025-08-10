@@ -1323,13 +1323,23 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       });
 
     // 在特征渲染完成后创建缩放行为
+    const minScale = 0.3;
+    const maxScale = 5;
+
+    // 为了在最小缩放下仍可自由移动到视口中心，放宽平移范围：
+    // 视口在最小缩放时的逻辑尺寸为 width/minScale 与 height/minScale。
+    // 将 extent 向四周扩展到该尺寸，避免缩小后被夹在右/下边界导致无法继续向右/下拖动。
+    const viewportWAtMin = width / minScale;
+    const viewportHAtMin = height / minScale;
+    const translateExtent = [
+      [-viewportWAtMin, -viewportHAtMin],
+      [width + viewportWAtMin, height + viewportHAtMin],
+    ];
+
     const zoom = d3
       .zoom()
-      .scaleExtent([0.3, 5]) // 扩大缩放范围，允许更大的缩放倍数
-      .translateExtent([
-        [-maxRadius, -maxRadius],
-        [width + maxRadius, height + maxRadius],
-      ])
+      .scaleExtent([minScale, maxScale]) // 扩大缩放范围，允许更大的缩放倍数
+      .translateExtent(translateExtent)
       .wheelDelta((event) => {
         // 降低滚轮缩放的灵敏度，使缩放更平滑
         // 默认是 -event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002) * (event.ctrlKey ? 10 : 1)
@@ -1365,11 +1375,13 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         svg.style("cursor", "grabbing");
       })
       .on("zoom", (event) => {
-        // 实时检查Ctrl键状态
+        // 允许程序化变换（event.sourceEvent 为 undefined）
+        const isProgrammatic = !event.sourceEvent;
+        // 实时检查Ctrl键状态，仅对用户交互生效
         const isCtrlCurrentlyPressed =
           event.sourceEvent?.ctrlKey || event.sourceEvent?.metaKey;
-        if (!isCtrlCurrentlyPressed) {
-          return; // 如果Ctrl键被松开，停止应用变换
+        if (!isProgrammatic && !isCtrlCurrentlyPressed) {
+          return; // 用户松开 Ctrl 时，不应用变换；程序化初始化不受限
         }
         mainGroup.attr("transform", event.transform);
         setScale(event.transform.k);
@@ -1388,11 +1400,6 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .scale(1);
     svg.call(zoom).call(zoom.transform, initialTransform);
 
-    // 确保初始变换立即应用到视觉上
-    mainGroup.attr("transform", initialTransform);
-    setScale(initialTransform.k);
-    setTranslate({ x: initialTransform.x, y: initialTransform.y });
-
     // 额外的wheel事件处理来阻止浏览器默认缩放
     svg.on("wheel.prevent", (event) => {
       // 总是阻止浏览器默认的Ctrl+滚轮页面缩放
@@ -1410,23 +1417,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       }
     });
 
-    // 添加鼠标样式提示：根据Ctrl键状态改变鼠标样式
-    const updateCursor = () => {
-      const cursor = isCtrlPressed ? "grab" : "default";
-      svg.style("cursor", cursor);
-    };
-
-    // 初始设置鼠标样式
-    updateCursor();
-
-    // 监听Ctrl键状态变化并更新鼠标样式
-    const ctrlStateHandler = (event) => {
-      const isCurrentlyPressed = event.ctrlKey || event.metaKey;
-      setIsCtrlPressed(isCurrentlyPressed);
-      updateCursor();
-    };
-    document.addEventListener("keydown", ctrlStateHandler);
-    document.addEventListener("keyup", ctrlStateHandler);
+    // 鼠标样式统一在 zoom 生命周期内管理（start/end）
 
     // 添加额外的鼠标事件处理
     svg.on("mousedown.prevent", (event) => {
@@ -1447,14 +1438,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       }
     });
 
-    svg.on("mousemove.update", (event) => {
-      // 实时更新Ctrl键状态
-      const isCurrentlyPressed = event.ctrlKey || event.metaKey;
-      if (isCurrentlyPressed !== isCtrlPressed) {
-        setIsCtrlPressed(isCurrentlyPressed);
-        updateCursor();
-      }
-    });
+    // 移除基于鼠标移动的光标切换，避免与 zoom 生命周期竞态
 
     // 右键拖拽扇形选择（圆轴外部）
     const selectionOverlayGroup = mainGroup
@@ -1602,8 +1586,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleWindowBlur);
-      document.removeEventListener("keydown", ctrlStateHandler);
-      document.removeEventListener("keyup", ctrlStateHandler);
+      // 光标样式已由 zoom 生命周期统一管理，移除额外监听器
     };
   }, [data, width, height, onFeatureClick]);
 
