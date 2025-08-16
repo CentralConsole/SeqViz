@@ -11,6 +11,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import LinearSequenceRenderer from "./LinearSequenceRenderer";
 import CircularSequenceRenderer from "./CircularSequenceRenderer.jsx";
+import DetailedSequenceViewer from "./DetailedSequenceViewer.jsx";
 import ViewModeToggle from "./ViewModeToggle";
 
 /**
@@ -19,7 +20,7 @@ import ViewModeToggle from "./ViewModeToggle";
  * @param {Object} props.data - 序列数据对象
  * @param {Object} [props.style] - 可选的容器样式
  * @param {Function} [props.onFeatureClick] - 特征点击事件处理函数
- * @param {string} [props.viewMode="linear"] - 视图模式："linear" 或 "circular"
+ * @param {string} [props.viewMode="linear"] - 视图模式："linear"、"circular" 或 "detailed"
  */
 const SequenceViewer = ({
   data,
@@ -129,8 +130,15 @@ const SequenceViewer = ({
           height={dimensions.height}
           onFeatureClick={onFeatureClick}
         />
-      ) : (
+      ) : viewMode === "circular" ? (
         <CircularSequenceRenderer
+          data={genomeData}
+          width={dimensions.width}
+          height={dimensions.height}
+          onFeatureClick={onFeatureClick}
+        />
+      ) : (
+        <DetailedSequenceViewer
           data={genomeData}
           width={dimensions.width}
           height={dimensions.height}

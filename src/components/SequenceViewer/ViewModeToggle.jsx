@@ -33,6 +33,14 @@ const ViewModeToggle = ({ currentView, onViewChange }) => {
       >
         环形视图
       </button>
+      <button
+        style={getButtonStyle("detailed")}
+        onClick={() => onViewChange("detailed")}
+        onMouseOver={(e) => (e.currentTarget.style.opacity = hover.opacity)}
+        onMouseOut={(e) => (e.currentTarget.style.opacity = 1)}
+      >
+        详细视图
+      </button>
     </div>
   );
 };

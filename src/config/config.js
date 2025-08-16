@@ -346,7 +346,7 @@ export const CONFIG = {
       backgroundColor: "#4caf50",
     },
     inactive: {
-      backgroundColor: "#ccc",
+      backgroundColor: "#666",
     },
     hover: {
       opacity: 0.9,
@@ -357,6 +357,28 @@ export const CONFIG = {
         margin: "10px",
         justifyContent: "center",
       },
+    },
+  },
+  // 详细序列查看器配置
+  detailedSequenceViewer: {
+    nucleotidesPerRow: 50, // 每行显示的核苷酸数量
+    lineHeight: 25, // 行高
+    fontSize: 14, // 字体大小
+    positionWidth: 80, // 位置标记宽度
+    nucleotideColors: {
+      A: "#ff6b6b", // 腺嘌呤 - 红色
+      T: "#4ecdc4", // 胸腺嘧啶 - 青色
+      C: "#45b7d1", // 胞嘧啶 - 蓝色
+      G: "#96ceb4", // 鸟嘌呤 - 绿色
+      N: "#95a5a6", // 不确定 - 灰色
+      default: "#e0e0e0",
+    },
+    featurePanel: {
+      backgroundColor: "rgba(30, 30, 30, 0.95)",
+      borderRadius: "8px",
+      padding: "15px",
+      border: "1px solid #555",
+      maxHeight: "200px",
     },
   },
 };
