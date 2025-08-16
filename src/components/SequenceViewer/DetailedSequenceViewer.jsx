@@ -32,13 +32,57 @@ const DetailedSequenceViewer = ({
   const svgRef = useRef(null);
   const [selectedFeature, setSelectedFeature] = useState(null);
 
+  // 缓存互补链序列计算结果
+  const complementSequenceRef = useRef(null);
+  const lastSequenceRef = useRef(null);
+
   // 获取序列数据
   const sequence = data?.origin || "";
   const totalLength = data?.locus?.sequenceLength || sequence.length;
   const features = data?.features || [];
 
+  // DNA互补配对规则
+  const getComplementBase = (base) => {
+    const complementMap = {
+      A: "T",
+      T: "A",
+      C: "G",
+      G: "C",
+      a: "t",
+      t: "a",
+      c: "g",
+      g: "c",
+      N: "N",
+      n: "n",
+    };
+    return complementMap[base] || base;
+  };
+
+  // 生成互补链序列（5' to 3' -> 3' to 5'）- 使用缓存优化
+  const getComplementSequence = () => {
+    if (lastSequenceRef.current === sequence && complementSequenceRef.current) {
+      return complementSequenceRef.current;
+    }
+
+    console.time("Complement sequence calculation");
+    const complementSequence = sequence
+      .split("")
+      .map((base) => getComplementBase(base))
+      .reverse()
+      .join("");
+    console.timeEnd("Complement sequence calculation");
+
+    // 缓存结果
+    lastSequenceRef.current = sequence;
+    complementSequenceRef.current = complementSequence;
+
+    return complementSequence;
+  };
+
+  const complementSequence = getComplementSequence();
+
   // 配置参数
-  const margin = { top: 60, right: 40, bottom: 40, left: 100 };
+  const margin = { top: 100, right: 40, bottom: 100, left: 120 };
   const contentWidth = width - margin.left - margin.right;
   const contentHeight = height - margin.top - margin.bottom;
 
@@ -46,7 +90,7 @@ const DetailedSequenceViewer = ({
   const detailedConfig = CONFIG.detailedSequenceViewer;
   const lineHeight = detailedConfig.lineHeight;
   const fontSize = detailedConfig.fontSize;
-  const positionWidth = detailedConfig.positionWidth;
+  //const positionWidth = detailedConfig.positionWidth;
 
   // 计算每行核苷酸数量，确保是10的整数倍且自适应宽度
   const charWidth = 12; // 每个字符的宽度
@@ -56,6 +100,11 @@ const DetailedSequenceViewer = ({
     Math.floor(maxNucleotidesFromWidth / 10) * 10
   );
 
+  // 双链DNA显示参数
+  const strandSpacing = detailedConfig.strandSpacing; // 两条链之间的间距
+  const rowPadding = detailedConfig.rowPadding; // 行与行之间的额外间距
+  const doubleStrandHeight = lineHeight * 2 + strandSpacing + rowPadding; // 双链总高度
+
   useEffect(() => {
     if (!svgRef.current || !data || !sequence) return;
 
@@ -63,10 +112,18 @@ const DetailedSequenceViewer = ({
   }, [data, width, height, sequence]);
 
   const renderDetailedView = () => {
+    console.time("DetailedSequenceViewer total render");
+    console.log(
+      `🧬 Rendering DetailedSequenceViewer - Sequence length: ${totalLength}`
+    );
+
     // 清除之前的渲染内容
+    console.time("DOM cleanup");
     d3.select(svgRef.current).selectAll("*").remove();
+    console.timeEnd("DOM cleanup");
 
     // 主容器
+    console.time("SVG setup");
     const svg = d3
       .select(svgRef.current)
       .attr("width", width)
@@ -79,15 +136,32 @@ const DetailedSequenceViewer = ({
       .append("g")
       .attr("class", "content")
       .attr("transform", `translate(${margin.left}, ${margin.top})`);
+    console.timeEnd("SVG setup");
 
     // 添加标题和信息栏
+    console.time("Header rendering");
     renderHeader(svg);
+    console.timeEnd("Header rendering");
 
     // 渲染序列内容
     renderSequenceContent(contentGroup);
 
     // 添加滚动功能
+    console.time("Scroll setup");
     addScrollBehavior(svg, contentGroup);
+    console.timeEnd("Scroll setup");
+
+    console.timeEnd("DetailedSequenceViewer total render");
+
+    // 性能统计
+    const totalRows = Math.ceil(sequence.length / nucleotidesPerRow);
+    const visibleRows = Math.floor(contentHeight / doubleStrandHeight);
+    console.log(`📊 Performance stats:
+    - Total sequence length: ${totalLength.toLocaleString()} bp
+    - Nucleotides per row: ${nucleotidesPerRow}
+    - Total rows: ${totalRows}
+    - Visible rows: ${visibleRows}
+    - Virtualization ratio: ${Math.round((visibleRows / totalRows) * 100)}%`);
   };
 
   const renderHeader = (svg) => {
@@ -122,91 +196,201 @@ const DetailedSequenceViewer = ({
       .text(infoText);
   };
 
-  const renderSequenceContent = (contentGroup) => {
+  const renderSequenceContent = (contentGroup, scrollOffset = 0) => {
     if (!sequence) return;
 
+    console.time("Sequence content rendering");
+
     const totalRows = Math.ceil(sequence.length / nucleotidesPerRow);
-    const visibleRows = Math.floor(contentHeight / lineHeight);
-    // 显示所有行，让滚动功能来控制可见区域
-    const startRow = 0;
-    const endRow = totalRows;
+    const visibleRows = Math.floor(contentHeight / doubleStrandHeight);
+
+    // 虚拟化：只渲染可见区域 + 缓冲区
+    const bufferRows = 2; // 上下各2行缓冲
+    const currentTopRow = Math.floor(scrollOffset / doubleStrandHeight);
+    const startRow = Math.max(0, currentTopRow - bufferRows);
+    const endRow = Math.min(
+      totalRows,
+      currentTopRow + visibleRows + bufferRows
+    );
+
+    console.log(
+      `Rendering rows ${startRow} to ${endRow} (${
+        endRow - startRow
+      } rows) out of ${totalRows} total`
+    );
 
     // 为每一行创建组
     for (let rowIndex = startRow; rowIndex < endRow; rowIndex++) {
-      const rowY = rowIndex * lineHeight;
+      const rowY = rowIndex * doubleStrandHeight;
       const startPos = rowIndex * nucleotidesPerRow;
       const endPos = Math.min(startPos + nucleotidesPerRow, sequence.length);
       const rowSequence = sequence.slice(startPos, endPos);
+      const rowComplementSequence = complementSequence.slice(startPos, endPos);
 
-      renderSequenceRow(contentGroup, rowIndex, rowY, startPos, rowSequence);
+      renderDoubleStrandRow(
+        contentGroup,
+        rowIndex,
+        rowY,
+        startPos,
+        rowSequence,
+        rowComplementSequence
+      );
     }
 
     // 渲染特征标记
     renderFeatureAnnotations(contentGroup, startRow, endRow);
+
+    console.timeEnd("Sequence content rendering");
   };
 
-  const renderSequenceRow = (parent, rowIndex, y, startPos, rowSequence) => {
+  const renderDoubleStrandRow = (
+    parent,
+    rowIndex,
+    y,
+    startPos,
+    topSequence,
+    bottomSequence
+  ) => {
     const rowGroup = parent
       .append("g")
-      .attr("class", `sequence-row-${rowIndex}`);
+      .attr("class", `double-strand-row-${rowIndex}`);
 
-    // 位置标记
+    // 5' to 3' 方向标记（正链）
     rowGroup
       .append("text")
-      .attr("x", -10)
+      .attr("x", -80)
       .attr("y", y + fontSize)
+      .attr("text-anchor", "start")
+      .style("font-family", CONFIG.styles.annotation.fontFamily)
+      .style("font-size", "10px")
+      .style("fill", CONFIG.styles.axis.text.fill)
+      .text("5'");
+
+    rowGroup
+      .append("text")
+      .attr("x", topSequence.length * 12 + 5)
+      .attr("y", y + fontSize)
+      .attr("text-anchor", "start")
+      .style("font-family", CONFIG.styles.annotation.fontFamily)
+      .style("font-size", "10px")
+      .style("fill", CONFIG.styles.axis.text.fill)
+      .text("3'");
+
+    // 3' to 5' 方向标记（互补链）
+    const complementY = y + lineHeight + strandSpacing;
+    rowGroup
+      .append("text")
+      .attr("x", -80)
+      .attr("y", complementY + fontSize)
+      .attr("text-anchor", "start")
+      .style("font-family", CONFIG.styles.annotation.fontFamily)
+      .style("font-size", "10px")
+      .style("fill", CONFIG.styles.axis.text.fill)
+      .text("3'");
+
+    rowGroup
+      .append("text")
+      .attr("x", bottomSequence.length * 12 + 5)
+      .attr("y", complementY + fontSize)
+      .attr("text-anchor", "start")
+      .style("font-family", CONFIG.styles.annotation.fontFamily)
+      .style("font-size", "10px")
+      .style("fill", CONFIG.styles.axis.text.fill)
+      .text("5'");
+
+    // 位置标记（放在两条链之间）
+    const middleY = y + lineHeight + strandSpacing / 2;
+    rowGroup
+      .append("text")
+      .attr("x", -50)
+      .attr("y", middleY)
       .attr("text-anchor", "end")
       .style("font-family", CONFIG.styles.annotation.fontFamily)
       .style("font-size", `${fontSize}px`)
       .style("fill", CONFIG.styles.axis.text.fill)
       .text((startPos + 1).toLocaleString());
 
-    // 渲染每个核苷酸
-    for (let i = 0; i < rowSequence.length; i++) {
-      const nucleotide = rowSequence[i];
+    // 优化：使用单个text元素渲染整行正链核苷酸
+    const topStrandText = topSequence
+      .split("")
+      .map((nucleotide, i) => {
+        const x = i * 12 + 6;
+        return `<tspan x="${x}" fill="${getNucleotideColor(
+          nucleotide
+        )}">${nucleotide.toUpperCase()}</tspan>`;
+      })
+      .join("");
+
+    rowGroup
+      .append("text")
+      .attr("class", "top-strand-sequence")
+      .attr("y", y + fontSize)
+      .attr("text-anchor", "middle")
+      .style("font-family", CONFIG.styles.annotation.fontFamily)
+      .style("font-size", `${fontSize}px`)
+      .style("font-weight", "normal")
+      .html(topStrandText);
+
+    // 每10个核苷酸添加间隔标记（放在两条链之间的右侧）
+    for (let i = 9; i < topSequence.length; i += 10) {
+      const x = i * 12 + 6;
       const position = startPos + i;
-      const x = i * 12; // 12px per character
 
-      // 核苷酸字符背景
-      const nucleotideGroup = rowGroup
-        .append("g")
-        .attr("class", "nucleotide-group");
-
-      // 背景矩形（用于高亮）
-      nucleotideGroup
-        .append("rect")
-        .attr("x", x - 1)
-        .attr("y", y)
-        .attr("width", 12)
-        .attr("height", lineHeight)
-        .attr("fill", getNucleotideBackground(nucleotide, position))
-        .attr("stroke", "none")
-        .style("opacity", 0.3);
-
-      // 核苷酸文字
-      nucleotideGroup
+      rowGroup
         .append("text")
-        .attr("x", x + 6)
-        .attr("y", y + fontSize)
-        .attr("text-anchor", "middle")
-        .style("font-family", CONFIG.styles.annotation.fontFamily)
-        .style("font-size", `${fontSize}px`)
-        .style("font-weight", "normal")
-        .style("fill", getNucleotideColor(nucleotide))
-        .text(nucleotide.toUpperCase());
+        .attr("x", x + 15)
+        .attr("y", middleY)
+        .attr("text-anchor", "start")
+        .style("font-size", "10px")
+        .style("fill", CONFIG.styles.axis.text.fill)
+        .style("opacity", 0.7)
+        .text(position + 1);
+    }
 
-      // 每10个核苷酸添加间隔标记
-      if ((i + 1) % 10 === 0) {
-        rowGroup
-          .append("text")
-          .attr("x", x + 18)
-          .attr("y", y - 5)
-          .attr("text-anchor", "middle")
-          .style("font-size", "10px")
-          .style("fill", CONFIG.styles.axis.text.fill)
-          .style("opacity", 0.7)
-          .text(position + 1);
-      }
+    // 优化：使用单个text元素渲染整行互补链核苷酸
+    const bottomStrandText = bottomSequence
+      .split("")
+      .map((nucleotide, i) => {
+        const x = i * 12 + 6;
+        return `<tspan x="${x}" fill="${getNucleotideColor(
+          nucleotide
+        )}">${nucleotide.toUpperCase()}</tspan>`;
+      })
+      .join("");
+
+    rowGroup
+      .append("text")
+      .attr("class", "bottom-strand-sequence")
+      .attr("y", complementY + fontSize)
+      .attr("text-anchor", "middle")
+      .style("font-family", CONFIG.styles.annotation.fontFamily)
+      .style("font-size", `${fontSize}px`)
+      .style("font-weight", "normal")
+      .html(bottomStrandText);
+
+    // 绘制氢键连线（碱基配对）
+    // 注意：既然我们自己生成的互补链，所有配对都应该是正确的
+    for (
+      let i = 0;
+      i < Math.min(topSequence.length, bottomSequence.length);
+      i++
+    ) {
+      const x = i * 12 + 6;
+
+      // 绘制氢键 - 所有连线都是正确配对（细实线）
+      const topCharY = y + fontSize; // 正链字符的基线位置
+      const bottomCharY = complementY + fontSize; // 互补链字符的基线位置
+
+      rowGroup
+        .append("line")
+        .attr("class", "hydrogen-bond")
+        .attr("x1", x)
+        .attr("y1", topCharY + 2) // 正链字符下方一点
+        .attr("x2", x)
+        .attr("y2", bottomCharY - 2) // 互补链字符上方一点
+        .attr("stroke", "#666") // 灰色
+        .attr("stroke-width", 1) // 细实线
+        .style("opacity", 0.6);
     }
   };
 
@@ -241,7 +425,7 @@ const DetailedSequenceViewer = ({
 
           if (row >= 0 && row < endRow - startRow) {
             const x = col * 12;
-            const y = row * lineHeight;
+            const y = row * doubleStrandHeight;
 
             // 特征标记线
             const typeConf =
@@ -250,9 +434,9 @@ const DetailedSequenceViewer = ({
             parent
               .append("line")
               .attr("x1", x + 6)
-              .attr("y1", y + lineHeight + 2)
+              .attr("y1", y + doubleStrandHeight + 2)
               .attr("x2", x + 6)
-              .attr("y2", y + lineHeight + 10)
+              .attr("y2", y + doubleStrandHeight + 15)
               .attr("stroke", typeConf.stroke)
               .attr("stroke-width", 2)
               .style("cursor", "pointer")
@@ -281,11 +465,12 @@ const DetailedSequenceViewer = ({
 
   const addScrollBehavior = (svg, contentGroup) => {
     const totalRows = Math.ceil(sequence.length / nucleotidesPerRow);
-    const visibleRows = Math.floor(contentHeight / lineHeight);
+    const visibleRows = Math.floor(contentHeight / doubleStrandHeight);
     const maxScrollRows = Math.max(0, totalRows - visibleRows);
-    const maxScroll = maxScrollRows * lineHeight;
+    const maxScroll = maxScrollRows * doubleStrandHeight;
 
     let currentScrollRow = 0;
+    let lastRenderedRange = { start: 0, end: 0 };
 
     // 创建一个透明的滚动区域覆盖整个SVG
     const scrollArea = svg
@@ -294,6 +479,33 @@ const DetailedSequenceViewer = ({
       .attr("height", height)
       .attr("fill", "transparent")
       .style("cursor", "default");
+
+    // 虚拟化重渲染函数
+    const updateVisibleContent = (scrollOffset) => {
+      const bufferRows = 2;
+      const currentTopRow = Math.floor(scrollOffset / doubleStrandHeight);
+      const startRow = Math.max(0, currentTopRow - bufferRows);
+      const endRow = Math.min(
+        totalRows,
+        currentTopRow + visibleRows + bufferRows
+      );
+
+      // 只有当可见范围发生显著变化时才重新渲染
+      if (
+        startRow !== lastRenderedRange.start ||
+        endRow !== lastRenderedRange.end
+      ) {
+        console.log(
+          `Re-rendering due to scroll: ${startRow}-${endRow} (was ${lastRenderedRange.start}-${lastRenderedRange.end})`
+        );
+
+        // 清除内容并重新渲染可见区域
+        contentGroup.selectAll("*").remove();
+        renderSequenceContent(contentGroup, scrollOffset);
+
+        lastRenderedRange = { start: startRow, end: endRow };
+      }
+    };
 
     // 鼠标滚轮事件 - 逐行滚动
     scrollArea.on("wheel", (event) => {
@@ -308,13 +520,16 @@ const DetailedSequenceViewer = ({
 
       if (newScrollRow !== currentScrollRow) {
         currentScrollRow = newScrollRow;
-        const scrollY = -currentScrollRow * lineHeight;
+        const scrollY = -currentScrollRow * doubleStrandHeight;
 
-        // 直接设置内容组的变换
+        // 设置内容组的变换
         contentGroup.attr(
           "transform",
           `translate(${margin.left}, ${margin.top + scrollY})`
         );
+
+        // 虚拟化更新
+        updateVisibleContent(currentScrollRow * doubleStrandHeight);
       }
     });
 

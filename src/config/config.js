@@ -365,6 +365,8 @@ export const CONFIG = {
     lineHeight: 25, // 行高
     fontSize: 14, // 字体大小
     positionWidth: 80, // 位置标记宽度
+    strandSpacing: 8, // 两条DNA链之间的间距
+    rowPadding: 15, // 行与行之间的额外间距
     nucleotideColors: {
       A: "#ff6b6b", // 腺嘌呤 - 红色
       T: "#4ecdc4", // 胸腺嘧啶 - 青色
