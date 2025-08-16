@@ -1458,13 +1458,17 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .attr("class", "selection-overlay")
       .style("pointer-events", "none");
 
-    let isRightSelecting = false;
+    let isRightSelecting = false; // Whether the right click is selected
     let startAngle = null;
+    let startAngle_1 = null; // For recording the direction of the selection
     let selectionPath = null;
     let startLine = null;
     let endLine = null;
+    let selectionDirection = null; // +1 顺时针, -1 逆时针
+    let nextBaseIndexAtStart = null; // 紧挨着起点的下一个碱基索引（随方向而定）
+    let lastCurrentAngle = null; // 记录上一次的当前角度，用于检测拖拽方向变化
 
-    // 禁用默认右键菜单
+    // Disable default right-click menu
     svg.on("contextmenu.selection", (event) => {
       event.preventDefault();
     });
@@ -1486,14 +1490,23 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       return ang;
     };
 
+    const normalizeAngle = (ang) =>
+      ((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+
     svg.on("mousedown.selection", (event) => {
-      if (event.button !== 2) return; // 仅右键
+      if (event.button !== 2) return; // Only right click
       const [lx, ly] = getLocalPointer(event);
       const r = Math.hypot(lx, ly);
-      if (r <= innerRadius) return; // 必须在坐标轴之外
+      if (r <= innerRadius) return; // Selection must be outside the inner radius
 
       isRightSelecting = true;
       startAngle = toAngle(lx, ly);
+      startAngle_1 = startAngle;
+      // Initialize the startAngle_1 to the startAngle,
+      // and later it will be updated to the nextAngle
+      selectionDirection = null;
+      nextBaseIndexAtStart = null;
+      lastCurrentAngle = null;
 
       if (selectionPath) selectionPath.remove();
       selectionPath = selectionOverlayGroup
@@ -1539,16 +1552,96 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       if (!isRightSelecting || !selectionPath) return;
       const [lx, ly] = getLocalPointer(event);
       const r = Math.hypot(lx, ly);
-      if (r <= innerRadius) return; // 仍需在外圈
+      if (r <= innerRadius) return; // Selection must be outside the inner radius
       const currentAngle = toAngle(lx, ly);
 
       const a0 = startAngle;
       const a1 = currentAngle;
-      // 计算双向差，选择较小弧段，避免“0”点特殊性且与拖拽方向无关
+
+      // 计算当前方向的弧段长度
       const forward = (a1 - a0 + Math.PI * 2) % (Math.PI * 2);
       const backward = (a0 - a1 + Math.PI * 2) % (Math.PI * 2);
-      const startForArc = backward < forward ? a1 : a0;
-      const delta = Math.min(forward, backward);
+
+      // 首次移动时确定选取方向，并计算紧挨着 startAngle 的"下一个点"
+      if (selectionDirection === null) {
+        selectionDirection = forward <= backward ? 1 : -1; // 1 表示顺时针
+
+        const anglePerBase =
+          data.locus && data.locus.sequenceLength > 0
+            ? (2 * Math.PI) / data.locus.sequenceLength
+            : 0.005; // 回退到一个很小的角步长
+        const step = Math.max(anglePerBase, 0.002);
+        const nextAngle = normalizeAngle(
+          startAngle + selectionDirection * step
+        );
+        startAngle_1 = nextAngle; // 紧挨着 startAngle 的角度点，用于记录方向
+
+        // 计算相邻碱基索引，便于与线性序列坐标联动
+        if (data.locus && data.locus.sequenceLength > 0) {
+          const total = data.locus.sequenceLength;
+          const startIndex = Math.round(angleScale.invert(startAngle)) % total;
+          nextBaseIndexAtStart =
+            (startIndex + selectionDirection + total) % total;
+        }
+      } else {
+        // 检测用户是否真正改变了拖拽方向（基于连续的角度变化）
+        if (lastCurrentAngle !== null) {
+          const currentDelta = selectionDirection === 1 ? forward : backward;
+
+          // 计算角度变化方向
+          const angleChange = normalizeAngle(a1 - lastCurrentAngle);
+          const isMovingClockwise = angleChange < Math.PI; // 小于π表示顺时针
+          const expectedDirection = selectionDirection === 1;
+
+          // 只有当选择已经超过180度，且用户明确反向拖拽时才切换方向
+          // 同时要求反方向弧段确实更小，避免在接近360度时的误判
+          const oppositeDelta = selectionDirection === 1 ? backward : forward;
+          if (
+            currentDelta > Math.PI && // 当前选择已超过180度
+            isMovingClockwise !== expectedDirection && // 用户在反向拖拽
+            oppositeDelta < currentDelta * 0.3
+          ) {
+            // 反方向弧段明显更小
+
+            selectionDirection = -selectionDirection; // 切换方向
+
+            // 重新计算 startAngle_1
+            const anglePerBase =
+              data.locus && data.locus.sequenceLength > 0
+                ? (2 * Math.PI) / data.locus.sequenceLength
+                : 0.005;
+            const step = Math.max(anglePerBase, 0.002);
+            const nextAngle = normalizeAngle(
+              startAngle + selectionDirection * step
+            );
+            startAngle_1 = nextAngle;
+
+            // 重新计算相邻碱基索引
+            if (data.locus && data.locus.sequenceLength > 0) {
+              const total = data.locus.sequenceLength;
+              const startIndex =
+                Math.round(angleScale.invert(startAngle)) % total;
+              nextBaseIndexAtStart =
+                (startIndex + selectionDirection + total) % total;
+            }
+          }
+        }
+
+        // 更新上次角度记录
+        lastCurrentAngle = a1;
+      }
+
+      // 根据确定的方向计算弧段（允许大于180度）
+      let startForArc, delta;
+      if (selectionDirection === 1) {
+        // 顺时针方向
+        delta = forward;
+        startForArc = a0;
+      } else {
+        // 逆时针方向
+        delta = backward;
+        startForArc = a1;
+      }
 
       const arcGen = d3
         .arc()
@@ -1574,6 +1667,9 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       if (event && event.button !== undefined && event.button !== 2) return;
       if (!isRightSelecting) return;
       isRightSelecting = false;
+      selectionDirection = null;
+      nextBaseIndexAtStart = null;
+      lastCurrentAngle = null;
     };
 
     svg.on("mouseup.selection", endRightSelection);
