@@ -112,6 +112,7 @@ const LinearSequenceRenderer = ({
       .style("font-size", "14px")
       .style("font-weight", "bold")
       .style("fill", CONFIG.styles.axis.text.fill)
+      .style("font-family", CONFIG.fonts.primary.family)
       .text(data.definition || "");
 
     // 添加描述信息
@@ -129,6 +130,7 @@ const LinearSequenceRenderer = ({
       .attr("text-anchor", "middle")
       .style("font-size", "12px")
       .style("fill", CONFIG.styles.axis.text.fill)
+      .style("font-family", CONFIG.fonts.primary.family)
       .text(description);
 
     // 坐标轴

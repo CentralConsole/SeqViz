@@ -1,7 +1,31 @@
-@import url("https://chinese-fonts-cdn.deno.dev/packages/maple-mono-cn/dist/MapleMono-CN-Regular/result.css"); /* 引入Maple font字体 */
+/* 引入本地 Maple Mono Nerd Font 字体 */
+@font-face {
+  font-family: "Maple Mono NF";
+  src: url("/fonts/maple-mono-nf/MapleMono-NF-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Maple Mono NF";
+  src: url("/fonts/maple-mono-nf/MapleMono-NF-Bold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Maple Mono NF";
+  src: url("/fonts/maple-mono-nf/MapleMono-NF-Italic.ttf") format("truetype");
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Maple Mono NF", "Maple Mono CN", "Maple Mono", system-ui, Avenir,
+    Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -17,7 +41,7 @@
 
 /* 为注释文本设置字体 */
 .annotation {
-  font-family: "Maple Mono CN", "Maple Mono", monospace !important;
+  font-family: "Maple Mono NF", "Maple Mono CN", "Maple Mono", monospace !important;
 }
 
 a {
@@ -35,6 +59,8 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  font-family: "Maple Mono NF", "Maple Mono CN", "Maple Mono", system-ui, Avenir,
+    Helvetica, Arial, sans-serif;
 }
 
 h1 {

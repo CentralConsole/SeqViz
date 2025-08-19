@@ -23,7 +23,7 @@ const ViewModeToggle = ({ currentView, onViewChange }) => {
         onMouseOver={(e) => (e.currentTarget.style.opacity = hover.opacity)}
         onMouseOut={(e) => (e.currentTarget.style.opacity = 1)}
       >
-        线性视图
+        &#x2550;
       </button>
       <button
         style={getButtonStyle("circular")}
@@ -31,7 +31,7 @@ const ViewModeToggle = ({ currentView, onViewChange }) => {
         onMouseOver={(e) => (e.currentTarget.style.opacity = hover.opacity)}
         onMouseOut={(e) => (e.currentTarget.style.opacity = 1)}
       >
-        环形视图
+        &#xf0e95;
       </button>
       <button
         style={getButtonStyle("detailed")}
@@ -39,7 +39,7 @@ const ViewModeToggle = ({ currentView, onViewChange }) => {
         onMouseOver={(e) => (e.currentTarget.style.opacity = hover.opacity)}
         onMouseOut={(e) => (e.currentTarget.style.opacity = 1)}
       >
-        详细视图
+        &#xe64e;
       </button>
     </div>
   );

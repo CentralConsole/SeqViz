@@ -182,35 +182,58 @@ const DetailedSequenceViewer = ({
   };
 
   const renderHeader = (svg) => {
-    const headerGroup = svg.append("g").attr("class", "header");
+    // 创建固定坐标轴组（移到内容组之后，确保在最上层）
+    const axisGroup = svg
+      .append("g")
+      .attr("class", "axis-group")
+      .attr("transform", `translate(${margin.left}, ${margin.top})`);
 
-    // 标题
-    headerGroup
+    // 创建坐标轴和元信息的容器组
+    const axisContainer = axisGroup.append("g").attr("class", "axis-container");
+
+    // 添加坐标轴背景
+    axisContainer
+      .append("rect")
+      .attr("x", -margin.left)
+      .attr("y", -margin.top)
+      .attr("width", contentWidth + margin.left + margin.right)
+      .attr("height", margin.top + 20)
+      .attr("fill", "transparent")
+      .attr("stroke", "transparent");
+
+    // 添加元信息显示
+    const metaInfoGroup = axisContainer.append("g").attr("class", "meta-info");
+
+    // 添加标题
+    metaInfoGroup
       .append("text")
-      .attr("x", width / 2)
-      .attr("y", 25)
+      .attr("class", "meta-title")
+      .attr("x", contentWidth / 2)
+      .attr("y", -margin.top + 20)
       .attr("text-anchor", "middle")
-      .style("font-size", "18px")
+      .style("font-size", "14px")
       .style("font-weight", "bold")
       .style("fill", CONFIG.styles.axis.text.fill)
-      .text(data.definition || "序列详细视图");
+      .style("font-family", CONFIG.fonts.primary.family)
+      .text(data.definition || "");
 
-    // 基本信息
-    const infoText = [
-      `长度: ${totalLength.toLocaleString()} bp`,
-      `类型: ${data.locus?.moleculeType || ""}`,
-      `拓扑: ${data.locus?.topology || ""}`,
-      `特征: ${features.length}个`,
+    // 添加描述信息
+    const description = [
+      `Length: ${data.locus?.sequenceLength?.toLocaleString() || 0} bp`,
+      `Type: ${data.locus?.moleculeType || ""}`,
+      `Division: ${data.locus?.division || ""}`,
     ].join(" | ");
 
-    headerGroup
+    metaInfoGroup
       .append("text")
-      .attr("x", width / 2)
-      .attr("y", 45)
+      .attr("class", "meta-description")
+      .attr("x", contentWidth / 2)
+      .attr("y", -margin.top + 40)
       .attr("text-anchor", "middle")
       .style("font-size", "12px")
       .style("fill", CONFIG.styles.axis.text.fill)
-      .text(infoText);
+      .style("font-family", CONFIG.fonts.primary.family)
+      .text(description);
   };
 
   const renderSequenceContent = (contentGroup, scrollOffset = 0) => {

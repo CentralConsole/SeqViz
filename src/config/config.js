@@ -33,7 +33,7 @@ export const CONFIG = {
         fill: "#e0e0e0", // 刻度文字颜色
         fontSize: 14, // 刻度文字大小
         fontFamily:
-          "Maple Mono CN, Maple Mono, Consolas, Monaco, 'Courier New', monospace", // 刻度文字字体
+          "Maple Mono NF, Maple Mono, Consolas, Monaco, 'Courier New', monospace", // 刻度文字字体
       },
     },
     bone: {
@@ -50,7 +50,7 @@ export const CONFIG = {
     annotation: {
       fontSize: 14,
       fontFamily:
-        "Maple Mono CN, Maple Mono, Consolas, Monaco, 'Courier New', monospace",
+        "Maple Mono NF, Maple Mono, Consolas, Monaco, 'Courier New', monospace",
       fill: "#333",
       fillDark: "#e0e0e0", // 深色主题下的文本颜色
       textPathRadialOffset: 22, // 文本路径的径向移动距离
@@ -166,11 +166,13 @@ export const CONFIG = {
   },
   fonts: {
     primary: {
-      family: "Arial, sans-serif",
+      family:
+        "Maple Mono NF, Maple Mono CN, Maple Mono, Consolas, Monaco, 'Courier New', monospace",
       weight: "normal",
     },
     secondary: {
-      family: "Courier New, monospace",
+      family:
+        "Maple Mono NF, Maple Mono CN, Maple Mono, Consolas, Monaco, 'Courier New', monospace",
       weight: "normal",
     },
   },
