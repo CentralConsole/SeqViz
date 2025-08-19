@@ -816,14 +816,14 @@ const DetailedSequenceViewer = ({
     );
 
     let currentScrollOffset = 0;
+    let lastScrollOffset = 0; // 用于判断滚动方向
     let lastRenderedRange = { start: 0, end: 0 };
 
-    // 根据滚动偏移量查找当前顶部行（支持负偏移）
+    // 根据滚动偏移量查找当前顶部行（暂时不支持负偏移）
     const findTopRowByOffset = (scrollOffset) => {
+      // 暂时注释掉负偏移支持，只处理正常滚动
       if (scrollOffset <= 0) {
-        // 对于负偏移，计算虚拟行号（可以为负数）
-        const averageRowHeight = totalContentHeight / totalRows;
-        return Math.floor(scrollOffset / averageRowHeight);
+        return 0; // 负偏移时返回第0行
       }
 
       // 使用二分查找提高性能并确保准确性
@@ -870,85 +870,36 @@ const DetailedSequenceViewer = ({
       return totalRows;
     };
 
-    // 创建一个透明的滚动区域覆盖整个SVG
-    const scrollArea = svg
-      .append("rect")
-      .attr("width", width)
-      .attr("height", height)
-      .attr("fill", "transparent")
-      .style("cursor", "default");
-
-    // 优化的虚拟化重渲染函数
+    // 简化的虚拟化重渲染函数（调试版本）
     const updateVisibleContent = (scrollOffset) => {
+      // 简化缓冲区逻辑
       const bufferRows = 2;
+
       const currentTopRow = findTopRowByOffset(scrollOffset);
-      let startRow = currentTopRow - bufferRows;
+      let startRow = Math.max(0, currentTopRow - bufferRows);
 
-      // 计算结束行（支持负数范围）
-      let endRow;
-      if (startRow < 0) {
-        // 负数范围：从负数开始到正数结束
-        const visibleRowCount =
-          Math.ceil(contentHeight / (totalContentHeight / totalRows)) +
-          bufferRows * 2;
-        endRow = startRow + visibleRowCount;
-      } else {
-        // 正数范围：使用原有逻辑
-        endRow = Math.min(
-          totalRows,
-          findEndRowByHeight(startRow, contentHeight) + bufferRows
-        );
+      // 简化结束行计算
+      let endRow = Math.min(totalRows, startRow + 10); // 固定渲染10行进行测试
 
-        // 确保总是渲染至少一行
-        if (endRow <= startRow) {
-          endRow = Math.min(totalRows, startRow + 1);
-        }
+      // 确保总是渲染至少一行
+      if (endRow <= startRow) {
+        endRow = Math.min(totalRows, startRow + 1);
       }
 
-      // 优化的增量更新逻辑
-      const lastStart = lastRenderedRange.start;
-      const lastEnd = lastRenderedRange.end;
+      // 记录当前滚动偏移量
+      lastScrollOffset = scrollOffset;
 
-      // 检查是否需要更新
-      if (startRow !== lastStart || endRow !== lastEnd) {
-        // 计算重叠区域
-        const overlapStart = Math.max(startRow, lastStart);
-        const overlapEnd = Math.min(endRow, lastEnd);
+      // 简化的更新逻辑：总是完全重渲染
+      console.log(
+        `Rendering rows ${startRow} to ${endRow}, scrollOffset: ${scrollOffset}`
+      );
 
-        // 如果重叠区域很小或没有重叠，进行完全重渲染
-        const overlapSize = Math.max(0, overlapEnd - overlapStart);
-        const newRangeSize = endRow - startRow;
-        const overlapRatio = overlapSize / newRangeSize;
-
-        if (overlapRatio < 0.5) {
-          // 重叠太小，直接完全重渲染
-          contentGroup.selectAll("*").remove();
-          for (let i = startRow; i < endRow; i++) {
-            renderVirtualRow(contentGroup, i, scrollOffset);
-          }
-        } else {
-          // 进行增量更新
-          // 移除不再需要的行
-          for (let i = lastStart; i < lastEnd; i++) {
-            if (i < startRow || i >= endRow) {
-              contentGroup.select(`.sequence-row-${i}`).remove();
-            }
-          }
-
-          // 添加新需要的行
-          for (let i = startRow; i < endRow; i++) {
-            if (i < lastStart || i >= lastEnd) {
-              // 这是新行，需要渲染
-              renderVirtualRow(contentGroup, i, scrollOffset);
-            } else {
-              // 这是重叠行，只需要更新位置
-              updateRowPosition(contentGroup, i, scrollOffset);
-            }
-          }
-        }
-
-        lastRenderedRange = { start: startRow, end: endRow };
+      contentGroup.selectAll("*").remove();
+      for (let i = startRow; i < endRow; i++) {
+        renderVirtualRow(contentGroup, i, scrollOffset);
       }
+
+      lastRenderedRange = { start: startRow, end: endRow };
     };
 
     // 渲染虚拟行（支持负数行索引）
@@ -958,26 +909,17 @@ const DetailedSequenceViewer = ({
         return;
       }
 
-      const averageRowHeight = totalContentHeight / totalRows;
-      let absoluteY, startPos, endPos, rowSequence, rowComplementSequence;
-
+      // 只渲染正常范围内的行，暂时注释掉虚拟空白行功能
       if (rowIndex >= totalRows) {
-        // 超出范围的正数行：渲染空白占位符
-        absoluteY =
-          calculateCumulativeHeight(0, totalRows - 1) +
-          (rowIndex - totalRows + 1) * averageRowHeight;
-        startPos = 0;
-        endPos = 0;
-        rowSequence = "";
-        rowComplementSequence = "";
-      } else {
-        // 正常行
-        absoluteY = rowIndex === 0 ? 0 : calculateCumulativeHeight(0, rowIndex);
-        startPos = rowIndex * nucleotidesPerRow;
-        endPos = Math.min(startPos + nucleotidesPerRow, sequence.length);
-        rowSequence = sequence.slice(startPos, endPos);
-        rowComplementSequence = complementSequence.slice(startPos, endPos);
+        return; // 超出范围的行不渲染
       }
+
+      // 正常行：使用预计算的累积高度数组
+      const absoluteY = rowCumulativeHeights[rowIndex];
+      const startPos = rowIndex * nucleotidesPerRow;
+      const endPos = Math.min(startPos + nucleotidesPerRow, sequence.length);
+      const rowSequence = sequence.slice(startPos, endPos);
+      const rowComplementSequence = complementSequence.slice(startPos, endPos);
 
       const currentY = absoluteY - scrollOffset;
 
@@ -986,29 +928,17 @@ const DetailedSequenceViewer = ({
         .attr("class", `sequence-row-${rowIndex}`)
         .attr("transform", `translate(0, ${currentY})`);
 
-      if (rowIndex < totalRows && rowSequence) {
-        // 渲染实际的序列内容
-        renderDoubleStrandRow(
-          rowContainer,
-          rowIndex,
-          0,
-          startPos,
-          rowSequence,
-          rowComplementSequence
-        );
+      // 渲染实际的序列内容
+      renderDoubleStrandRow(
+        rowContainer,
+        rowIndex,
+        0,
+        startPos,
+        rowSequence,
+        rowComplementSequence
+      );
 
-        renderRowFeatures(rowContainer, rowIndex);
-      } else {
-        // 超出范围的行：渲染空白占位符
-        rowContainer
-          .append("rect")
-          .attr("class", "sequence-row-placeholder")
-          .attr("width", width - margin.left - margin.right)
-          .attr("height", averageRowHeight)
-          .attr("fill", "transparent")
-          .attr("stroke", "#f0f0f0")
-          .attr("stroke-dasharray", "5,5");
-      }
+      renderRowFeatures(rowContainer, rowIndex);
     };
 
     // 更新行位置
@@ -1017,17 +947,13 @@ const DetailedSequenceViewer = ({
         return;
       }
 
-      const averageRowHeight = totalContentHeight / totalRows;
-      let absoluteY;
-
+      // 只处理正常范围内的行，暂时注释掉虚拟空白行功能
       if (rowIndex >= totalRows) {
-        absoluteY =
-          calculateCumulativeHeight(0, totalRows - 1) +
-          (rowIndex - totalRows + 1) * averageRowHeight;
-      } else {
-        absoluteY = rowIndex === 0 ? 0 : calculateCumulativeHeight(0, rowIndex);
+        return;
       }
 
+      // 使用预计算的累积高度数组
+      const absoluteY = rowCumulativeHeights[rowIndex];
       const currentY = absoluteY - scrollOffset;
       contentGroup
         .select(`.sequence-row-${rowIndex}`)
@@ -1047,7 +973,6 @@ const DetailedSequenceViewer = ({
 
       if (Math.abs(newScrollOffset - currentScrollOffset) > 0.01) {
         // 添加最小变化阈值
-        const oldScrollOffset = currentScrollOffset;
         currentScrollOffset = newScrollOffset;
 
         // 保持contentGroup在固定的margin位置，滚动效果通过虚拟化渲染处理
@@ -1063,58 +988,6 @@ const DetailedSequenceViewer = ({
 
     // 禁用D3的zoom行为，使用我们自己的滚动逻辑
     svg.on(".zoom", null);
-  };
-
-  // 带偏移量的序列内容渲染函数
-  const renderSequenceContentWithOffset = (
-    contentGroup,
-    startRow,
-    endRow,
-    scrollOffset
-  ) => {
-    if (!sequence) return;
-
-    // 为每一行创建包含序列和特征的完整行容器
-    for (let i = 0; i < endRow - startRow; i++) {
-      const rowIndex = startRow + i;
-
-      // 只渲染正常范围内的行
-      if (rowIndex >= 0 && rowIndex < totalRows) {
-        // 计算行的绝对Y位置（基于累积高度）
-        const absoluteY =
-          rowIndex === 0 ? 0 : calculateCumulativeHeight(0, rowIndex);
-
-        // 应用滚动偏移：当scrollOffset为0时，第0行应该在y=0位置
-        const currentY = absoluteY - scrollOffset;
-
-        const startPos = rowIndex * nucleotidesPerRow;
-        const endPos = Math.min(startPos + nucleotidesPerRow, sequence.length);
-        const rowSequence = sequence.slice(startPos, endPos);
-        const rowComplementSequence = complementSequence.slice(
-          startPos,
-          endPos
-        );
-
-        // 创建完整的行容器（包含序列和特征）
-        const rowContainer = contentGroup
-          .append("g")
-          .attr("class", `sequence-row-${rowIndex}`)
-          .attr("transform", `translate(0, ${currentY})`);
-
-        // 渲染双链序列
-        renderDoubleStrandRow(
-          rowContainer,
-          rowIndex,
-          0, // 在行容器内使用相对坐标
-          startPos,
-          rowSequence,
-          rowComplementSequence
-        );
-
-        // 渲染该行的特征
-        renderRowFeatures(rowContainer, rowIndex);
-      }
-    }
   };
 
   return (
