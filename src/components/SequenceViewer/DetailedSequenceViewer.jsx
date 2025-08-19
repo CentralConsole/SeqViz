@@ -810,18 +810,13 @@ const DetailedSequenceViewer = ({
     rowCumulativeHeightsRef.current = rowCumulativeHeights;
 
     const lastRowHeight = calculateRowHeight(totalRows - 1);
-    const maxScroll = Math.max(
-      0,
-      totalContentHeight - contentHeight + lastRowHeight * 0.5
-    );
 
     let currentScrollOffset = 0;
     let lastScrollOffset = 0; // 用于判断滚动方向
     let lastRenderedRange = { start: 0, end: 0 };
 
-    // 根据滚动偏移量查找当前顶部行（暂时不支持负偏移）
+    // 根据滚动偏移量查找当前顶部行
     const findTopRowByOffset = (scrollOffset) => {
-      // 暂时注释掉负偏移支持，只处理正常滚动
       if (scrollOffset <= 0) {
         return 0; // 负偏移时返回第0行
       }
@@ -870,16 +865,15 @@ const DetailedSequenceViewer = ({
       return totalRows;
     };
 
-    // 简化的虚拟化重渲染函数（调试版本）
+    // 虚拟化重渲染函数
     const updateVisibleContent = (scrollOffset) => {
-      // 简化缓冲区逻辑
       const bufferRows = 2;
 
       const currentTopRow = findTopRowByOffset(scrollOffset);
       let startRow = Math.max(0, currentTopRow - bufferRows);
 
-      // 简化结束行计算
-      let endRow = Math.min(totalRows, startRow + 10); // 固定渲染10行进行测试
+      // 计算结束行
+      let endRow = Math.min(totalRows, startRow + 10);
 
       // 确保总是渲染至少一行
       if (endRow <= startRow) {
@@ -889,11 +883,6 @@ const DetailedSequenceViewer = ({
       // 记录当前滚动偏移量
       lastScrollOffset = scrollOffset;
 
-      // 简化的更新逻辑：总是完全重渲染
-      console.log(
-        `Rendering rows ${startRow} to ${endRow}, scrollOffset: ${scrollOffset}`
-      );
-
       contentGroup.selectAll("*").remove();
       for (let i = startRow; i < endRow; i++) {
         renderVirtualRow(contentGroup, i, scrollOffset);
@@ -902,16 +891,16 @@ const DetailedSequenceViewer = ({
       lastRenderedRange = { start: startRow, end: endRow };
     };
 
-    // 渲染虚拟行（支持负数行索引）
+    // 渲染虚拟行
     const renderVirtualRow = (contentGroup, rowIndex, scrollOffset) => {
       // 负数行不渲染任何内容
       if (rowIndex < 0) {
         return;
       }
 
-      // 只渲染正常范围内的行，暂时注释掉虚拟空白行功能
+      // 超出范围的行不渲染
       if (rowIndex >= totalRows) {
-        return; // 超出范围的行不渲染
+        return;
       }
 
       // 正常行：使用预计算的累积高度数组
@@ -947,7 +936,7 @@ const DetailedSequenceViewer = ({
         return;
       }
 
-      // 只处理正常范围内的行，暂时注释掉虚拟空白行功能
+      // 超出范围的行不处理
       if (rowIndex >= totalRows) {
         return;
       }
@@ -960,28 +949,27 @@ const DetailedSequenceViewer = ({
         .attr("transform", `translate(0, ${currentY})`);
     };
 
-    // 改进的滚动事件处理
+    // 滚动事件处理
     svg.on("wheel", (event) => {
       event.preventDefault();
 
-      // 计算滚动增量，添加滚动速度调节
-      const scrollSensitivity = 1.0; // 滚动敏感度
+      const scrollSensitivity = 1.0;
       const scrollDelta = event.deltaY * scrollSensitivity;
 
-      // 计算新的滚动偏移量，取消边界限制
       let newScrollOffset = currentScrollOffset + scrollDelta;
 
+      // 添加边界限制
+      const maxScroll = Math.max(0, totalContentHeight - contentHeight);
+      newScrollOffset = Math.max(0, Math.min(maxScroll, newScrollOffset));
+
       if (Math.abs(newScrollOffset - currentScrollOffset) > 0.01) {
-        // 添加最小变化阈值
         currentScrollOffset = newScrollOffset;
 
-        // 保持contentGroup在固定的margin位置，滚动效果通过虚拟化渲染处理
         contentGroup.attr(
           "transform",
           `translate(${margin.left}, ${margin.top})`
         );
 
-        // 虚拟化更新
         updateVisibleContent(currentScrollOffset);
       }
     });
