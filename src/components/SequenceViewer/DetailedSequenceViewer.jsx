@@ -69,7 +69,6 @@ const DetailedSequenceViewer = ({
     const complementSequence = sequence
       .split("")
       .map((base) => getComplementBase(base))
-      .reverse()
       .join("");
 
     // 缓存结果
