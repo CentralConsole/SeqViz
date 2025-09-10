@@ -1,0 +1,55 @@
+{
+  "name": "d3-arrowed-rect",
+  "version": "1.0.0",
+  "description": "A utility library for drawing arrowed rectangles in D3.js, perfect for gene sequence visualization, flowcharts, timelines and other directional visualizations.",
+  "main": "d3-arrowed-rect.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "echo \"No build process needed\"",
+    "prepublishOnly": "echo \"Ready to publish\""
+  },
+  "keywords": [
+    "d3",
+    "d3.js",
+    "arrow",
+    "rectangle",
+    "visualization",
+    "gene",
+    "sequence",
+    "genomics",
+    "bioinformatics",
+    "flowchart",
+    "timeline",
+    "svg",
+    "graphics"
+  ],
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/d3-arrowed-rect.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/d3-arrowed-rect/issues"
+  },
+  "homepage": "https://github.com/yourusername/d3-arrowed-rect#readme",
+  "peerDependencies": {
+    "d3": ">=5.0.0"
+  },
+  "devDependencies": {
+    "d3": "^7.8.5"
+  },
+  "files": [
+    "d3-arrowed-rect.js",
+    "README.md",
+    "demo.html"
+  ],
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+}

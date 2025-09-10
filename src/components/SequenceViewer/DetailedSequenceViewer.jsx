@@ -27,6 +27,7 @@ const DetailedSequenceViewer = ({
   width = 800,
   height = 600,
   onFeatureClick,
+  hideInlineMeta,
 }) => {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
@@ -144,7 +145,9 @@ const DetailedSequenceViewer = ({
       .attr("clip-path", "url(#content-clip)");
 
     // 添加标题和信息栏
-    renderHeader(svg);
+    if (!hideInlineMeta) {
+      renderHeader(svg);
+    }
 
     // 渲染初始序列内容（渲染前几行）
     const initialRows = Math.min(5, totalRows);

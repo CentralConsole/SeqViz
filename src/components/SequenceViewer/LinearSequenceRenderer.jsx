@@ -27,6 +27,7 @@ const LinearSequenceRenderer = ({
   width = 800,
   height = 600,
   onFeatureClick,
+  hideInlineMeta,
 }) => {
   const svgRef = useRef(null);
   const { sequenceViewer } = CONFIG;
@@ -100,38 +101,42 @@ const LinearSequenceRenderer = ({
       .attr("stroke", CONFIG.styles.axis.background.stroke);
 
     // 添加元信息显示
-    const metaInfoGroup = axisContainer.append("g").attr("class", "meta-info");
+    if (!hideInlineMeta) {
+      const metaInfoGroup = axisContainer
+        .append("g")
+        .attr("class", "meta-info");
 
-    // 添加标题
-    metaInfoGroup
-      .append("text")
-      .attr("class", "meta-title")
-      .attr("x", width / 2)
-      .attr("y", -margin.top + 20)
-      .attr("text-anchor", "middle")
-      .style("font-size", "14px")
-      .style("font-weight", "bold")
-      .style("fill", CONFIG.styles.axis.text.fill)
-      .style("font-family", CONFIG.fonts.primary.family)
-      .text(data.definition || "");
+      // 添加标题
+      metaInfoGroup
+        .append("text")
+        .attr("class", "meta-title")
+        .attr("x", width / 2)
+        .attr("y", -margin.top + 20)
+        .attr("text-anchor", "middle")
+        .style("font-size", "14px")
+        .style("font-weight", "bold")
+        .style("fill", CONFIG.styles.axis.text.fill)
+        .style("font-family", CONFIG.fonts.primary.family)
+        .text(data.definition || "");
 
-    // 添加描述信息
-    const description = [
-      `Length: ${data.locus?.sequenceLength?.toLocaleString() || 0} bp`,
-      `Type: ${data.locus?.moleculeType || ""}`,
-      `Division: ${data.locus?.division || ""}`,
-    ].join(" | ");
+      // 添加描述信息
+      const description = [
+        `Length: ${data.locus?.sequenceLength?.toLocaleString() || 0} bp`,
+        `Type: ${data.locus?.moleculeType || ""}`,
+        `Division: ${data.locus?.division || ""}`,
+      ].join(" | ");
 
-    metaInfoGroup
-      .append("text")
-      .attr("class", "meta-description")
-      .attr("x", width / 2)
-      .attr("y", -margin.top + 40)
-      .attr("text-anchor", "middle")
-      .style("font-size", "12px")
-      .style("fill", CONFIG.styles.axis.text.fill)
-      .style("font-family", CONFIG.fonts.primary.family)
-      .text(description);
+      metaInfoGroup
+        .append("text")
+        .attr("class", "meta-description")
+        .attr("x", width / 2)
+        .attr("y", -margin.top + 40)
+        .attr("text-anchor", "middle")
+        .style("font-size", "12px")
+        .style("fill", CONFIG.styles.axis.text.fill)
+        .style("font-family", CONFIG.fonts.primary.family)
+        .text(description);
+    }
 
     // 坐标轴
     const topAxis = d3

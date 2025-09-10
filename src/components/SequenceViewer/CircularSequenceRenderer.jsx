@@ -3,14 +3,20 @@ import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
 
 /**
- * CircularSequenceRenderer组件 - 使用D3.js实现环形展示DNA/RNA序列
+ * CircularSequenceRenderer Component - a circular, plasmid-like view of biological sequences
  * @param {Object} props
- * @param {Object} props.data - 序列数据对象
- * @param {number} props.width - 容器宽度
- * @param {number} props.height - 容器高度
- * @param {Function} [props.onFeatureClick] - 特征点击事件处理函数
+ * @param {Object} props.data - the sequence object
+ * @param {number} props.width - width of container
+ * @param {number} props.height - height of container
+ * @param {Function} [props.onFeatureClick] - handle user interactions
  */
-const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
+const CircularSequenceRenderer = ({
+  data,
+  width,
+  height,
+  onFeatureClick,
+  hideInlineMeta,
+}) => {
   const svgRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
@@ -20,34 +26,38 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
   useEffect(() => {
     if (!svgRef.current || !data) return;
 
-    // 键盘事件处理：监听Ctrl键状态
+    // # Part 1: event handling
+    // listening to the status of Ctrl: Down
     const handleKeyDown = (event) => {
       if (event.ctrlKey || event.metaKey) {
-        // 支持Mac的Command键
+        // Mac: Command, Windows: Ctrl
         setIsCtrlPressed(true);
       }
     };
 
+    // listening to the status of Ctrl: Up
     const handleKeyUp = (event) => {
       if (!event.ctrlKey && !event.metaKey) {
         setIsCtrlPressed(false);
       }
     };
 
-    // 处理窗口失焦时的情况
+    // handle window blur (lost focus)
     const handleWindowBlur = () => {
       setIsCtrlPressed(false);
     };
 
-    // 添加键盘事件监听器
+    // add event listener
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("keyup", handleKeyUp);
     window.addEventListener("blur", handleWindowBlur);
 
-    // 清除之前的SVG内容
+    // # Part 2: setup the svg and the scale
+
+    // clear any object in the svg
     d3.select(svgRef.current).selectAll("*").remove();
 
-    // 创建SVG并设置视口
+    // create svg
     const svg = d3
       .select(svgRef.current)
       .attr("width", width)
@@ -57,23 +67,23 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .style("width", "100%")
       .style("height", "100%");
 
-    // 创建主容器组（不设置静态变换，让zoom behavior统一管理）
+    // create main group
     const mainGroup = svg.append("g");
 
-    // 获取序列总长度
+    // get total length of the sequence
     const totalLength = data.locus ? data.locus.sequenceLength : 0;
 
-    // 计算半径 - 调整半径计算方式
-    const radius = Math.min(width, height) * 0.35; // 基础半径
-    const innerRadius = radius * 0.8; // 增大内圈半径
+    // Calculate the inner radius (that is, the radius of the "scale circle")
+    const radius = Math.min(width, height) * 0.35; // basic radius
+    const innerRadius = radius * 0.8; // radius of the "scale circle"
 
-    // 创建角度比例尺
+    // Create a mapping from seq length to 2 * Math.PI
     const angleScale = d3
       .scaleLinear()
       .domain([0, totalLength])
-      .range([0, 2 * Math.PI]); // 从0度开始，到360度结束
+      .range([0, 2 * Math.PI]);
 
-    // 绘制内圈
+    // Draw the inner radius
     mainGroup
       .append("circle")
       .attr("r", innerRadius)
@@ -81,158 +91,163 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
       .attr("stroke", CONFIG.styles.axis.stroke)
       .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
 
-    // 添加圆心处的元信息显示
-    const metaInfoGroup = mainGroup.append("g").attr("class", "meta-info");
+    // # Part 3: displaying the meta info
+    if (!hideInlineMeta) {
+      // create the meta info group (to be placed in the center of the circle)
+      const metaInfoGroup = mainGroup.append("g").attr("class", "meta-info");
 
-    // 计算内切四边形的尺寸 (内圆的内切正方形)
-    // 内切正方形的边长 = 半径 * √2，但我们留一些边距
-    const inscribedSquareSize = innerRadius * Math.sqrt(2) * 0.8; // 80%的内切正方形尺寸作为安全区域
-    const maxTextWidth = inscribedSquareSize;
+      // the meta data should be displayed at the center of the inner circle
+      const inscribedSquareSize = innerRadius * Math.sqrt(2) * 0.8; // 80% for safety
+      const maxTextWidth = inscribedSquareSize;
 
-    // 多行文本处理函数
-    const wrapText = (text, maxWidth, fontSize, maxLines = 3) => {
-      if (!text) return [];
+      // handling multiple lines for meta data title (Some titles are very long)
+      const wrapText = (text, maxWidth, fontSize, maxLines = 3) => {
+        if (!text) return [];
 
-      // 估算字符宽度（粗略估计）
-      const avgCharWidth = fontSize * 0.6;
-      const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth);
+        // Estimate the charwidth (we use a monospace font, so the estimation is accurate)
+        const avgCharWidth = fontSize * 0.6;
+        const maxCharsPerLine = Math.floor(maxWidth / avgCharWidth);
 
-      const words = text.split(" ");
-      const lines = [];
-      let currentLine = "";
+        // Prepare for meta data displaying
+        const words = text.split(" ");
+        const lines = [];
+        let currentLine = "";
 
-      for (const word of words) {
-        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        for (const word of words) {
+          const testLine = currentLine ? `${currentLine} ${word}` : word;
 
-        if (testLine.length <= maxCharsPerLine) {
-          currentLine = testLine;
-        } else {
-          if (currentLine) {
-            lines.push(currentLine);
-            currentLine = word;
+          if (testLine.length <= maxCharsPerLine) {
+            currentLine = testLine;
           } else {
-            // 单个词太长，强制截断
-            lines.push(word.substring(0, maxCharsPerLine - 3) + "...");
-            currentLine = "";
-          }
+            if (currentLine) {
+              lines.push(currentLine);
+              currentLine = word;
+            } else {
+              // Forced truncation of a single word
+              lines.push(word.substring(0, maxCharsPerLine - 3) + "...");
+              currentLine = "";
+            }
 
-          // 限制最大行数
-          if (lines.length >= maxLines) {
-            break;
+            // Liminating the max line, forced truncation
+            if (lines.length >= maxLines) {
+              break;
+            }
           }
         }
+
+        if (currentLine && lines.length < maxLines) {
+          lines.push(currentLine); // add a line to displaying
+        }
+
+        // If max line reached, show "..."
+        if (
+          lines.length === maxLines &&
+          words.length > lines.join(" ").split(" ").length
+        ) {
+          const lastLine = lines[maxLines - 1];
+          lines[maxLines - 1] =
+            lastLine.substring(0, lastLine.length - 3) + "...";
+        }
+
+        return lines;
+      };
+
+      // Add title
+      const titleText = data.definition || "";
+      const titleLines = wrapText(titleText, maxTextWidth, 14, 3);
+      const lineHeight = 16;
+      const titleStartY = -50;
+
+      // Render title with d3.js
+      titleLines.forEach((line, index) => {
+        metaInfoGroup
+          .append("text")
+          .attr("class", "meta-title")
+          .attr("x", 0)
+          .attr("y", titleStartY + index * lineHeight)
+          .attr("text-anchor", "middle")
+          .style("font-size", "14px")
+          .style("font-weight", "bold")
+          .style("fill", CONFIG.styles.axis.text.fill)
+          .style("font-family", CONFIG.styles.axis.text.fontFamily)
+          .text(line);
+      });
+
+      if (titleText && titleLines.length > 0) {
+        metaInfoGroup
+          .selectAll(".meta-title")
+          .filter((d, i) => i === 0)
+          .append("title")
+          .text(titleText);
       }
 
-      if (currentLine && lines.length < maxLines) {
-        lines.push(currentLine);
-      }
+      // Calculate positions for other elements of the meta data
+      const otherElementsStartY =
+        titleStartY + titleLines.length * lineHeight + 10;
 
-      // 如果超过最大行数，在最后一行添加省略号
-      if (
-        lines.length === maxLines &&
-        words.length > lines.join(" ").split(" ").length
-      ) {
-        const lastLine = lines[maxLines - 1];
-        lines[maxLines - 1] =
-          lastLine.substring(0, lastLine.length - 3) + "...";
-      }
-
-      return lines;
-    };
-
-    // 添加标题 - 支持多行显示
-    const titleText = data.definition || "";
-    const titleLines = wrapText(titleText, maxTextWidth, 14, 3);
-    const lineHeight = 16;
-    const titleStartY = -50; // 给标题更多上方空间
-
-    titleLines.forEach((line, index) => {
+      // Add seq length
       metaInfoGroup
         .append("text")
-        .attr("class", "meta-title")
+        .attr("class", "meta-length")
         .attr("x", 0)
-        .attr("y", titleStartY + index * lineHeight)
+        .attr("y", otherElementsStartY)
         .attr("text-anchor", "middle")
-        .style("font-size", "14px")
+        .style("font-size", "12px")
         .style("font-weight", "bold")
         .style("fill", CONFIG.styles.axis.text.fill)
         .style("font-family", CONFIG.styles.axis.text.fontFamily)
-        .text(line);
-    });
+        .text(
+          `Length: ${data.locus?.sequenceLength?.toLocaleString() || 0} bp`
+        );
 
-    // 如果有标题内容，添加完整标题作为tooltip到第一行
-    if (titleText && titleLines.length > 0) {
-      metaInfoGroup
-        .selectAll(".meta-title")
-        .filter((d, i) => i === 0)
-        .append("title")
-        .text(titleText);
+      // Add molecule type
+      const moleculeType = data.locus?.moleculeType || "";
+      if (moleculeType) {
+        metaInfoGroup
+          .append("text")
+          .attr("class", "meta-molecule-type")
+          .attr("x", 0)
+          .attr("y", otherElementsStartY + 18)
+          .attr("text-anchor", "middle")
+          .style("font-size", "12px")
+          .style("fill", CONFIG.styles.axis.text.fill)
+          .style("font-family", CONFIG.styles.axis.text.fontFamily)
+          .text(`Type: ${moleculeType}`);
+      }
+
+      // Add biological division
+      const division = data.locus?.division || "";
+      if (division) {
+        metaInfoGroup
+          .append("text")
+          .attr("class", "meta-division")
+          .attr("x", 0)
+          .attr("y", otherElementsStartY + 36)
+          .attr("text-anchor", "middle")
+          .style("font-size", "12px")
+          .style("fill", CONFIG.styles.axis.text.fill)
+          .style("font-family", CONFIG.styles.axis.text.fontFamily)
+          .text(`Division: ${division}`);
+      }
     }
 
-    // 计算其他元素的起始位置（基于标题行数动态调整）
-    const otherElementsStartY =
-      titleStartY + titleLines.length * lineHeight + 10;
+    let maxRadius = innerRadius; // initiate the basic radius
 
-    // 添加序列长度信息
-    metaInfoGroup
-      .append("text")
-      .attr("class", "meta-length")
-      .attr("x", 0)
-      .attr("y", otherElementsStartY)
-      .attr("text-anchor", "middle")
-      .style("font-size", "12px")
-      .style("font-weight", "bold")
-      .style("fill", CONFIG.styles.axis.text.fill)
-      .style("font-family", CONFIG.styles.axis.text.fontFamily)
-      .text(`Length: ${data.locus?.sequenceLength?.toLocaleString() || 0} bp`);
-
-    // 添加分子类型信息
-    const moleculeType = data.locus?.moleculeType || "";
-    if (moleculeType) {
-      metaInfoGroup
-        .append("text")
-        .attr("class", "meta-molecule-type")
-        .attr("x", 0)
-        .attr("y", otherElementsStartY + 18)
-        .attr("text-anchor", "middle")
-        .style("font-size", "12px")
-        .style("fill", CONFIG.styles.axis.text.fill)
-        .style("font-family", CONFIG.styles.axis.text.fontFamily)
-        .text(`Type: ${moleculeType}`);
-    }
-
-    // 添加分区信息
-    const division = data.locus?.division || "";
-    if (division) {
-      metaInfoGroup
-        .append("text")
-        .attr("class", "meta-division")
-        .attr("x", 0)
-        .attr("y", otherElementsStartY + 36)
-        .attr("text-anchor", "middle")
-        .style("font-size", "12px")
-        .style("fill", CONFIG.styles.axis.text.fill)
-        .style("font-family", CONFIG.styles.axis.text.fontFamily)
-        .text(`Division: ${division}`);
-    }
-
-    let maxRadius = innerRadius; // 初始化最大半径
-
-    // 绘制特征
+    // # Part 4: display features
     if (data.features && Array.isArray(data.features)) {
       const featureGroup = mainGroup.append("g").attr("class", "features");
 
-      // 处理特征数据，计算径向位置和各段弧线
+      // handling feature data, getting their positions
       const processedFeatures = data.features
         .map((feature) => {
-          // 检查特征类型是否应该显示
+          // check if it should be displayed (according to the config)
           const typeConfig =
             CONFIG.featureType[feature.type] || CONFIG.featureType.others;
           if (!typeConfig.isDisplayed) {
             return null;
           }
 
-          // 验证特征位置数据的有效性
+          // Verify the validity of the feature location
           if (
             !feature.location ||
             !Array.isArray(feature.location) ||
@@ -242,17 +257,17 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             return null;
           }
 
-          // 处理特征的所有段
+          // for a feature that has more than 1 segments: handling all segments
           const processedSegments = [];
-          let firstSegmentMidAngle = null; // 用于确定特征的主角度
+          let firstSegmentMidAngle = null; // middle angle of the first segment
 
           feature.location.forEach((loc, locIndex) => {
-            // 验证每个段的位置数据
+            // validate the position of each segment
             if (!Array.isArray(loc) || loc.length < 2) {
               console.warn("Invalid location array:", loc);
               return;
             }
-            // 解析段的起始和结束位置
+            // Start and stop positions of each segment
             const start = parseInt(loc[0], 10);
             const stop = parseInt(loc[loc.length - 1], 10);
             if (isNaN(start) || isNaN(stop)) {
@@ -260,29 +275,29 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
               return;
             }
 
-            // 将序列位置转换为角度
+            // convert position to angle
             const startAngle = angleScale(start);
             const stopAngle = angleScale(stop);
 
-            // 获取方向信息（第二个元素的布尔值）
+            // get direction (the second value of location list in json)
             const isReverse = loc.length > 1 ? loc[1] : false;
 
-            //段
+            // add processed segments
             processedSegments.push({
               start,
               stop,
               isFirst: locIndex === 0,
               isTextSegment: locIndex === 0,
-              isReverse, // 添加方向信息
+              isReverse,
             });
 
-            // 计算原始段的中点角度（用于确定特征的主角度）
+            // calculate the middle angle of the fist segment
             if (locIndex === 0 && firstSegmentMidAngle === null) {
               firstSegmentMidAngle = (startAngle + stopAngle) / 2;
             }
           });
 
-          // 如果处理后没有有效段，则跳过该特征
+          // Error handling
           if (processedSegments.length === 0) {
             console.warn(
               "Feature has no valid segments after processing:",
@@ -291,7 +306,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             return null;
           }
 
-          // 计算特征的整体角度范围（用于重叠检测）
+          // Calculate the overall angle range for overlap detection
           let minAngle = 2 * Math.PI;
           let maxAngle = 0;
 
@@ -302,7 +317,6 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             maxAngle = Math.max(maxAngle, stopAngle);
           });
 
-          // 返回处理后的特征对象
           return {
             ...feature,
             segments: processedSegments,
@@ -325,60 +339,51 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         })
         .filter(Boolean);
 
-      console.log("Processed Features:", processedFeatures);
+      //console.log("Processed Features:", processedFeatures);
 
-      // 计算特征之间的重叠并调整径向位置
-      const labelHeight = CONFIG.dimensions.vSpace; // 标签高度
-      const minSpacing = 0; // 最小安全间距
-      const layerSpacing = CONFIG.dimensions.vSpace; // 层间距
+      // calculate the overlaps between diffetent layers of features, and adjust their radial-direction positioning
+      const labelHeight = CONFIG.dimensions.vSpace; // label height, from CONFIG
+      const minSpacing = 0; // minimum safe spacing
+      const layerSpacing = CONFIG.dimensions.vSpace; // layer spacing, from CONFIG
 
-      // 按特征的总长度降序排序，优先处理较长的特征
+      // sort the features by their length, in a descending order, prioritizing longer features
       processedFeatures.sort((a, b) => b.totalLength - a.totalLength);
 
-      // 计算每个特征的径向位置，避免重叠
+      // calculating the radial-direction position (the layer) of each feature
       for (let i = 0; i < processedFeatures.length; i++) {
         const current = processedFeatures[i];
-        let layer = 0; // 从最内层开始尝试
+        let layer = 0; // try the most inner layer
         let hasOverlap = true;
 
-        // 尝试不同的层，直到找到没有重叠的位置
+        // try, until no overlap with rendered features
         while (hasOverlap) {
           hasOverlap = false;
-          // 检查与已放置特征的重叠情况
+          // check overlapping
           for (let j = 0; j < i; j++) {
             const prev = processedFeatures[j];
             if (prev.radialOffset === layer) {
-              // 使用角度范围检查重叠
+              // check overlapping using angle range
               const currentRange = current.angleRange;
               const prevRange = prev.angleRange;
 
-              // 检查角度范围是否重叠
               const hasAngleOverlap =
-                // 正常情况下的重叠检查
+                // overlap check of normal conditions
                 (!currentRange.hasCrossZero &&
                   !prevRange.hasCrossZero &&
                   currentRange.min <= prevRange.max &&
                   currentRange.max >= prevRange.min) ||
-                // 当前跨越0与prev不跨越0
+                // handle cross-zero conditions (1): current feature crossing 0, && the previous feature not crossing 0
                 (currentRange.hasCrossZero &&
                   !prevRange.hasCrossZero &&
                   (currentRange.min <= prevRange.max ||
                     currentRange.max >= prevRange.min)) ||
-                // prev跨越0与当前不跨越0
+                // handle cross-zero conditions (2): the previous feature crossing 0, && the current feature not crossing 0
                 (!currentRange.hasCrossZero &&
                   prevRange.hasCrossZero &&
                   (prevRange.min <= currentRange.max ||
                     prevRange.max >= currentRange.min)) ||
-                // 都跨越0
+                // handle cross-zero conditions (3): the previous feature crossing 0, && the current feature crossing 0
                 (currentRange.hasCrossZero && prevRange.hasCrossZero);
-
-              // 简单的角度差检查作为辅助（可能需要根据实际情况调整或移除）
-              const angleDiff = Math.abs(current.angle - prev.angle);
-              const minAngleDiff = (labelHeight + minSpacing) / radius; // 使用一个基础的间距判断
-              if (angleDiff < minAngleDiff) {
-                // 如果主角度太接近，也认为是潜在重叠，强制分层
-                // hasOverlap = true; // 先不强制，依赖角度范围检查
-              }
 
               if (hasAngleOverlap) {
                 hasOverlap = true;
@@ -386,19 +391,18 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
               }
             }
           }
-          // 如果发生重叠，尝试下一层
+
           if (hasOverlap) {
             layer++;
           }
         }
-        // 设置特征的径向偏移
+        // set radial offset of current feature
         current.radialOffset = layer;
       }
 
-      // 动态计算每层的实际半径
-      const layerRadii = new Map(); // 存储每层的内径和外径
+      // Dynamically calculate the radius of each layer
+      const layerRadii = new Map();
 
-      // 计算各层半径，保持紧凑布局
       const maxLayer = Math.max(
         ...processedFeatures.map((f) => f.radialOffset)
       );
@@ -409,16 +413,16 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             outer: innerRadius + 24,
           });
         } else {
-          // 基于上一层的外径，只添加小间隔
+          // add spacing between layers
           const prevOuter = layerRadii.get(layer - 1).outer;
           layerRadii.set(layer, {
-            inner: prevOuter + 8, // 只留8像素间隔
-            outer: prevOuter + 24, // 16像素厚度的弧
+            inner: prevOuter + 8, // 8 pixels only
+            outer: prevOuter + 24, // 16 pixels only
           });
         }
       }
 
-      // 创建特征弧生成器（用于绘制单个段）
+      // create arc generator for drawing each segment
       const segmentArc = d3
         .arc()
         .innerRadius(
@@ -432,7 +436,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
             innerRadius + 24 + d.radialOffset * layerSpacing
         );
 
-      // 按层级分组特征
+      // grouping features according to their layers
       const featuresByLayer = new Map();
       processedFeatures.forEach((feature) => {
         const layer = feature.radialOffset;
@@ -442,13 +446,12 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
         featuresByLayer.get(layer).push(feature);
       });
 
-      // 逐层渲染
-      let currentLayerMaxRadius = innerRadius + 24; // 初始最大半径
+      let currentLayerMaxRadius = innerRadius + 24; // initialize radius
 
       for (let layer = 0; layer <= maxLayer; layer++) {
         const layerFeatures = featuresByLayer.get(layer) || [];
 
-        // 更新当前层的半径（基于前一层的最大半径）
+        // update radius of the current layer based on the previous (inner) layer
         if (layer > 0) {
           layerRadii.set(layer, {
             inner: currentLayerMaxRadius + 8,
@@ -456,12 +459,12 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           });
         }
 
-        // 创建当前层的组
+        // create a group for current layer
         const layerGroup = featureGroup
           .append("g")
           .attr("class", `layer-${layer}`);
 
-        // 渲染当前层的所有特征
+        // render features of current layer
         const featureElements = layerGroup
           .selectAll("g.feature")
           .data(layerFeatures)
@@ -469,7 +472,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
           .append("g")
           .attr("class", "feature");
 
-        // 绘制特征的每个段的弧框
+        // draw arcs of each segment of a feature
         featureElements.each(function (d, featureIndex) {
           const featureElement = d3.select(this);
 
@@ -481,7 +484,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
               [startAngle, stopAngle] = [stopAngle, startAngle];
             }
 
-            // 如果特征类型需要箭头，则缩短弧长以补偿箭头占用的空间
+            // If the arc is arrowed, shorten the arc to compensate for the shape of the arrow
             const typeConfig =
               CONFIG.featureType[d.type] || CONFIG.featureType.others;
             if (typeConfig.shape === "arrow") {
@@ -493,31 +496,32 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                 currentLayerRadii?.outer ||
                 innerRadius + 24 + d.radialOffset * layerSpacing;
 
-              // 计算弧长并确定箭头占用的角度
+              // calculate length of arc (and arrow)
               const arcLength =
                 ((stopAngle - startAngle) * (innerR + outerR)) / 2;
               const maxArrowHeight = arcLength / 3;
               const baseArrowLength = (outerR - innerR) * 1.0;
               const arrowLength = Math.min(baseArrowLength, maxArrowHeight);
 
-              // 计算箭头在角度上占用的空间
               const midRadius = (innerR + outerR) / 2;
               const arrowAngleOffset = arrowLength / midRadius;
 
-              // 根据方向缩短弧长
+              // shorten arc length
               if (segment.isReverse) {
-                startAngle += arrowAngleOffset; // 反向箭头在起点，缩短起点
+                startAngle += arrowAngleOffset;
               } else {
-                stopAngle -= arrowAngleOffset; // 正向箭头在终点，缩短终点
+                stopAngle -= arrowAngleOffset;
               }
             }
 
+            // create a segment
             const segmentD = segmentArc({
               startAngle,
               endAngle: stopAngle,
               radialOffset: d.radialOffset,
             });
 
+            //draw arcs
             featureElement
               .append("path")
               .attr("d", segmentD)
@@ -534,7 +538,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
               .style("cursor", CONFIG.interaction.hover.cursor)
               .on("click", () => onFeatureClick?.(d))
               .on("mouseover", function () {
-                // 高亮特征弧
+                // highlight feature arc and text upon mouse moving
                 featureElement
                   .selectAll("path")
                   .attr(
@@ -548,14 +552,12 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                       CONFIG.interaction.hover.strokeWidthMultiplier
                   );
 
-                // 高亮对应的文本标签
                 featureElement
                   .selectAll("text")
                   .style("font-weight", CONFIG.interaction.hover.fontWeight)
                   .style("fill", CONFIG.styles.annotation.fillDark)
                   .style("text-shadow", CONFIG.interaction.hover.textShadow);
 
-                // 高亮文本背景
                 featureElement
                   .selectAll(".text-bg")
                   .style("fill", CONFIG.interaction.hover.textBackground.fill)
@@ -569,7 +571,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                   );
               })
               .on("mouseout", function () {
-                // 恢复特征弧样式
+                // reset feature arc and text styles upon mouseout
                 featureElement
                   .selectAll("path")
                   .attr(
@@ -579,14 +581,12 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                   )
                   .attr("stroke-width", CONFIG.styles.box.strokeWidth);
 
-                // 恢复文本标签样式
                 featureElement
                   .selectAll("text")
                   .style("font-weight", CONFIG.interaction.normal.fontWeight)
                   .style("fill", CONFIG.styles.annotation.fillDark)
                   .style("text-shadow", CONFIG.interaction.normal.textShadow);
 
-                // 恢复文本背景样式
                 featureElement
                   .selectAll(".text-bg")
                   .style("fill", CONFIG.interaction.normal.textBackground.fill)
@@ -596,7 +596,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                   );
               })
               .each(function () {
-                // 为每个段创建专门的textPath弧形（位于内外环中间）
+                // create textPath for each segment inbetween inner and outer radius
                 if (segment.isTextSegment) {
                   const textContent =
                     d.information?.gene || d.information?.product || d.type;
@@ -605,46 +605,48 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                     CONFIG.styles.annotation.fontSize *
                     0.6;
 
-                  // 获取当前层的内外半径
+                  // get inner and outer radius
                   const currentLayerRadii = layerRadii.get(d.radialOffset);
                   const innerR = currentLayerRadii?.inner;
                   const outerR = currentLayerRadii?.outer;
                   const textRadiusOffset = 5;
 
-                  // 计算中间半径作为textPath的半径
+                  // get middle radius
                   const textPathRadius =
                     (innerR + outerR) / 2 - textRadiusOffset;
 
-                  // 创建专门的textPath弧形生成器
+                  // text path arc generator (an arc include two ends and two arcs)
                   const textPathArc = d3
                     .arc()
                     .innerRadius(textPathRadius)
-                    .outerRadius(textPathRadius + 1) // 极薄的弧形用于提取路径
+                    .outerRadius(textPathRadius + 1) // we want a thin arc so that we can extract an arc from the arc
                     .startAngle(startAngle)
                     .endAngle(stopAngle);
 
-                  // 生成中间弧形路径
+                  // generate text path
                   const textPathD = textPathArc();
 
-                  // 使用正则表达式提取弧形外环路径
+                  // extract path using regular expression
                   const firstArcSection = /(^.+?)L/;
                   const arcMatch = firstArcSection.exec(textPathD)?.[1];
 
                   if (arcMatch) {
                     let cleanArc = arcMatch.replace(/,/g, " ");
 
-                    // 估算路径长度来判断是否适合显示文本
+                    // estimate path legnth to judge if it is suitable for displaying text
                     const approximatePathLength =
                       (stopAngle - startAngle) * textPathRadius;
 
                     if (estimatedTextLength < approximatePathLength * 0.9) {
-                      // 文本长度合适，处理路径翻转逻辑
+                      // suitable text length
+                      // handle path reverting logics
                       let finalPath = cleanArc;
 
-                      // 计算段的角度范围来判断是否需要翻转文本路径
+                      // calculate the mid angle position to judge if the path direction should be reverted
+                      // so that our texts are upright
                       const segmentMidAngle = (startAngle + stopAngle) / 2;
 
-                      // 检查是否在底部半圆（Pi/2 到 3Pi/2）
+                      // if the mid angle is located within range from Pi/2 to 3Pi/2
                       const normalizedMidAngle =
                         segmentMidAngle % (2 * Math.PI);
                       const isInBottomHalf =
@@ -652,7 +654,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                         normalizedMidAngle < (3 * Math.PI) / 2;
 
                       if (isInBottomHalf) {
-                        // 翻转路径方向，参考upsidedown逻辑
+                        // revert (flip) the direction of the text path
                         const startLoc = /M(.*?)A/;
                         const middleLoc = /A(.*?)0 0 1/;
                         const endLoc = /0 0 1 (.*?)$/;
@@ -662,7 +664,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                         const endMatch = endLoc.exec(finalPath);
 
                         if (startMatch && middleMatch && endMatch) {
-                          // 翻转起点和终点，并将sweep-flag从1改为0
+                          // flipping starting point and ending point, and reset sweep-flag from 1 to 0
                           const newStart = endMatch[1];
                           const newEnd = startMatch[1];
                           const middleSec = middleMatch[1];
@@ -676,7 +678,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                         }
                       }
 
-                      // 创建不可见的textPath弧形
+                      // create invisible textPath arc
                       featureElement
                         .append("path")
                         .attr(
@@ -686,55 +688,53 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                         .attr("d", finalPath)
                         .attr("fill", "none")
                         .attr("stroke", "none")
-                        .style("opacity", 0); // 完全不可见
+                        .style("opacity", 0); // completely transparent
                     }
                   }
                 }
               })
               .each(function () {
-                // 检查特征类型的shape属性，只对arrow类型生成箭头
+                // check `shape` attribute of feature
+                // only draw arrow for those features whose `shape` is `arrow`
                 const typeConfig =
                   CONFIG.featureType[d.type] || CONFIG.featureType.others;
                 if (typeConfig.shape !== "arrow") {
-                  return; // 如果不是arrow类型，跳过箭头生成
+                  return;
                 }
 
-                // 从SVG字符串中提取路径信息用于生成箭头
+                // generate arrowed arc
+                // directly handle svg string
                 const pathElement = d3.select(this);
                 const pathNode = pathElement.node();
                 if (pathNode) {
                   const svgString = pathNode.outerHTML;
 
-                  // 从SVG字符串中提取d属性（路径数据）
+                  // get path string
                   const dAttributeMatch = svgString.match(/d="([^"]+)"/);
                   if (dAttributeMatch) {
                     const pathData = dAttributeMatch[1];
 
-                    console.log("实际路径数据:", pathData);
-
-                    // 使用宽松的弧形匹配来提取所有弧形命令
+                    // match all arc lines
                     const looseArcMatches = [
                       ...pathData.matchAll(/A[^A]*?(?=A|L|Z|$)/g),
                     ];
-                    console.log("宽松弧形匹配结果:", looseArcMatches);
 
                     let outerArc = null;
                     let innerArc = null;
 
                     if (looseArcMatches.length > 0) {
-                      // 手动解析每个弧形命令
+                      // parse arc command
                       const parseArcCommand = (arcString) => {
-                        // 移除开头的'A'并清理字符串
+                        // remove 'A' at the biginning
+                        // and wash the string
                         const paramString = arcString
                           .replace(/^A\s*/, "")
                           .trim();
-                        console.log("解析弧形参数字符串:", paramString);
 
-                        // 使用更灵活的方式提取数字 - 支持逗号、空格分隔和科学记数法
+                        // extract numbers
                         const numbers = paramString.match(
                           /([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/g
                         );
-                        console.log("提取的数字:", numbers);
 
                         if (numbers && numbers.length >= 7) {
                           return {
@@ -751,20 +751,16 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                         return null;
                       };
 
-                      // 解析第一个弧形（外圆弧）
+                      // outer arc
                       outerArc = parseArcCommand(looseArcMatches[0][0]);
-                      console.log("解析的外圆弧:", outerArc);
 
-                      // 如果有第二个弧形，解析为内圆弧
+                      // inner arc
                       if (looseArcMatches.length >= 2) {
                         innerArc = parseArcCommand(looseArcMatches[1][0]);
-                        console.log("解析的内圆弧:", innerArc);
                       }
-                    } else {
-                      console.log("没有找到任何弧形命令");
                     }
 
-                    // 提取直线段
+                    // straight lines at both ends
                     const lineMatches = [
                       ...pathData.matchAll(/L\s*([-\d.]+)[,\s]+([-\d.]+)/g),
                     ];
@@ -776,7 +772,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                         x: parseFloat(lineMatches[0][1]),
                         y: parseFloat(lineMatches[0][2]),
                         command: lineMatches[0][0],
-                        description: "起点到外圆弧的连接线",
+                        //description: "起点到外圆弧的连接线",
                       };
 
                       endLineSegment = {
@@ -785,7 +781,7 @@ const CircularSequenceRenderer = ({ data, width, height, onFeatureClick }) => {
                         x: parseFloat(lineMatches[1][1]),
                         y: parseFloat(lineMatches[1][2]),
                         command: lineMatches[1][0],
-                        description: "外圆弧到内圆弧的连接线",
+                        //description: "外圆弧到内圆弧的连接线",
                       };
                     }
 

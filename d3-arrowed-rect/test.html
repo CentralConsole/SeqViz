@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D3 Arrowed Rect Test</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f0f0f0;
+      }
+      .test-container {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      svg {
+        border: 1px solid #ddd;
+        background-color: white;
+        margin: 10px 0;
+      }
+      .test-info {
+        background-color: #e8f5e8;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>D3 Arrowed Rect 测试</h1>
+
+    <div class="test-container">
+      <h2>基本功能测试</h2>
+      <div class="test-info">测试向右和向左箭头的基本绘制功能</div>
+      <div id="basic-test"></div>
+    </div>
+
+    <div class="test-container">
+      <h2>样式自定义测试</h2>
+      <div class="test-info">测试自定义颜色、尺寸和文本样式</div>
+      <div id="style-test"></div>
+    </div>
+
+    <div class="test-container">
+      <h2>交互事件测试</h2>
+      <div class="test-info">测试点击和悬停事件（点击箭头查看控制台输出）</div>
+      <div id="interactive-test"></div>
+    </div>
+
+    <div class="test-container">
+      <h2>工厂函数测试</h2>
+      <div class="test-info">测试工厂函数创建统一风格的箭头</div>
+      <div id="factory-test"></div>
+    </div>
+
+    <div class="test-container">
+      <h2>批量创建测试</h2>
+      <div class="test-info">测试批量创建多个箭头矩形</div>
+      <div id="batch-test"></div>
+    </div>
+
+    <script src="d3-arrowed-rect.js"></script>
+    <script>
+      console.log("开始测试 d3ArrowedRect 函数...");
+
+      // 测试1: 基本功能
+      console.log("测试1: 基本功能");
+      const basicSvg = d3
+        .select("#basic-test")
+        .append("svg")
+        .attr("width", 400)
+        .attr("height", 150);
+
+      try {
+        // 向右箭头
+        const rightArrow = d3ArrowedRect(basicSvg, {
+          x: 50,
+          y: 50,
+          width: 150,
+          height: 30,
+          text: "Right Arrow",
+          style: { fill: "#4CAF50", stroke: "#2E7D32" },
+        });
+        console.log("✓ 向右箭头创建成功");
+
+        // 向左箭头
+        const leftArrow = d3ArrowedRect(basicSvg, {
+          x: 50,
+          y: 100,
+          width: 150,
+          height: 30,
+          direction: "left",
+          text: "Left Arrow",
+          style: { fill: "#2196F3", stroke: "#1976D2" },
+        });
+        console.log("✓ 向左箭头创建成功");
+      } catch (error) {
+        console.error("✗ 基本功能测试失败:", error);
+      }
+
+      // 测试2: 样式自定义
+      console.log("测试2: 样式自定义");
+      const styleSvg = d3
+        .select("#style-test")
+        .append("svg")
+        .attr("width", 400)
+        .attr("height", 100);
+
+      try {
+        d3ArrowedRect(styleSvg, {
+          x: 50,
+          y: 30,
+          width: 200,
+          height: 40,
+          text: "Custom Style",
+          arrowStyle: {
+            widthRatio: 0.4,
+            neckRatio: 0.8,
+          },
+          textStyle: {
+            fontSize: 14,
+            fill: "#fff",
+            fontFamily: "Georgia",
+          },
+          style: {
+            fill: "#FF5722",
+            stroke: "#D84315",
+            strokeWidth: 2,
+            fillOpacity: 0.9,
+          },
+        });
+        console.log("✓ 样式自定义测试成功");
+      } catch (error) {
+        console.error("✗ 样式自定义测试失败:", error);
+      }
+
+      // 测试3: 交互事件
+      console.log("测试3: 交互事件");
+      const interactiveSvg = d3
+        .select("#interactive-test")
+        .append("svg")
+        .attr("width", 400)
+        .attr("height", 100);
+
+      try {
+        d3ArrowedRect(interactiveSvg, {
+          x: 50,
+          y: 30,
+          width: 180,
+          height: 35,
+          text: "Click me!",
+          style: { fill: "#9C27B0", stroke: "#7B1FA2" },
+          onClick: (event) => {
+            console.log("✓ 点击事件触发成功");
+            alert("箭头被点击了！");
+          },
+          onMouseOver: (event) => {
+            d3.select(event.target).style("opacity", 0.7);
+            console.log("✓ 悬停事件触发成功");
+          },
+          onMouseOut: (event) => {
+            d3.select(event.target).style("opacity", 1);
+            console.log("✓ 离开事件触发成功");
+          },
+        });
+        console.log("✓ 交互事件测试成功");
+      } catch (error) {
+        console.error("✗ 交互事件测试失败:", error);
+      }
+
+      // 测试4: 工厂函数
+      console.log("测试4: 工厂函数");
+      const factorySvg = d3
+        .select("#factory-test")
+        .append("svg")
+        .attr("width", 400)
+        .attr("height", 150);
+
+      try {
+        const geneArrow = d3ArrowedRectFactory({
+          height: 25,
+          style: { fill: "#4CAF50", stroke: "#2E7D32" },
+          textStyle: { fontSize: 10, fill: "#fff" },
+        });
+
+        geneArrow(factorySvg, { x: 50, y: 50, width: 120, text: "Gene A" });
+        geneArrow(factorySvg, { x: 50, y: 85, width: 100, text: "Gene B" });
+        geneArrow(factorySvg, { x: 50, y: 120, width: 140, text: "Gene C" });
+        console.log("✓ 工厂函数测试成功");
+      } catch (error) {
+        console.error("✗ 工厂函数测试失败:", error);
+      }
+
+      // 测试5: 批量创建
+      console.log("测试5: 批量创建");
+      const batchSvg = d3
+        .select("#batch-test")
+        .append("svg")
+        .attr("width", 400)
+        .attr("height", 150);
+
+      try {
+        const genes = [
+          { name: "Gene A", x: 50, y: 50, width: 120, direction: "right" },
+          { name: "Gene B", x: 50, y: 85, width: 100, direction: "left" },
+          { name: "Gene C", x: 50, y: 120, width: 140, direction: "right" },
+        ];
+
+        d3ArrowedRectBatch(batchSvg, genes, (d, i) => ({
+          x: d.x,
+          y: d.y,
+          width: d.width,
+          height: 25,
+          direction: d.direction,
+          text: d.name,
+          style: {
+            fill: i % 2 === 0 ? "#4CAF50" : "#2196F3",
+          },
+        }));
+        console.log("✓ 批量创建测试成功");
+      } catch (error) {
+        console.error("✗ 批量创建测试失败:", error);
+      }
+
+      // 测试6: 错误处理
+      console.log("测试6: 错误处理");
+      try {
+        // 测试缺少必需参数
+        d3ArrowedRect();
+        console.error("✗ 应该抛出错误：缺少参数");
+      } catch (error) {
+        console.log("✓ 参数验证成功:", error.message);
+      }
+
+      try {
+        // 测试无效方向
+        d3ArrowedRect(d3.select("body"), {
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 30,
+          direction: "invalid",
+        });
+        console.error("✗ 应该抛出错误：无效方向");
+      } catch (error) {
+        console.log("✓ 方向验证成功:", error.message);
+      }
+
+      try {
+        // 测试无效尺寸
+        d3ArrowedRect(d3.select("body"), {
+          x: 0,
+          y: 0,
+          width: -100,
+          height: 30,
+        });
+        console.error("✗ 应该抛出错误：无效尺寸");
+      } catch (error) {
+        console.log("✓ 尺寸验证成功:", error.message);
+      }
+
+      console.log("所有测试完成！请查看上面的结果。");
+    </script>
+  </body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>D3 Arrowed Rect - 快速测试</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .nav-buttons {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .nav-button {
+        display: inline-block;
+        margin: 0 10px;
+        padding: 10px 20px;
+        background-color: #4caf50;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        transition: background-color 0.3s;
+      }
+      .nav-button:hover {
+        background-color: #45a049;
+      }
+      .demo-area {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 20px;
+        margin: 20px 0;
+        background-color: #fafafa;
+      }
+      .demo-area h3 {
+        margin-top: 0;
+        color: #555;
+      }
+      svg {
+        border: 1px solid #ccc;
+        background-color: white;
+        margin: 10px 0;
+      }
+      .info {
+        background-color: #e8f5e8;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 20px 0;
+      }
+      .info h3 {
+        margin-top: 0;
+        color: #2e7d32;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>D3 Arrowed Rect - 快速测试</h1>
+
+      <div class="nav-buttons">
+        <a href="demo.html" class="nav-button">完整演示</a>
+        <a href="test.html" class="nav-button">功能测试</a>
+        <a href="README.md" class="nav-button">英文文档</a>
+        <a href="使用说明.md" class="nav-button">中文说明</a>
+      </div>
+
+      <div class="info">
+        <h3>📋 文件说明</h3>
+        <ul>
+          <li><strong>d3-arrowed-rect.js</strong> - 主要的函数库文件</li>
+          <li>
+            <strong>demo.html</strong> - 完整的演示页面，包含6个不同的使用示例
+          </li>
+          <li>
+            <strong>test.html</strong> - 功能测试页面，验证所有功能是否正常
+          </li>
+          <li><strong>README.md</strong> - 详细的英文文档和API说明</li>
+          <li><strong>使用说明.md</strong> - 中文使用说明</li>
+          <li><strong>package.json</strong> - NPM包配置文件</li>
+        </ul>
+      </div>
+
+      <div class="demo-area">
+        <h3>🎯 快速测试</h3>
+        <p>下面是一个简单的箭头矩形示例：</p>
+        <div id="quick-demo"></div>
+      </div>
+
+      <div class="demo-area">
+        <h3>🔄 双向箭头测试</h3>
+        <p>测试向左和向右的箭头：</p>
+        <div id="direction-demo"></div>
+      </div>
+
+      <div class="demo-area">
+        <h3>🎨 自定义样式测试</h3>
+        <p>测试自定义颜色和样式：</p>
+        <div id="style-demo"></div>
+      </div>
+
+      <div class="info">
+        <h3>🚀 下一步</h3>
+        <p>
+          点击上面的按钮查看完整的演示和测试，或者直接在你的项目中使用
+          <code>d3-arrowed-rect.js</code> 文件。
+        </p>
+      </div>
+    </div>
+
+    <script src="d3-arrowed-rect.js"></script>
+    <script>
+      // 快速测试
+      const quickSvg = d3
+        .select("#quick-demo")
+        .append("svg")
+        .attr("width", 400)
+        .attr("height", 100);
+
+      d3ArrowedRect(quickSvg, {
+        x: 50,
+        y: 35,
+        width: 200,
+        height: 30,
+        text: "快速测试",
+        style: { fill: "#4CAF50", stroke: "#2E7D32" },
+      });
+
+      // 双向箭头测试
+      const directionSvg = d3
+        .select("#direction-demo")
+        .append("svg")
+        .attr("width", 400)
+        .attr("height", 100);
+
+      d3ArrowedRect(directionSvg, {
+        x: 50,
+        y: 35,
+        width: 120,
+        height: 25,
+        text: "向右",
+        style: { fill: "#2196F3", stroke: "#1976D2" },
+      });
+
+      d3ArrowedRect(directionSvg, {
+        x: 200,
+        y: 35,
+        width: 120,
+        height: 25,
+        direction: "left",
+        text: "向左",
+        style: { fill: "#FF5722", stroke: "#D84315" },
+      });
+
+      // 自定义样式测试
+      const styleSvg = d3
+        .select("#style-demo")
+        .append("svg")
+        .attr("width", 400)
+        .attr("height", 100);
+
+      d3ArrowedRect(styleSvg, {
+        x: 50,
+        y: 35,
+        width: 250,
+        height: 30,
+        text: "自定义样式",
+        arrowStyle: {
+          widthRatio: 0.4,
+          neckRatio: 0.8,
+        },
+        textStyle: {
+          fontSize: 12,
+          fill: "#fff",
+          fontFamily: "Georgia",
+        },
+        style: {
+          fill: "#9C27B0",
+          stroke: "#7B1FA2",
+          strokeWidth: 2,
+          fillOpacity: 0.9,
+        },
+      });
+
+      console.log("D3 Arrowed Rect 快速测试已加载完成！");
+      console.log(
+        "可以打开 demo.html 查看完整演示，或打开 test.html 运行功能测试。"
+      );
+    </script>
+  </body>
+</html>

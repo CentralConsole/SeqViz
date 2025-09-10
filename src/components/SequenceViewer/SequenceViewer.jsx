@@ -13,6 +13,8 @@ import LinearSequenceRenderer from "./LinearSequenceRenderer";
 import CircularSequenceRenderer from "./CircularSequenceRenderer.jsx";
 import DetailedSequenceViewer from "./DetailedSequenceViewer.jsx";
 import ViewModeToggle from "./ViewModeToggle";
+import MetadataPanel from "./MetadataPanel.jsx";
+import { CONFIG } from "../../config/config";
 
 /**
  * SequenceViewer组件 - 一个用于可视化DNA/RNA序列的可复用组件
@@ -34,6 +36,7 @@ const SequenceViewer = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState(initialViewMode);
+  const [showMeta, setShowMeta] = useState(false);
 
   // 更新尺寸的函数
   const updateDimensions = () => {
@@ -95,6 +98,23 @@ const SequenceViewer = ({
     setViewMode(mode);
   };
 
+  const toggleMeta = () => setShowMeta((v) => !v);
+
+  // 添加键盘快捷键监听
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      if (event.key === "i" || event.key === "I") {
+        event.preventDefault();
+        toggleMeta();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyPress);
+    return () => {
+      document.removeEventListener("keydown", handleKeyPress);
+    };
+  }, []);
+
   if (loading) {
     return <div>加载中...</div>;
   }
@@ -123,12 +143,37 @@ const SequenceViewer = ({
         currentView={viewMode}
         onViewChange={handleViewModeChange}
       />
+      {/* Info button with ViewModeToggle styling */}
+      <div style={{ position: "absolute", top: 20, left: 20, zIndex: 1000 }}>
+        <button
+          style={{
+            ...CONFIG.viewModeToggle.button,
+            ...(showMeta
+              ? CONFIG.viewModeToggle.active
+              : CONFIG.viewModeToggle.inactive),
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          title="Toggle Info (Press 'i')"
+          onClick={toggleMeta}
+          onMouseOver={(e) =>
+            (e.currentTarget.style.opacity =
+              CONFIG.viewModeToggle.hover.opacity)
+          }
+          onMouseOut={(e) => (e.currentTarget.style.opacity = 1)}
+        >
+          &#xf449;
+        </button>
+      </div>
+      {showMeta && <MetadataPanel data={genomeData} />}
       {viewMode === "linear" ? (
         <LinearSequenceRenderer
           data={genomeData}
           width={dimensions.width}
           height={dimensions.height}
           onFeatureClick={onFeatureClick}
+          hideInlineMeta={true}
         />
       ) : viewMode === "circular" ? (
         <CircularSequenceRenderer
@@ -136,6 +181,7 @@ const SequenceViewer = ({
           width={dimensions.width}
           height={dimensions.height}
           onFeatureClick={onFeatureClick}
+          hideInlineMeta={true}
         />
       ) : (
         <DetailedSequenceViewer
@@ -143,6 +189,7 @@ const SequenceViewer = ({
           width={dimensions.width}
           height={dimensions.height}
           onFeatureClick={onFeatureClick}
+          hideInlineMeta={true}
         />
       )}
     </div>
