@@ -1,30 +1,126 @@
 # Genome Visualizer
 
-一个用于可视化基因组数据的 React 组件，支持特征（features）的展示和交互。
+一个用于可视化基因组数据的 React 组件，支持特征（features）的展示和交互。组件为纯渲染库：不内置网络请求与全局副作用，数据由外部以 props 传入。
 
 ## 安装
 
 由于这是一个私有包，您需要通过本地路径安装：
 
 ```bash
-npm install genome-visualizer
+npm install sequence-viewer
+# 宿主需提供 peer 依赖（React 18 或 19、ReactDOM 18 或 19、D3 >= 7）
+npm install react react-dom d3
 ```
 
 ## 使用方法
 
-### 基本使用
+### 基本使用（对象数据）
 
 ```javascript
 import React from "react";
-import { SequenceViewer } from "genome-visualizer";
+import { SequenceViewer } from "sequence-viewer";
 
 function App() {
   return (
     <div style={{ width: "100%", height: "600px" }}>
       <SequenceViewer
-        data="/path/to/your/data.json"
+        data={{
+          locus: { sequenceLength: 16569 },
+          features: [],
+          origin: "ACGT...",
+        }}
+        viewMode="circular"
         style={{ width: "100%", height: "100%" }}
       />
+    </div>
+  );
+}
+```
+
+### Electron 集成示例（通过 preload/IPC 读取本地文件）
+
+preload.js（启用 `contextIsolation: true`）
+
+```javascript
+// preload.js
+import { contextBridge, ipcRenderer } from "electron";
+
+contextBridge.exposeInMainWorld("genomeApi", {
+  readGenome: async (filePath) => {
+    // Returns parsed JSON object
+    return await ipcRenderer.invoke("read-genome-json", filePath);
+  },
+});
+```
+
+main.js（注册 IPC 并配置 BrowserWindow）
+
+```javascript
+// main.js
+import { app, BrowserWindow, ipcMain } from "electron";
+import { readFile } from "fs/promises";
+import path from "path";
+
+ipcMain.handle("read-genome-json", async (_e, filePath) => {
+  const content = await readFile(filePath, "utf-8");
+  return JSON.parse(content);
+});
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    webPreferences: {
+      contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
+    },
+  });
+
+  win.loadURL("http://localhost:5173");
+}
+
+app.whenReady().then(createWindow);
+```
+
+渲染进程（React）
+
+```javascript
+// App.jsx (Renderer)
+import React from "react";
+import { SequenceViewer } from "sequence-viewer";
+
+export default function App() {
+  const loadData = async () => {
+    // Call preload API to read local JSON file
+    return await window.genomeApi.readGenome("C:/data/mito.json");
+  };
+
+  return (
+    <div style={{ width: "100%", height: "600px" }}>
+      <SequenceViewer loadData={loadData} viewMode="circular" />
+    </div>
+  );
+}
+```
+
+安全建议：启用 `contextIsolation: true`，仅通过 preload 暴露最小必要 API，避免在组件内直接使用 Node API。
+
+### 懒加载（通过回调）
+
+```javascript
+import React from "react";
+import { SequenceViewer } from "sequence-viewer";
+
+function App() {
+  const loadData = async () => {
+    // Fetch/IPC/file read outside of component; return parsed object
+    const res = await fetch("/path/to/your/data.json");
+    return await res.json();
+  };
+
+  return (
+    <div style={{ width: "100%", height: "600px" }}>
+      <SequenceViewer loadData={loadData} />
     </div>
   );
 }
@@ -36,12 +132,14 @@ function App() {
 
 ```json
 {
-  "locus": "NC_000001.11 1..1000000",
+  "locus": {
+    "sequenceLength": 1000000
+  },
   "features": [
     {
       "id": "feature1",
       "type": "gene",
-      "location": [["100", "200"]],
+      "location": [["100", false, "200"]],
       "information": {
         "gene": "GENE1",
         "product": "Protein 1",
@@ -75,16 +173,13 @@ function App() {
 
   return (
     <div>
-      <SequenceViewer
-        data="/path/to/your/data.json"
-        onFeatureClick={handleFeatureClick}
-      />
+      <SequenceViewer data={dataObject} onFeatureClick={handleFeatureClick} />
     </div>
   );
 }
 ```
 
-#### 2. 通过自定义事件
+#### 2. 通过自定义事件（可选）
 
 ```javascript
 import React, { useEffect } from "react";
@@ -110,7 +205,7 @@ function App() {
 
   return (
     <div>
-      <SequenceViewer data="/path/to/your/data.json" />
+      <SequenceViewer data={dataObject} />
     </div>
   );
 }
@@ -163,10 +258,10 @@ function App() {
 
 ## 注意事项
 
-1. 组件需要 React 18.2.0 或更高版本
+1. Requirements: React 18 or 19, ReactDOM 18 or 19, D3 >= 7（由宿主应用提供）
 2. 数据文件需要符合指定的 JSON 格式
 3. 建议在使用前对数据进行验证
-4. 组件会自动处理数据加载和错误状态
+4. 组件不内置网络请求；请使用 `data` 对象或 `loadData()` 回调传入数据
 
 ## 示例
 

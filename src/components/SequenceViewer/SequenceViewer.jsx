@@ -3,7 +3,7 @@
  * @description 序列查看器组件
  * 主要职责：
  * 1. 作为序列可视化的包装组件
- * 2. 处理数据加载和预处理
+ * 2. 处理数据预处理（数据由外部传入）
  * 3. 管理查看器的尺寸和响应式布局
  * 4. 作为渲染器的容器组件
  */
@@ -19,13 +19,15 @@ import { CONFIG } from "../../config/config";
 /**
  * SequenceViewer组件 - 一个用于可视化DNA/RNA序列的可复用组件
  * @param {Object} props
- * @param {Object} props.data - 序列数据对象
+ * @param {Object} props.data - 序列数据对象（推荐）
+ * @param {Function} [props.loadData] - 懒加载数据的函数，返回 Promise<Object>
  * @param {Object} [props.style] - 可选的容器样式
  * @param {Function} [props.onFeatureClick] - 特征点击事件处理函数
  * @param {string} [props.viewMode="linear"] - 视图模式："linear"、"circular" 或 "detailed"
  */
 const SequenceViewer = ({
   data,
+  loadData,
   style = {},
   onFeatureClick,
   viewMode: initialViewMode = "linear",
@@ -70,28 +72,37 @@ const SequenceViewer = ({
     };
   }, []);
 
-  // 监听数据变化
+  // 监听数据变化（仅通过对象或回调获取，不自行发起请求）
   useEffect(() => {
-    console.log("SequenceViewer data", data);
-    if (typeof data === "string") {
-      setLoading(true);
-      fetch(data)
-        .then((response) => response.json())
-        .then((json) => {
-          console.log("SequenceViewer genomeData", json);
-          setGenomeData(json);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        if (data) {
+          setGenomeData(data);
+          return;
+        }
+        if (typeof loadData === "function") {
+          setLoading(true);
+          const result = await loadData();
+          if (!cancelled) {
+            setGenomeData(result || null);
+            setLoading(false);
+          }
+          return;
+        }
+        setGenomeData(null);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e);
           setLoading(false);
-        })
-        .catch((error) => {
-          console.error("Error loading genome data:", error);
-          setError(error);
-          setLoading(false);
-        });
-    } else {
-      console.log("SequenceViewer genomeData", data);
-      setGenomeData(data);
-    }
-  }, [data]);
+        }
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [data, loadData]);
 
   // 处理视图模式切换
   const handleViewModeChange = (mode) => {
@@ -124,7 +135,7 @@ const SequenceViewer = ({
   }
 
   if (!genomeData) {
-    return <div>未提供序列数据</div>;
+    return <div>No sequence data provided</div>;
   }
 
   return (

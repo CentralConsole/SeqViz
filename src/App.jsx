@@ -23,10 +23,15 @@ function App() {
     // 这里可以添加更多的处理逻辑，比如显示在界面上
   };
 
+  const loadData = async () => {
+    const res = await fetch("/mito.json");
+    return await res.json();
+  };
+
   return (
     <div className="App">
       <SequenceViewer
-        data="./mito.json"
+        loadData={loadData}
         style={{ width: "100%", height: "100vh" }}
         onFeatureClick={handleFeatureClick}
       />

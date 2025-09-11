@@ -18,6 +18,23 @@ export default defineConfig({
   },
   publicDir: "public",
   build: {
+    // Library build for pure render component
+    lib: {
+      entry: resolve(__dirname, "src/index.js"),
+      name: "SequenceViewer",
+      formats: ["es", "cjs"],
+      fileName: (format) => `sequence-viewer.${format}.js`,
+    },
+    rollupOptions: {
+      external: ["react", "react-dom", "d3"],
+      output: {
+        globals: {
+          react: "React",
+          "react-dom": "ReactDOM",
+          d3: "d3",
+        },
+      },
+    },
     outDir: "dist",
     assetsDir: "assets",
   },

@@ -1,10 +1,10 @@
 {
-  "name": "genome-visualizer",
+  "name": "sequence-viewer",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
+  "main": "dist/sequence-viewer.cjs.js",
+  "module": "dist/sequence-viewer.es.js",
   "files": [
     "dist"
   ],
@@ -13,19 +13,21 @@
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.js"
+      "import": "./dist/sequence-viewer.es.js",
+      "require": "./dist/sequence-viewer.cjs.js"
     }
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc",
+    "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "prepare": "npm run build"
   },
   "peerDependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react": "^18 || ^19",
+    "react-dom": "^18 || ^19",
+    "d3": ">=7"
   },
   "dependencies": {
     "cgview": "^1.6.0",
