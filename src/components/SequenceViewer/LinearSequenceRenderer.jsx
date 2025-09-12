@@ -33,8 +33,17 @@ const LinearSequenceRenderer = ({
   const { sequenceViewer } = CONFIG;
 
   useEffect(() => {
-    console.log("LinearSequenceRenderer data", data);
-    if (!svgRef.current || !data) return;
+    console.log("LinearSequenceRenderer useEffect triggered", {
+      hasData: !!data,
+      hasSvgRef: !!svgRef.current,
+      dataKeys: data ? Object.keys(data) : null,
+      width,
+      height,
+    });
+    if (!svgRef.current || !data) {
+      console.log("LinearSequenceRenderer: 跳过渲染 - svgRef或data为空");
+      return;
+    }
 
     // 清除之前的渲染内容
     d3.select(svgRef.current).selectAll("*").remove();

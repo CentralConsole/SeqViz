@@ -1,0 +1,5 @@
+[33m85f9d31[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmodulization[m[33m)[m Prepare it as a module
+[33m7d9ff40[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmaster[m[33m)[m Modified Meta data display
+[33mbdfe8bc[m Fixed complement-base bug in detailed sequence viewer
+[33m8cb7a34[m Improved font configurations
+[33m34f1a82[m Implemented scrolling in detailed sequence viewer

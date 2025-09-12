@@ -26,8 +26,15 @@ export default defineConfig({
       fileName: (format) => `sequence-viewer.${format}.js`,
     },
     rollupOptions: {
-      external: ["react", "react-dom", "d3"],
+      external: [
+        "react",
+        "react-dom",
+        "d3",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+      ],
       output: {
+        exports: "named",
         globals: {
           react: "React",
           "react-dom": "ReactDOM",

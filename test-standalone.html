@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sequence Viewer - Standalone Test</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body,
+      #root {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      .test-container {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .test-header {
+        background: #333;
+        color: white;
+        padding: 10px;
+        text-align: center;
+        font-family: Arial, sans-serif;
+      }
+
+      .test-content {
+        flex: 1;
+        background: #f0f0f0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="test-container">
+        <div class="test-header">
+          <h1>Sequence Viewer - Standalone Test</h1>
+          <p>Testing if component is truly plug-and-play</p>
+        </div>
+        <div class="test-content">
+          <!-- Component will be rendered here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Load React from CDN for testing -->
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+    <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+
+    <!-- Load our built component -->
+    <script type="module">
+      // This would normally be: import { SequenceViewer } from 'sequence-viewer';
+      // For testing, we'll simulate the component loading
+      console.log("Testing standalone component loading...");
+
+      // Simulate component usage
+      const { createElement: h, useState } = React;
+
+      function TestApp() {
+        const [data, setData] = useState(null);
+
+        const loadData = async () => {
+          try {
+            const res = await fetch("/mito.json");
+            const json = await res.json();
+            setData(json);
+            return json;
+          } catch (error) {
+            console.error("Failed to load data:", error);
+            return null;
+          }
+        };
+
+        const handleFeatureClick = (feature) => {
+          console.log("Feature clicked:", feature);
+        };
+
+        // Simulate SequenceViewer component
+        return h(
+          "div",
+          {
+            style: { width: "100%", height: "100%", background: "#242424" },
+          },
+          [
+            h(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  top: "20px",
+                  left: "20px",
+                  color: "white",
+                  zIndex: 1000,
+                },
+              },
+              "Sequence Viewer Test"
+            ),
+            h(
+              "button",
+              {
+                onClick: loadData,
+                style: {
+                  position: "absolute",
+                  top: "20px",
+                  right: "20px",
+                  padding: "10px 20px",
+                  background: "#4caf50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  zIndex: 1000,
+                },
+              },
+              "Load Test Data"
+            ),
+            data
+              ? h(
+                  "div",
+                  {
+                    style: {
+                      position: "absolute",
+                      top: "60px",
+                      left: "20px",
+                      color: "white",
+                      fontSize: "14px",
+                    },
+                  },
+                  `Data loaded: ${data.features?.length || 0} features`
+                )
+              : null,
+          ]
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(h(TestApp));
+    </script>
+  </body>
+</html>

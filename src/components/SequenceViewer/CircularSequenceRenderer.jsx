@@ -24,7 +24,17 @@ const CircularSequenceRenderer = ({
   const { sequenceViewer } = CONFIG;
 
   useEffect(() => {
-    if (!svgRef.current || !data) return;
+    console.log("CircularSequenceRenderer useEffect triggered", {
+      hasData: !!data,
+      hasSvgRef: !!svgRef.current,
+      dataKeys: data ? Object.keys(data) : null,
+      width,
+      height,
+    });
+    if (!svgRef.current || !data) {
+      console.log("CircularSequenceRenderer: 跳过渲染 - svgRef或data为空");
+      return;
+    }
 
     // # Part 1: event handling
     // listening to the status of Ctrl: Down

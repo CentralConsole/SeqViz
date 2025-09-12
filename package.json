@@ -19,6 +19,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:simple": "vite --config vite.config.js --open index.simple.html",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
@@ -30,11 +31,12 @@
     "d3": ">=7"
   },
   "dependencies": {
-    "cgview": "^1.6.0",
-    "d3": "^7.8.5",
     "lodash": "^4.17.21"
   },
   "devDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "d3": "^7.9.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",

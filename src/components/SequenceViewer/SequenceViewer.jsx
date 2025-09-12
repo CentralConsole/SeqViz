@@ -15,6 +15,7 @@ import DetailedSequenceViewer from "./DetailedSequenceViewer.jsx";
 import ViewModeToggle from "./ViewModeToggle";
 import MetadataPanel from "./MetadataPanel.jsx";
 import { CONFIG } from "../../config/config";
+import "./SequenceViewer.css";
 
 /**
  * SequenceViewer组件 - 一个用于可视化DNA/RNA序列的可复用组件
@@ -33,7 +34,10 @@ const SequenceViewer = ({
   viewMode: initialViewMode = "linear",
 }) => {
   const containerRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [dimensions, setDimensions] = useState({ 
+    width: window.innerWidth, 
+    height: window.innerHeight 
+  });
   const [genomeData, setGenomeData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -43,29 +47,31 @@ const SequenceViewer = ({
   // 更新尺寸的函数
   const updateDimensions = () => {
     if (containerRef.current) {
-      const { width, height } = containerRef.current.getBoundingClientRect();
+      // 使用clientWidth和clientHeight，这些值更可靠
+      const width = containerRef.current.clientWidth;
+      const height = containerRef.current.clientHeight;
+      console.log("SequenceViewer: 更新尺寸", { 
+        width, 
+        height,
+        clientWidth: containerRef.current.clientWidth,
+        clientHeight: containerRef.current.clientHeight,
+        offsetWidth: containerRef.current.offsetWidth,
+        offsetHeight: containerRef.current.offsetHeight,
+        getBoundingClientRect: containerRef.current.getBoundingClientRect()
+      });
       setDimensions({ width, height });
     }
   };
 
   // 监听窗口大小变化
   useEffect(() => {
+    // 立即更新尺寸
     updateDimensions();
+    
+    // 延迟再次更新，确保DOM完全渲染
+    setTimeout(updateDimensions, 100);
+    
     window.addEventListener("resize", updateDimensions);
-
-    // 添加初始化渲染机制
-    const initRender = () => {
-      updateDimensions();
-      // 使用 requestAnimationFrame 确保在下一帧渲染
-      requestAnimationFrame(() => {
-        updateDimensions();
-        // 再次触发以确保尺寸计算正确
-        setTimeout(updateDimensions, 100);
-      });
-    };
-
-    // 组件挂载后立即触发初始化渲染
-    initRender();
 
     return () => {
       window.removeEventListener("resize", updateDimensions);
@@ -78,21 +84,29 @@ const SequenceViewer = ({
     const load = async () => {
       try {
         if (data) {
+          console.log("SequenceViewer: 使用传入的data", data);
           setGenomeData(data);
           return;
         }
         if (typeof loadData === "function") {
+          console.log("SequenceViewer: 开始加载数据...");
           setLoading(true);
           const result = await loadData();
           if (!cancelled) {
+            console.log("SequenceViewer: 数据加载完成", result);
             setGenomeData(result || null);
             setLoading(false);
+            // 数据加载完成后，强制更新尺寸以确保渲染器能正确渲染
+            setTimeout(() => {
+              updateDimensions();
+            }, 100);
           }
           return;
         }
         setGenomeData(null);
       } catch (e) {
         if (!cancelled) {
+          console.error("SequenceViewer: 数据加载失败", e);
           setError(e);
           setLoading(false);
         }
@@ -138,15 +152,21 @@ const SequenceViewer = ({
     return <div>No sequence data provided</div>;
   }
 
+  // 确保有有效的尺寸才渲染
+  if (dimensions.width <= 0 || dimensions.height <= 0) {
+    console.log("SequenceViewer: 等待有效尺寸", { 
+      dimensions, 
+      hasContainerRef: !!containerRef.current,
+      containerRect: containerRef.current ? containerRef.current.getBoundingClientRect() : null
+    });
+    return <div>Loading...</div>;
+  }
+
   return (
     <div
       ref={containerRef}
-      className="sequence-container"
+      className="sv-sequence-container"
       style={{
-        width: "100%",
-        height: "100%",
-        position: "relative",
-        overflow: "auto",
         ...style,
       }}
     >
@@ -154,29 +174,14 @@ const SequenceViewer = ({
         currentView={viewMode}
         onViewChange={handleViewModeChange}
       />
-      {/* Info button with ViewModeToggle styling */}
-      <div style={{ position: "absolute", top: 20, left: 20, zIndex: 1000 }}>
-        <button
-          style={{
-            ...CONFIG.viewModeToggle.button,
-            ...(showMeta
-              ? CONFIG.viewModeToggle.active
-              : CONFIG.viewModeToggle.inactive),
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          title="Toggle Info (Press 'i')"
-          onClick={toggleMeta}
-          onMouseOver={(e) =>
-            (e.currentTarget.style.opacity =
-              CONFIG.viewModeToggle.hover.opacity)
-          }
-          onMouseOut={(e) => (e.currentTarget.style.opacity = 1)}
-        >
-          &#xf449;
-        </button>
-      </div>
+      {/* Info button */}
+      <button
+        className={`sv-info-button ${showMeta ? "active" : ""}`}
+        title="Toggle Info (Press 'i')"
+        onClick={toggleMeta}
+      >
+        &#xf449;
+      </button>
       {showMeta && <MetadataPanel data={genomeData} />}
       {viewMode === "linear" ? (
         <LinearSequenceRenderer
@@ -203,6 +208,19 @@ const SequenceViewer = ({
           hideInlineMeta={true}
         />
       )}
+      {/* 调试信息 */}
+      <div style={{ 
+        position: 'absolute', 
+        top: '10px', 
+        left: '10px', 
+        background: 'rgba(0,0,0,0.8)', 
+        color: 'white', 
+        padding: '5px',
+        fontSize: '12px',
+        zIndex: 9999
+      }}>
+        尺寸: {dimensions.width} x {dimensions.height}
+      </div>
     </div>
   );
 };
