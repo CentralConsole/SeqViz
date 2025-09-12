@@ -456,8 +456,11 @@ const DetailedSequenceViewer = ({
     }
 
     // 计算该行的总高度
+    const bottomSpacing = 30; // 箭头组与下一行序列文本之间的额外间距
     const totalFeatureHeight =
-      maxFeatureRows > 0 ? vSpace + maxFeatureRows * (boxHeight + vSpace) : 0;
+      maxFeatureRows > 0
+        ? vSpace + maxFeatureRows * (boxHeight + vSpace) + bottomSpacing
+        : 0;
     const totalRowHeight = doubleStrandHeight + totalFeatureHeight;
 
     return totalRowHeight;
@@ -571,8 +574,9 @@ const DetailedSequenceViewer = ({
       });
 
       // 计算实际行高度
+      const bottomSpacing = 15; // 箭头组与下一行序列文本之间的额外间距
       const totalFeatureHeight =
-        vSpace + featureRows.length * (boxHeight + vSpace);
+        vSpace + featureRows.length * (boxHeight + vSpace) + bottomSpacing;
       const actualRowHeight = doubleStrandHeight + totalFeatureHeight;
       rowContainer.attr("data-total-height", actualRowHeight);
       return actualRowHeight;
@@ -660,6 +664,32 @@ const DetailedSequenceViewer = ({
         .attr("class", "arrow-rect")
         .style("cursor", CONFIG.interaction.hover.cursor)
         .on("click", () => handleFeatureClick(feature));
+
+      // 添加特征文字标签
+      const text =
+        feature.information?.gene ||
+        feature.information?.product ||
+        feature.type;
+
+      if (text && width > 20) {
+        // 只有箭头足够宽时才显示文字
+        const textX = x + width / 2; // 箭头中心位置
+        const textY = y + boxHeight / 2; // 箭头垂直中心
+
+        parent
+          .append("text")
+          .attr("class", "feature-label")
+          .attr("x", textX)
+          .attr("y", textY)
+          .attr("text-anchor", "middle")
+          .attr("dominant-baseline", "middle")
+          .style("font-family", CONFIG.fonts.primary.family)
+          .style("font-size", `${Math.min(fontSize, boxHeight * 0.7)}px`)
+          .style("fill", CONFIG.styles.annotation.fillDark)
+          .style("pointer-events", "none") // 防止文字阻止箭头点击
+          .style("user-select", "none") // 防止文字被选中
+          .text(text);
+      }
     } else {
       // 绘制矩形（非箭头特征）
       parent
@@ -675,6 +705,32 @@ const DetailedSequenceViewer = ({
         .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
         .style("cursor", CONFIG.interaction.hover.cursor)
         .on("click", () => handleFeatureClick(feature));
+
+      // 添加特征文字标签
+      const text =
+        feature.information?.gene ||
+        feature.information?.product ||
+        feature.type;
+
+      if (text && width > 20) {
+        // 只有特征足够宽时才显示文字
+        const textX = x + width / 2; // 矩形中心位置
+        const textY = y + boxHeight / 2; // 矩形垂直中心
+
+        parent
+          .append("text")
+          .attr("class", "feature-label")
+          .attr("x", textX)
+          .attr("y", textY)
+          .attr("text-anchor", "middle")
+          .attr("dominant-baseline", "middle")
+          .style("font-family", CONFIG.fonts.primary.family)
+          .style("font-size", `${Math.min(fontSize, boxHeight * 0.7)}px`)
+          .style("fill", CONFIG.styles.annotation.fillDark)
+          .style("pointer-events", "none") // 防止文字阻止矩形点击
+          .style("user-select", "none") // 防止文字被选中
+          .text(text);
+      }
     }
   };
 
