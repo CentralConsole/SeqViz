@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
 
@@ -18,10 +18,112 @@ const CircularSequenceRenderer = ({
   hideInlineMeta,
 }) => {
   const svgRef = useRef(null);
-  const [scale, setScale] = useState(1);
-  const [translate, setTranslate] = useState({ x: 0, y: 0 });
-  const [isCtrlPressed, setIsCtrlPressed] = useState(false);
+  const [, setScale] = useState(1);
+  const [, setTranslate] = useState({ x: 0, y: 0 });
   const { sequenceViewer } = CONFIG;
+
+  // Use refs to maintain stable references for keyboard shortcuts
+  const currentTransformRef = useRef(null);
+
+  // Define keyboard handler outside useEffect to maintain stability
+  const handleKeyDown = useCallback((event) => {
+    // Get mainGroup reference
+    const mainGroup = d3.select(svgRef.current).select("g");
+    console.log("Key pressed:", event.key);
+
+    // Prevent default behavior for our custom keys
+    if (
+      [
+        "+",
+        "-",
+        "=",
+        "_",
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+      ].includes(event.key)
+    ) {
+      event.preventDefault();
+    }
+
+    // Handle zoom with + and - keys
+    if (event.key === "+" || event.key === "=") {
+      // Zoom in
+      if (currentTransformRef.current) {
+        const newScale = Math.min(currentTransformRef.current.k * 1.2, 5);
+        const newTransform = d3.zoomIdentity
+          .translate(
+            currentTransformRef.current.x,
+            currentTransformRef.current.y
+          )
+          .scale(newScale);
+        // Apply transform directly without zoom behavior
+        mainGroup.attr("transform", newTransform);
+        setScale(newTransform.k);
+        setTranslate({ x: newTransform.x, y: newTransform.y });
+        currentTransformRef.current = newTransform;
+      }
+    } else if (event.key === "-" || event.key === "_") {
+      // Zoom out
+      if (currentTransformRef.current) {
+        const newScale = Math.max(currentTransformRef.current.k / 1.2, 0.3);
+        const newTransform = d3.zoomIdentity
+          .translate(
+            currentTransformRef.current.x,
+            currentTransformRef.current.y
+          )
+          .scale(newScale);
+        // Apply transform directly without zoom behavior
+        mainGroup.attr("transform", newTransform);
+        setScale(newTransform.k);
+        setTranslate({ x: newTransform.x, y: newTransform.y });
+        currentTransformRef.current = newTransform;
+      }
+    }
+
+    // Handle pan with arrow keys
+    if (currentTransformRef.current) {
+      const panStep = 50; // pixels to pan per key press
+      let newX = currentTransformRef.current.x;
+      let newY = currentTransformRef.current.y;
+
+      switch (event.key) {
+        case "ArrowUp":
+          newY -= panStep; // 向上移动，减少Y值
+          break;
+        case "ArrowDown":
+          newY += panStep; // 向下移动，增加Y值
+          break;
+        case "ArrowLeft":
+          newX -= panStep; // 向左移动，减少X值
+          break;
+        case "ArrowRight":
+          newX += panStep; // 向右移动，增加X值
+          break;
+        default:
+          return; // No action needed
+      }
+
+      const newTransform = d3.zoomIdentity
+        .translate(newX, newY)
+        .scale(currentTransformRef.current.k);
+      // Apply transform directly without zoom behavior
+      mainGroup.attr("transform", newTransform);
+      setScale(newTransform.k);
+      setTranslate({ x: newTransform.x, y: newTransform.y });
+      currentTransformRef.current = newTransform;
+    }
+  }, []);
+
+  // Add keyboard event listener on mount
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleKeyDown]);
 
   useEffect(() => {
     console.log("CircularSequenceRenderer useEffect triggered", {
@@ -35,32 +137,6 @@ const CircularSequenceRenderer = ({
       console.log("CircularSequenceRenderer: 跳过渲染 - svgRef或data为空");
       return;
     }
-
-    // # Part 1: event handling
-    // listening to the status of Ctrl: Down
-    const handleKeyDown = (event) => {
-      if (event.ctrlKey || event.metaKey) {
-        // Mac: Command, Windows: Ctrl
-        setIsCtrlPressed(true);
-      }
-    };
-
-    // listening to the status of Ctrl: Up
-    const handleKeyUp = (event) => {
-      if (!event.ctrlKey && !event.metaKey) {
-        setIsCtrlPressed(false);
-      }
-    };
-
-    // handle window blur (lost focus)
-    const handleWindowBlur = () => {
-      setIsCtrlPressed(false);
-    };
-
-    // add event listener
-    document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("blur", handleWindowBlur);
 
     // # Part 2: setup the svg and the scale
 
@@ -352,8 +428,6 @@ const CircularSequenceRenderer = ({
       //console.log("Processed Features:", processedFeatures);
 
       // calculate the overlaps between diffetent layers of features, and adjust their radial-direction positioning
-      const labelHeight = CONFIG.dimensions.vSpace; // label height, from CONFIG
-      const minSpacing = 0; // minimum safe spacing
       const layerSpacing = CONFIG.dimensions.vSpace; // layer spacing, from CONFIG
 
       // sort the features by their length, in a descending order, prioritizing longer features
@@ -776,23 +850,8 @@ const CircularSequenceRenderer = ({
                     ];
 
                     if (lineMatches.length >= 2) {
-                      startLineSegment = {
-                        type: "start",
-                        index: 0,
-                        x: parseFloat(lineMatches[0][1]),
-                        y: parseFloat(lineMatches[0][2]),
-                        command: lineMatches[0][0],
-                        //description: "起点到外圆弧的连接线",
-                      };
-
-                      endLineSegment = {
-                        type: "end",
-                        index: 1,
-                        x: parseFloat(lineMatches[1][1]),
-                        y: parseFloat(lineMatches[1][2]),
-                        command: lineMatches[1][0],
-                        //description: "外圆弧到内圆弧的连接线",
-                      };
+                      // Line segments are available but not used in current implementation
+                      // startLineSegment and endLineSegment could be used for future enhancements
                     }
 
                     // 根据方向在弧的起点或终点添加箭头
@@ -836,7 +895,6 @@ const CircularSequenceRenderer = ({
                         let arrowPath;
 
                         // 箭头参数
-                        const arrowHalf = 5; // 箭头宽度的一半
 
                         if (innerArc && innerR && outerR) {
                           // 有内外圆弧的情况：重新构建完整的带箭头弧形
@@ -904,10 +962,6 @@ const CircularSequenceRenderer = ({
                           // 使用原始的外圆弧和内圆弧路径，在外圆弧的终点位置插入箭头三角形
 
                           // 提取原始路径的各个部分
-                          const startPoint = [
-                            parseFloat(startMatch[1]),
-                            parseFloat(startMatch[2]),
-                          ];
 
                           // 根据方向构建路径
                           if (segment.isReverse) {
@@ -1343,120 +1397,29 @@ const CircularSequenceRenderer = ({
     const minScale = Math.min(0.3, fitScale || 1);
     const maxScale = 5;
 
-    // 为了在最小缩放下仍可自由移动到视口中心，放宽平移范围：
-    // 视口在最小缩放时的逻辑尺寸为 width/minScale 与 height/minScale。
-    // 将 extent 向四周扩展到该尺寸，避免缩小后被夹在右/下边界导致无法继续向右/下拖动。
-    const viewportWAtMin = width / minScale;
-    const viewportHAtMin = height / minScale;
-    const translateExtent = [
-      [-viewportWAtMin, -viewportHAtMin],
-      [width + viewportWAtMin, height + viewportHAtMin],
-    ];
-
-    const zoom = d3
-      .zoom()
-      .scaleExtent([minScale, maxScale]) // 扩大缩放范围，允许更大的缩放倍数
-      .translateExtent(translateExtent)
-      .wheelDelta((event) => {
-        // 降低滚轮缩放的灵敏度，使缩放更平滑
-        // 默认是 -event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002) * (event.ctrlKey ? 10 : 1)
-        // 我们将灵敏度降低到原来的1/3
-        return (
-          -event.deltaY *
-          (event.deltaMode === 1 ? 0.017 : event.deltaMode ? 0.33 : 0.0007) *
-          (event.ctrlKey ? 10 : 1)
-        );
-      })
-      .filter((event) => {
-        // 禁用浏览器默认的Ctrl+滚轮缩放
-        if (event.type === "wheel" && (event.ctrlKey || event.metaKey)) {
-          event.preventDefault();
-        }
-        // 实时检查Ctrl键状态，而不是依赖状态变量
-        const isCtrlCurrentlyPressed = event.ctrlKey || event.metaKey;
-        // 同步更新状态变量
-        if (isCtrlCurrentlyPressed !== isCtrlPressed) {
-          setIsCtrlPressed(isCtrlCurrentlyPressed);
-        }
-        // 只有在实际按住Ctrl键时才允许缩放和拖动
-        return isCtrlCurrentlyPressed;
-      })
-      .on("start", (event) => {
-        // 实时检查Ctrl键状态
-        const isCtrlCurrentlyPressed =
-          event.sourceEvent?.ctrlKey || event.sourceEvent?.metaKey;
-        if (!isCtrlCurrentlyPressed) {
-          return; // 如果没有按Ctrl键，停止操作
-        }
-        // 开始拖动时改变鼠标样式
-        svg.style("cursor", "grabbing");
-      })
-      .on("zoom", (event) => {
-        // 允许程序化变换（event.sourceEvent 为 undefined）
-        const isProgrammatic = !event.sourceEvent;
-        // 实时检查Ctrl键状态，仅对用户交互生效
-        const isCtrlCurrentlyPressed =
-          event.sourceEvent?.ctrlKey || event.sourceEvent?.metaKey;
-        if (!isProgrammatic && !isCtrlCurrentlyPressed) {
-          return; // 用户松开 Ctrl 时，不应用变换；程序化初始化不受限
-        }
-        mainGroup.attr("transform", event.transform);
-        setScale(event.transform.k);
-        setTranslate({ x: event.transform.x, y: event.transform.y });
-      })
-      .on("end", (event) => {
-        // 结束拖动时恢复鼠标样式
-        const isCtrlCurrentlyPressed =
-          event.sourceEvent?.ctrlKey || event.sourceEvent?.metaKey;
-        svg.style("cursor", isCtrlCurrentlyPressed ? "grab" : "default");
-      });
+    // Zoom behavior is completely disabled - only programmatic transforms are used
 
     // 应用缩放行为到SVG，初始变换为居中位置
     const initialScale = Math.max(minScale, Math.min(maxScale, fitScale || 1));
     const initialTransform = d3.zoomIdentity
       .translate(width / 2, height / 2)
       .scale(initialScale);
-    svg.call(zoom).call(zoom.transform, initialTransform);
 
-    // 额外的wheel事件处理来阻止浏览器默认缩放
-    svg.on("wheel.prevent", (event) => {
-      // 总是阻止浏览器默认的Ctrl+滚轮页面缩放
-      event.preventDefault();
-      event.stopPropagation();
+    // Store transform reference for keyboard shortcuts
+    currentTransformRef.current = initialTransform;
 
-      // 更新状态变量以保持同步
-      const isCurrentlyPressed = event.ctrlKey || event.metaKey;
-      setIsCtrlPressed(isCurrentlyPressed);
+    // Apply initial transform without enabling zoom behavior
+    mainGroup.attr("transform", initialTransform);
+    setScale(initialTransform.k);
+    setTranslate({ x: initialTransform.x, y: initialTransform.y });
 
-      // 如果没有按Ctrl键，完全阻止D3处理这个事件
-      if (!isCurrentlyPressed) {
-        event.stopImmediatePropagation();
-        return false;
-      }
+    // Make SVG focusable for keyboard events
+    svg.attr("tabindex", 0).style("outline", "none");
+
+    // Focus SVG when clicked to ensure keyboard events work
+    svg.on("click", () => {
+      svg.node().focus();
     });
-
-    // 鼠标样式统一在 zoom 生命周期内管理（start/end）
-
-    // 添加额外的鼠标事件处理
-    svg.on("mousedown.prevent", (event) => {
-      // 实时检查Ctrl键状态并更新
-      const isCurrentlyPressed = event.ctrlKey || event.metaKey;
-      setIsCtrlPressed(isCurrentlyPressed);
-
-      // 如果没有按Ctrl键，完全阻止事件
-      if (!isCurrentlyPressed) {
-        // 允许右键用于选择，不阻止传播
-        if (event.button === 2) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        return false;
-      }
-    });
-
-    // 移除基于鼠标移动的光标切换，避免与 zoom 生命周期竞态
 
     // 右键拖拽扇形选择（圆轴外部）
     const selectionOverlayGroup = mainGroup
@@ -1466,12 +1429,10 @@ const CircularSequenceRenderer = ({
 
     let isRightSelecting = false; // Whether the right click is selected
     let startAngle = null;
-    let startAngle_1 = null; // For recording the direction of the selection
     let selectionPath = null;
     let startLine = null;
     let endLine = null;
     let selectionDirection = null; // +1 顺时针, -1 逆时针
-    let nextBaseIndexAtStart = null; // 紧挨着起点的下一个碱基索引（随方向而定）
     let lastCurrentAngle = null; // 记录上一次的当前角度，用于检测拖拽方向变化
 
     // Disable default right-click menu
@@ -1480,18 +1441,17 @@ const CircularSequenceRenderer = ({
     });
 
     const getLocalPointer = (event) => {
-      const t = d3.zoomTransform(svg.node());
-      const [px, py] = d3.pointer(event, svg.node());
-      const inv = t.invert([px, py]);
-      return inv; // 相对于mainGroup中心(0,0)
+      // 获取相对于mainGroup的坐标，考虑当前的变换
+      const [px, py] = d3.pointer(event, mainGroup.node());
+      return [px, py]; // 相对于mainGroup中心(0,0)
     };
 
     const toAngle = (x, y) => {
-      // 统一将角度顺时针旋转90°，与坐标轴显示一致
+      // 计算角度，与angleScale保持一致
       let ang = Math.atan2(y, x);
       // 归一化到 [0, 2π)
       if (ang < 0) ang += Math.PI * 2;
-      // 顺时针旋转90° 等价于加上 π/2
+      // 调整角度以匹配angleScale的起始位置（从顶部开始，顺时针）
       ang = (ang + Math.PI / 2) % (Math.PI * 2);
       return ang;
     };
@@ -1507,11 +1467,7 @@ const CircularSequenceRenderer = ({
 
       isRightSelecting = true;
       startAngle = toAngle(lx, ly);
-      startAngle_1 = startAngle;
-      // Initialize the startAngle_1 to the startAngle,
-      // and later it will be updated to the nextAngle
       selectionDirection = null;
-      nextBaseIndexAtStart = null;
       lastCurrentAngle = null;
 
       if (selectionPath) selectionPath.remove();
@@ -1568,27 +1524,10 @@ const CircularSequenceRenderer = ({
       const forward = (a1 - a0 + Math.PI * 2) % (Math.PI * 2);
       const backward = (a0 - a1 + Math.PI * 2) % (Math.PI * 2);
 
-      // 首次移动时确定选取方向，并计算紧挨着 startAngle 的"下一个点"
+      // 首次移动时确定选取方向
       if (selectionDirection === null) {
         selectionDirection = forward <= backward ? 1 : -1; // 1 表示顺时针
-
-        const anglePerBase =
-          data.locus && data.locus.sequenceLength > 0
-            ? (2 * Math.PI) / data.locus.sequenceLength
-            : 0.005; // 回退到一个很小的角步长
-        const step = Math.max(anglePerBase, 0.002);
-        const nextAngle = normalizeAngle(
-          startAngle + selectionDirection * step
-        );
-        startAngle_1 = nextAngle; // 紧挨着 startAngle 的角度点，用于记录方向
-
-        // 计算相邻碱基索引，便于与线性序列坐标联动
-        if (data.locus && data.locus.sequenceLength > 0) {
-          const total = data.locus.sequenceLength;
-          const startIndex = Math.round(angleScale.invert(startAngle)) % total;
-          nextBaseIndexAtStart =
-            (startIndex + selectionDirection + total) % total;
-        }
+        lastCurrentAngle = a1; // 初始化上次角度
       } else {
         // 检测用户是否真正改变了拖拽方向（基于连续的角度变化）
         if (lastCurrentAngle !== null) {
@@ -1608,28 +1547,7 @@ const CircularSequenceRenderer = ({
             oppositeDelta < currentDelta * 0.3
           ) {
             // 反方向弧段明显更小
-
             selectionDirection = -selectionDirection; // 切换方向
-
-            // 重新计算 startAngle_1
-            const anglePerBase =
-              data.locus && data.locus.sequenceLength > 0
-                ? (2 * Math.PI) / data.locus.sequenceLength
-                : 0.005;
-            const step = Math.max(anglePerBase, 0.002);
-            const nextAngle = normalizeAngle(
-              startAngle + selectionDirection * step
-            );
-            startAngle_1 = nextAngle;
-
-            // 重新计算相邻碱基索引
-            if (data.locus && data.locus.sequenceLength > 0) {
-              const total = data.locus.sequenceLength;
-              const startIndex =
-                Math.round(angleScale.invert(startAngle)) % total;
-              nextBaseIndexAtStart =
-                (startIndex + selectionDirection + total) % total;
-            }
           }
         }
 
@@ -1672,37 +1590,36 @@ const CircularSequenceRenderer = ({
     const endRightSelection = (event) => {
       if (event && event.button !== undefined && event.button !== 2) return;
       if (!isRightSelecting) return;
+
+      // 完全重置选择状态
       isRightSelecting = false;
       selectionDirection = null;
-      nextBaseIndexAtStart = null;
       lastCurrentAngle = null;
+      startAngle = null;
+
+      // 清理选择相关的DOM元素
+      if (selectionPath) {
+        selectionPath.remove();
+        selectionPath = null;
+      }
+      if (startLine) {
+        startLine.remove();
+        startLine = null;
+      }
+      if (endLine) {
+        endLine.remove();
+        endLine = null;
+      }
     };
 
     svg.on("mouseup.selection", endRightSelection);
     svg.on("mouseleave.selection", endRightSelection);
 
-    // 添加交互提示文本
-    svg
-      .append("text")
-      .attr("class", "interaction-hint")
-      .attr("x", width / 2)
-      .attr("y", height - 10)
-      .attr("text-anchor", "middle")
-      .style("font-size", "12px")
-      .style("fill", "#888")
-      .style("font-family", CONFIG.styles.axis.text.fontFamily)
-      .style("pointer-events", "none")
-      .style("user-select", "none")
-      .text("按住 Ctrl 键 + 鼠标拖动/滚轮缩放");
-
     // 清理函数：移除事件监听器
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("blur", handleWindowBlur);
-      // 光标样式已由 zoom 生命周期统一管理，移除额外监听器
+      // Event listeners are now handled in separate useEffect
     };
-  }, [data, width, height, onFeatureClick]);
+  }, [data, width, height, onFeatureClick, hideInlineMeta]);
 
   return (
     <div style={sequenceViewer.renderer}>
