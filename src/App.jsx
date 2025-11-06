@@ -24,7 +24,7 @@ function App() {
   };
 
   const loadData = async () => {
-    const res = await fetch("/mito.json");
+    const res = await fetch("/mito2.json");
     return await res.json();
   };
 

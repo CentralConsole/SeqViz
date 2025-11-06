@@ -1,5 +1,5 @@
 /**
- * @file DetailedSequenceViewer.jsx
+ * @file DetailedSequenceRenderer.jsx
  * @description 详细序列查看器组件
  * 主要职责：
  * 1. 以类似文本阅读器的方式显示序列数据
@@ -307,7 +307,7 @@ const DetailedSequenceViewer = ({
       .style("fill", CONFIG.styles.axis.text.fill)
       .text((startPos + 1).toLocaleString());
 
-    // 优化：使用单个text元素渲染整行正链核苷酸
+    // 使用单个text元素渲染整行正链核苷酸
     const topStrandText = topSequence
       .split("")
       .map((nucleotide, i) => {
@@ -344,7 +344,7 @@ const DetailedSequenceViewer = ({
         .text(position + 1);
     }
 
-    // 优化：使用单个text元素渲染整行互补链核苷酸
+    // 使用单个text元素渲染整行互补链核苷酸
     const bottomStrandText = bottomSequence
       .split("")
       .map((nucleotide, i) => {
@@ -387,6 +387,51 @@ const DetailedSequenceViewer = ({
         .attr("stroke", "#666") // 灰色
         .attr("stroke-width", 1) // 细实线
         .style("opacity", 0.6);
+    }
+
+    // 绘制限制性内切酶位点分割线
+    if (data.res_site && Array.isArray(data.res_site)) {
+      data.res_site.forEach((site) => {
+        if (!site.position || !site.enzyme) return;
+
+        const position = parseInt(site.position, 10);
+        if (isNaN(position)) return;
+
+        // 检查位点是否在当前行范围内
+        const rowStart = startPos;
+        const rowEnd = startPos + topSequence.length - 1;
+
+        if (position >= rowStart && position <= rowEnd) {
+          const relativePos = position - rowStart;
+          const x = relativePos * 12 + 6;
+
+          // 绘制分割线
+          rowGroup
+            .append("line")
+            .attr("class", "restriction-site-divider")
+            .attr("x1", x)
+            .attr("y1", y - 5) // 正链上方
+            .attr("x2", x)
+            .attr("y2", complementY + fontSize + 5) // 互补链下方
+            .attr("stroke", "#ff6b6b")
+            .attr("stroke-width", 2)
+            .style("opacity", 0.8);
+
+          // 添加酶名称标签
+          rowGroup
+            .append("text")
+            .attr("class", "restriction-site-label")
+            .attr("x", x)
+            .attr("y", y - 10)
+            .text(site.enzyme)
+            .style("font-family", CONFIG.styles.annotation.fontFamily)
+            .style("font-size", "8px")
+            .style("fill", "#ff6b6b")
+            .style("text-anchor", "middle")
+            .style("dominant-baseline", "bottom")
+            .style("pointer-events", "none");
+        }
+      });
     }
   };
 

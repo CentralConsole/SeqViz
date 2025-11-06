@@ -1,6 +1,278 @@
+/**
+ * @file CircularSequenceRenderer.jsx
+ * @description 圆形序列可视化渲染组件（质粒视图）
+ * 主要职责：
+ * 1. 管理圆形序列数据的可视化渲染
+ * 2. 处理特征（features）的径向布局和显示
+ * 3. 实现交互功能（如悬停、缩放、键盘控制等）
+ * 4. 协调子组件（如坐标轴、特征弧、文本标注等）的渲染
+ * 5. 处理圆形选区的交互和同步
+ */
+
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
+import { useSelection, SELECTION_TYPES } from "../../contexts/SelectionContext";
+
+/**
+ * Highlight a circular feature element
+ * @param {d3.Selection} featureElement - D3 selection of the feature element
+ * @param {Object} feature - Feature data object
+ */
+function highlightFeature(featureElement, feature) {
+  const typeConfig =
+    CONFIG.featureType[feature.type] || CONFIG.featureType.others;
+
+  featureElement
+    .selectAll("path")
+    .attr("stroke", typeConfig.stroke)
+    .attr(
+      "stroke-width",
+      CONFIG.styles.box.strokeWidth *
+        CONFIG.interaction.hover.strokeWidthMultiplier
+    );
+
+  featureElement
+    .selectAll("text")
+    .style("font-weight", CONFIG.interaction.hover.fontWeight)
+    .style("fill", CONFIG.styles.annotation.fillDark)
+    .style("text-shadow", CONFIG.interaction.hover.textShadow);
+
+  featureElement
+    .selectAll(".text-bg")
+    .style("fill", CONFIG.interaction.hover.textBackground.fill)
+    .style("stroke", CONFIG.interaction.hover.textBackground.stroke)
+    .style("stroke-width", CONFIG.interaction.hover.textBackground.strokeWidth);
+
+  featureElement
+    .selectAll(".annotation-leader")
+    .attr("stroke", CONFIG.interaction.hover.leader.stroke)
+    .attr("stroke-width", CONFIG.interaction.hover.leader.strokeWidth);
+}
+
+/**
+ * Unhighlight a circular feature element
+ * @param {d3.Selection} featureElement - D3 selection of the feature element
+ * @param {Object} feature - Feature data object
+ */
+function unhighlightFeature(featureElement, feature) {
+  const typeConfig =
+    CONFIG.featureType[feature.type] || CONFIG.featureType.others;
+
+  featureElement
+    .selectAll("path")
+    .attr("stroke", typeConfig.stroke)
+    .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+
+  featureElement
+    .selectAll("text")
+    .style("font-weight", CONFIG.interaction.normal.fontWeight)
+    .style("fill", CONFIG.styles.annotation.fillDark)
+    .style("text-shadow", CONFIG.interaction.normal.textShadow);
+
+  featureElement
+    .selectAll(".text-bg")
+    .style("fill", CONFIG.interaction.normal.textBackground.fill)
+    .style("stroke", CONFIG.interaction.normal.textBackground.stroke);
+
+  featureElement
+    .selectAll(".annotation-leader")
+    .attr("stroke", CONFIG.interaction.normal.leader.stroke)
+    .attr("stroke-width", CONFIG.interaction.normal.leader.strokeWidth);
+}
+
+/**
+ * Bind circular selection events to the selection overlay
+ * @param {d3.Selection} selectionOverlay - D3 selection of the overlay element
+ * @param {d3.Selection} mainGroup - D3 selection of the main group
+ * @param {d3.Selection} selectionOverlayGroup - D3 selection of the overlay group
+ * @param {number} innerRadius - Inner radius of the circle
+ * @param {number} maxRadius - Maximum radius of the visualization
+ * @param {Object} selectionContext - Selection context with handlers and refs
+ */
+function bindCircularSelectionEvents(
+  selectionOverlay,
+  mainGroup,
+  selectionOverlayGroup,
+  innerRadius,
+  maxRadius,
+  selectionContext
+) {
+  const {
+    startSelection,
+    updateSelection,
+    endSelection,
+    SELECTION_TYPES,
+    isSelectingRef,
+    selectionModeRef,
+  } = selectionContext;
+
+  let isRightSelecting = false;
+  let startAngle = null;
+  let selectionPath = null;
+  let startLine = null;
+  let endLine = null;
+
+  // Prevent context menu
+  selectionOverlay.on("contextmenu.selection", (event) => {
+    event.preventDefault();
+  });
+
+  const getLocalPointer = (event) => {
+    const [px, py] = d3.pointer(event, mainGroup.node());
+    return [px, py];
+  };
+
+  const toAngle = (x, y) => {
+    let ang = Math.atan2(y, x);
+    if (ang < 0) ang += Math.PI * 2;
+    ang = (ang + Math.PI / 2) % (Math.PI * 2);
+    return ang;
+  };
+
+  selectionOverlay.on("mousedown.selection", (event) => {
+    if (event.button !== 2) return;
+
+    const [lx, ly] = getLocalPointer(event);
+    const r = Math.hypot(lx, ly);
+
+    if (r <= innerRadius) return;
+
+    isRightSelecting = true;
+    startAngle = toAngle(lx, ly);
+
+    startSelection(SELECTION_TYPES.CIRCULAR);
+
+    if (selectionPath) selectionPath.remove();
+    if (startLine) startLine.remove();
+    if (endLine) endLine.remove();
+
+    selectionPath = selectionOverlayGroup
+      .append("path")
+      .attr("class", "selection-sector")
+      .attr("fill", "#1e90ff")
+      .attr("fill-opacity", 0.15)
+      .attr("stroke", "#1e90ff")
+      .attr("stroke-width", 1);
+
+    const angleForStartLine = startAngle - Math.PI / 2;
+    const sx0 = Math.cos(angleForStartLine) * innerRadius;
+    const sy0 = Math.sin(angleForStartLine) * innerRadius;
+    const sx1 = Math.cos(angleForStartLine) * (maxRadius + 8);
+    const sy1 = Math.sin(angleForStartLine) * (maxRadius + 8);
+
+    startLine = selectionOverlayGroup
+      .append("line")
+      .attr("class", "selection-start-line")
+      .attr("x1", sx0)
+      .attr("y1", sy0)
+      .attr("x2", sx1)
+      .attr("y2", sy1)
+      .attr("stroke", "#1e90ff")
+      .attr("stroke-width", 1.5);
+
+    endLine = selectionOverlayGroup
+      .append("line")
+      .attr("class", "selection-end-line")
+      .attr("x1", sx0)
+      .attr("y1", sy0)
+      .attr("x2", sx1)
+      .attr("y2", sy1)
+      .attr("stroke", "#1e90ff")
+      .attr("stroke-width", 1.5);
+  });
+
+  selectionOverlay.on("mousemove.selection", (event) => {
+    if (!isRightSelecting || !selectionPath) return;
+
+    const [lx, ly] = getLocalPointer(event);
+    const r = Math.hypot(lx, ly);
+
+    if (r <= innerRadius) return;
+
+    const currentAngle = toAngle(lx, ly);
+
+    const arcGen = d3
+      .arc()
+      .innerRadius(innerRadius)
+      .outerRadius(maxRadius + 8)
+      .startAngle(startAngle)
+      .endAngle(currentAngle);
+
+    selectionPath.attr("d", arcGen());
+
+    if (
+      isSelectingRef.current &&
+      selectionModeRef.current === SELECTION_TYPES.CIRCULAR
+    ) {
+      updateSelection({
+        startAngle: startAngle,
+        endAngle: currentAngle,
+        arcLength: (Math.abs(currentAngle - startAngle) * 180) / Math.PI,
+        innerRadius,
+        outerRadius: maxRadius + 8,
+      });
+    }
+
+    const angleForEndLine = currentAngle - Math.PI / 2;
+    const ex0 = Math.cos(angleForEndLine) * innerRadius;
+    const ey0 = Math.sin(angleForEndLine) * innerRadius;
+    const ex1 = Math.cos(angleForEndLine) * (maxRadius + 8);
+    const ey1 = Math.sin(angleForEndLine) * (maxRadius + 8);
+
+    if (endLine) {
+      endLine.attr("x1", ex0).attr("y1", ey0).attr("x2", ex1).attr("y2", ey1);
+    }
+  });
+
+  const endRightSelection = (event) => {
+    if (event && event.button !== undefined && event.button !== 2) return;
+    if (!isRightSelecting) return;
+
+    if (
+      isSelectingRef.current &&
+      selectionModeRef.current === SELECTION_TYPES.CIRCULAR
+    ) {
+      let endAngle = startAngle;
+
+      if (event) {
+        try {
+          const [lx, ly] = getLocalPointer(event);
+          endAngle = toAngle(lx, ly);
+        } catch (e) {
+          console.warn("Failed to get pointer position:", e);
+        }
+      }
+
+      endSelection({
+        startAngle: startAngle,
+        endAngle: endAngle,
+        arcLength: (Math.abs(endAngle - startAngle) * 180) / Math.PI,
+        innerRadius,
+        outerRadius: maxRadius + 8,
+      });
+    }
+
+    isRightSelecting = false;
+    startAngle = null;
+
+    if (selectionPath) {
+      selectionPath.remove();
+      selectionPath = null;
+    }
+    if (startLine) {
+      startLine.remove();
+      startLine = null;
+    }
+    if (endLine) {
+      endLine.remove();
+      endLine = null;
+    }
+  };
+
+  selectionOverlay.on("mouseup.selection", endRightSelection);
+  selectionOverlay.on("mouseleave.selection", endRightSelection);
+}
 
 /**
  * CircularSequenceRenderer Component - a circular, plasmid-like view of biological sequences
@@ -21,6 +293,25 @@ const CircularSequenceRenderer = ({
   const [, setScale] = useState(1);
   const [, setTranslate] = useState({ x: 0, y: 0 });
   const { sequenceViewer } = CONFIG;
+
+  // 使用全局选区状态
+  const {
+    startSelection,
+    updateSelection,
+    endSelection,
+    isSelecting,
+    selectionMode,
+    getSelectionsForView,
+    SELECTION_TYPES,
+  } = useSelection();
+
+  // 使用ref来避免依赖项问题
+  const isSelectingRef = useRef(isSelecting);
+  const selectionModeRef = useRef(selectionMode);
+
+  // 更新ref值
+  isSelectingRef.current = isSelecting;
+  selectionModeRef.current = selectionMode;
 
   // Use refs to maintain stable references for keyboard shortcuts
   const currentTransformRef = useRef(null);
@@ -160,7 +451,7 @@ const CircularSequenceRenderer = ({
     const totalLength = data.locus ? data.locus.sequenceLength : 0;
 
     // Calculate the inner radius (that is, the radius of the "scale circle")
-    const radius = Math.min(width, height) * 0.35; // basic radius
+    const radius = Math.min(width, height) * 0.2; // basic radius
     const innerRadius = radius * 0.8; // radius of the "scale circle"
 
     // Create a mapping from seq length to 2 * Math.PI
@@ -319,7 +610,126 @@ const CircularSequenceRenderer = ({
 
     let maxRadius = innerRadius; // initiate the basic radius
 
-    // # Part 4: display features
+    // # Part 4.1: display restriction sites (res_site)
+    if (data.res_site && Array.isArray(data.res_site)) {
+      const resSiteGroup = mainGroup
+        .append("g")
+        .attr("class", "restriction-sites");
+
+      // collect processed site label positions for grouping
+      const processedSites = [];
+
+      data.res_site.forEach((site) => {
+        if (!site.position || !site.enzyme) return;
+
+        const position = parseInt(site.position, 10);
+        if (isNaN(position)) return;
+
+        // Convert position to angle
+        const angle = angleScale(position);
+
+        // create one group per site and rotate it; draw a radial tick in local coords
+        const siteGroup = resSiteGroup.append("g").attr("transform", () => {
+          const angle = angleScale(position) - Math.PI / 2;
+          return `rotate(${(angle * 180) / Math.PI})`;
+        });
+
+        // radial line from innerRadius outward
+        siteGroup
+          .append("line")
+          .attr("x1", innerRadius)
+          .attr("y1", 0)
+          .attr("x2", innerRadius + CONFIG.styles.axis.tickLength) // outward or inward
+          .attr("y2", 0)
+          .attr("stroke", "#ff6b6b")
+          .attr("stroke-width", 2)
+          .attr("class", "restriction-site-marker");
+
+        // collect label target position (slightly outside inner circle)
+        const labelRadius = innerRadius + 50;
+        const labelX = Math.cos(angle) * labelRadius;
+        const labelY = Math.sin(angle) * labelRadius;
+        processedSites.push({
+          angle,
+          x: labelX,
+          y: labelY,
+          enzyme: site.enzyme,
+        });
+      });
+
+      // group nearby labels into clusters and render merged labels
+      if (processedSites.length > 0) {
+        const labelRadius = innerRadius + 50;
+        const arcPixelThreshold = 5; // pixels along the circle
+        const angleThreshold = arcPixelThreshold / Math.max(1, labelRadius);
+
+        const sorted = processedSites.slice().sort((a, b) => a.angle - b.angle); // sort by angle
+        const groups = []; // prepare for clustering
+        let current = [];
+        for (let i = 0; i < sorted.length; i++) {
+          if (current.length === 0) {
+            current.push(sorted[i]);
+          } else {
+            const prev = current[current.length - 1];
+            const delta = sorted[i].angle - prev.angle;
+            if (delta <= angleThreshold) {
+              current.push(sorted[i]);
+            } else {
+              groups.push(current);
+              current = [sorted[i]];
+            }
+          }
+        }
+        if (current.length > 0) groups.push(current);
+
+        // wrap-around merge between last and first cluster
+        if (groups.length > 1) {
+          const first = groups[0];
+          const last = groups[groups.length - 1];
+          const wrapDelta =
+            first[0].angle + 2 * Math.PI - last[last.length - 1].angle;
+          if (wrapDelta <= angleThreshold) {
+            groups[0] = last.concat(first);
+            groups.pop();
+          }
+        }
+
+        groups.forEach((cluster) => {
+          const names = cluster.map((c) => c.enzyme).filter(Boolean);
+          if (names.length === 0) return;
+          const labelText = names.slice(0, 3).join(" - ");
+          const avg = cluster.reduce(
+            (acc, c) => {
+              acc.x += c.x;
+              acc.y += c.y;
+              return acc;
+            },
+            { x: 0, y: 0 }
+          );
+          avg.x /= cluster.length;
+          avg.y /= cluster.length;
+
+          const t = resSiteGroup
+            .append("text")
+            .attr("x", avg.x)
+            .attr("y", avg.y * 1.375)
+            .text(labelText)
+            .attr("class", "restriction-site-label")
+            .style("font-family", CONFIG.styles.annotation.fontFamily)
+            .style("font-size", "10px")
+            .style("fill", "#ff6b6b")
+            .style("text-anchor", "middle")
+            .style("dominant-baseline", "middle")
+            .style("pointer-events", "none");
+
+          if (names.length > 3) {
+            // do something
+          }
+        });
+      }
+    }
+
+    // # Part 4.2: display features
     if (data.features && Array.isArray(data.features)) {
       const featureGroup = mainGroup.append("g").attr("class", "features");
 
@@ -622,62 +1032,10 @@ const CircularSequenceRenderer = ({
               .style("cursor", CONFIG.interaction.hover.cursor)
               .on("click", () => onFeatureClick?.(d))
               .on("mouseover", function () {
-                // highlight feature arc and text upon mouse moving
-                featureElement
-                  .selectAll("path")
-                  .attr(
-                    "stroke",
-                    (CONFIG.featureType[d.type] || CONFIG.featureType.others)
-                      .stroke
-                  )
-                  .attr(
-                    "stroke-width",
-                    CONFIG.styles.box.strokeWidth *
-                      CONFIG.interaction.hover.strokeWidthMultiplier
-                  );
-
-                featureElement
-                  .selectAll("text")
-                  .style("font-weight", CONFIG.interaction.hover.fontWeight)
-                  .style("fill", CONFIG.styles.annotation.fillDark)
-                  .style("text-shadow", CONFIG.interaction.hover.textShadow);
-
-                featureElement
-                  .selectAll(".text-bg")
-                  .style("fill", CONFIG.interaction.hover.textBackground.fill)
-                  .style(
-                    "stroke",
-                    CONFIG.interaction.hover.textBackground.stroke
-                  )
-                  .style(
-                    "stroke-width",
-                    CONFIG.interaction.hover.textBackground.strokeWidth
-                  );
+                highlightFeature(featureElement, d);
               })
               .on("mouseout", function () {
-                // reset feature arc and text styles upon mouseout
-                featureElement
-                  .selectAll("path")
-                  .attr(
-                    "stroke",
-                    (CONFIG.featureType[d.type] || CONFIG.featureType.others)
-                      .stroke
-                  )
-                  .attr("stroke-width", CONFIG.styles.box.strokeWidth);
-
-                featureElement
-                  .selectAll("text")
-                  .style("font-weight", CONFIG.interaction.normal.fontWeight)
-                  .style("fill", CONFIG.styles.annotation.fillDark)
-                  .style("text-shadow", CONFIG.interaction.normal.textShadow);
-
-                featureElement
-                  .selectAll(".text-bg")
-                  .style("fill", CONFIG.interaction.normal.textBackground.fill)
-                  .style(
-                    "stroke",
-                    CONFIG.interaction.normal.textBackground.stroke
-                  );
+                unhighlightFeature(featureElement, d);
               })
               .each(function () {
                 // create textPath for each segment inbetween inner and outer radius
@@ -1077,40 +1435,10 @@ const CircularSequenceRenderer = ({
                 )
                 .style("cursor", CONFIG.interaction.hover.cursor)
                 .on("mouseover", function () {
-                  // 高亮特征弧
-                  featureElement
-                    .selectAll("path")
-                    .attr(
-                      "stroke",
-                      (CONFIG.featureType[d.type] || CONFIG.featureType.others)
-                        .stroke
-                    )
-                    .attr(
-                      "stroke-width",
-                      CONFIG.styles.box.strokeWidth *
-                        CONFIG.interaction.hover.strokeWidthMultiplier
-                    );
-
-                  // 高亮文本
-                  d3.select(this)
-                    .style("font-weight", CONFIG.interaction.hover.fontWeight)
-                    .style("text-shadow", CONFIG.interaction.hover.textShadow);
+                  highlightFeature(featureElement, d);
                 })
                 .on("mouseout", function () {
-                  // 恢复特征弧样式
-                  featureElement
-                    .selectAll("path")
-                    .attr(
-                      "stroke",
-                      (CONFIG.featureType[d.type] || CONFIG.featureType.others)
-                        .stroke
-                    )
-                    .attr("stroke-width", CONFIG.styles.box.strokeWidth);
-
-                  // 恢复文本样式
-                  d3.select(this)
-                    .style("font-weight", CONFIG.interaction.normal.fontWeight)
-                    .style("text-shadow", CONFIG.interaction.normal.textShadow);
+                  unhighlightFeature(featureElement, d);
                 })
                 .on("click", () => onFeatureClick?.(d))
                 .append("textPath")
@@ -1231,76 +1559,14 @@ const CircularSequenceRenderer = ({
             .style("cursor", CONFIG.interaction.hover.cursor)
             .style("fill", CONFIG.styles.annotation.fillDark)
             .on("mouseover", function () {
-              // 获取对应的特征数据
-              const featureData = layerOuterTextNodes.find(
-                (n) => n.x === node.x && n.y === node.y
-              );
-              if (featureData) {
-                // 高亮特征弧
-                node.featureElement
-                  .selectAll("path")
-                  .attr(
-                    "stroke-width",
-                    CONFIG.styles.box.strokeWidth *
-                      CONFIG.interaction.hover.strokeWidthMultiplier
-                  );
-
-                // 高亮文本
-                d3.select(this)
-                  .style("font-weight", CONFIG.interaction.hover.fontWeight)
-                  .style("text-shadow", CONFIG.interaction.hover.textShadow);
-
-                // 高亮文本背景
-                node.featureElement
-                  .select(".text-bg")
-                  .style("fill", CONFIG.interaction.hover.textBackground.fill)
-                  .style(
-                    "stroke",
-                    CONFIG.interaction.hover.textBackground.stroke
-                  )
-                  .style(
-                    "stroke-width",
-                    CONFIG.interaction.hover.textBackground.strokeWidth
-                  );
-
-                // 高亮引导线
-                node.featureElement
-                  .select(".annotation-leader")
-                  .attr("stroke", CONFIG.interaction.hover.leader.stroke)
-                  .attr(
-                    "stroke-width",
-                    CONFIG.interaction.hover.leader.strokeWidth
-                  );
+              if (node.feature) {
+                highlightFeature(node.featureElement, node.feature);
               }
             })
             .on("mouseout", function () {
-              // 恢复特征弧样式
-              node.featureElement
-                .selectAll("path")
-                .attr("stroke-width", CONFIG.styles.box.strokeWidth);
-
-              // 恢复文本样式
-              d3.select(this)
-                .style("font-weight", CONFIG.interaction.normal.fontWeight)
-                .style("text-shadow", CONFIG.interaction.normal.textShadow);
-
-              // 恢复文本背景样式
-              node.featureElement
-                .select(".text-bg")
-                .style("fill", CONFIG.interaction.normal.textBackground.fill)
-                .style(
-                  "stroke",
-                  CONFIG.interaction.normal.textBackground.stroke
-                );
-
-              // 恢复引导线样式
-              node.featureElement
-                .select(".annotation-leader")
-                .attr("stroke", CONFIG.interaction.normal.leader.stroke)
-                .attr(
-                  "stroke-width",
-                  CONFIG.interaction.normal.leader.strokeWidth
-                );
+              if (node.feature) {
+                unhighlightFeature(node.featureElement, node.feature);
+              }
             })
             .on("click", () => {
               // 直接使用节点中的特征数据
@@ -1326,7 +1592,7 @@ const CircularSequenceRenderer = ({
       }
     }
 
-    // 基于当前内容最大半径，计算一个“适屏”初始缩放比例
+    // 基于当前内容最大半径，计算一个"适屏"初始缩放比例
     const fitPadding = 20; // 适当的留白（像素）
     let fitScale = 1;
     if (maxRadius > 0) {
@@ -1335,6 +1601,45 @@ const CircularSequenceRenderer = ({
       fitScale = Math.min(sx, sy);
       if (!isFinite(fitScale) || fitScale <= 0) fitScale = 1;
     }
+
+    // 渲染现有选区
+    const existingSelections = getSelectionsForView(SELECTION_TYPES.CIRCULAR);
+    existingSelections.forEach((selection) => {
+      if (
+        selection.data.startAngle !== undefined &&
+        selection.data.endAngle !== undefined
+      ) {
+        const {
+          startAngle,
+          endAngle,
+          innerRadius: selInnerRadius,
+          outerRadius: selOuterRadius,
+        } = selection.data;
+
+        // 使用选区数据中的半径，如果没有则使用默认值
+        const selInner = selInnerRadius || innerRadius + 8;
+        const selOuter = selOuterRadius || innerRadius + 24;
+
+        // 创建选区扇形
+        const selectionArc = d3
+          .arc()
+          .innerRadius(selInner)
+          .outerRadius(selOuter)
+          .startAngle(startAngle)
+          .endAngle(endAngle);
+
+        mainGroup
+          .append("path")
+          .attr("class", "existing-selection")
+          .attr("d", selectionArc())
+          .attr("fill", "#1e90ff")
+          .attr("fill-opacity", 0.1)
+          .attr("stroke", "#1e90ff")
+          .attr("stroke-width", 1)
+          .attr("stroke-dasharray", "5,5")
+          .style("pointer-events", "none");
+      }
+    });
 
     // 绘制刻度
     const tickCount = 12;
@@ -1358,7 +1663,7 @@ const CircularSequenceRenderer = ({
           .append("line")
           .attr("x1", innerRadius)
           .attr("y1", 0)
-          .attr("x2", innerRadius + CONFIG.styles.axis.tickLength)
+          .attr("x2", innerRadius - CONFIG.styles.axis.tickLength)
           .attr("y2", 0)
           .attr("stroke", CONFIG.styles.axis.stroke)
           .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
@@ -1427,199 +1732,56 @@ const CircularSequenceRenderer = ({
       .attr("class", "selection-overlay")
       .style("pointer-events", "none");
 
-    let isRightSelecting = false; // Whether the right click is selected
-    let startAngle = null;
-    let selectionPath = null;
-    let startLine = null;
-    let endLine = null;
-    let selectionDirection = null; // +1 顺时针, -1 逆时针
-    let lastCurrentAngle = null; // 记录上一次的当前角度，用于检测拖拽方向变化
+    // 创建透明的选区覆盖层
+    const selectionOverlay = mainGroup
+      .append("circle")
+      .attr("class", "selection-overlay-circle")
+      .attr("cx", 0)
+      .attr("cy", 0)
+      .attr("r", maxRadius + 50) // 比最大半径大一些
+      .attr("fill", "transparent")
+      .style("pointer-events", "all")
+      .style("cursor", "crosshair")
+      .style("z-index", "9999");
 
-    // Disable default right-click menu
-    svg.on("contextmenu.selection", (event) => {
-      event.preventDefault();
+    console.log("CircularSequenceRenderer: selectionOverlay created", {
+      maxRadius,
+      element: selectionOverlay.node(),
     });
 
-    const getLocalPointer = (event) => {
-      // 获取相对于mainGroup的坐标，考虑当前的变换
-      const [px, py] = d3.pointer(event, mainGroup.node());
-      return [px, py]; // 相对于mainGroup中心(0,0)
-    };
-
-    const toAngle = (x, y) => {
-      // 计算角度，与angleScale保持一致
-      let ang = Math.atan2(y, x);
-      // 归一化到 [0, 2π)
-      if (ang < 0) ang += Math.PI * 2;
-      // 调整角度以匹配angleScale的起始位置（从顶部开始，顺时针）
-      ang = (ang + Math.PI / 2) % (Math.PI * 2);
-      return ang;
-    };
-
-    const normalizeAngle = (ang) =>
-      ((ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-
-    svg.on("mousedown.selection", (event) => {
-      if (event.button !== 2) return; // Only right click
-      const [lx, ly] = getLocalPointer(event);
-      const r = Math.hypot(lx, ly);
-      if (r <= innerRadius) return; // Selection must be outside the inner radius
-
-      isRightSelecting = true;
-      startAngle = toAngle(lx, ly);
-      selectionDirection = null;
-      lastCurrentAngle = null;
-
-      if (selectionPath) selectionPath.remove();
-      selectionPath = selectionOverlayGroup
-        .append("path")
-        .attr("class", "selection-sector")
-        .attr("fill", "#1e90ff")
-        .attr("fill-opacity", 0.15)
-        .attr("stroke", "#1e90ff")
-        .attr("stroke-width", 1)
-        .attr("pointer-events", "none");
-
-      if (startLine) startLine.remove();
-      if (endLine) endLine.remove();
-      // 起点线段：沿径向从 innerRadius 到 maxRadius（线的角度需补回 π/2）
-      const angleForStartLine = startAngle - Math.PI / 2;
-      const sx0 = Math.cos(angleForStartLine) * innerRadius;
-      const sy0 = Math.sin(angleForStartLine) * innerRadius;
-      const sx1 = Math.cos(angleForStartLine) * (maxRadius + 8);
-      const sy1 = Math.sin(angleForStartLine) * (maxRadius + 8);
-      startLine = selectionOverlayGroup
-        .append("line")
-        .attr("class", "selection-start-line")
-        .attr("x1", sx0)
-        .attr("y1", sy0)
-        .attr("x2", sx1)
-        .attr("y2", sy1)
-        .attr("stroke", "#1e90ff")
-        .attr("stroke-width", 1.5)
-        .attr("pointer-events", "none");
-      endLine = selectionOverlayGroup
-        .append("line")
-        .attr("class", "selection-end-line")
-        .attr("x1", sx0)
-        .attr("y1", sy0)
-        .attr("x2", sx1)
-        .attr("y2", sy1)
-        .attr("stroke", "#1e90ff")
-        .attr("stroke-width", 1.5)
-        .attr("pointer-events", "none");
-    });
-
-    svg.on("mousemove.selection", (event) => {
-      if (!isRightSelecting || !selectionPath) return;
-      const [lx, ly] = getLocalPointer(event);
-      const r = Math.hypot(lx, ly);
-      if (r <= innerRadius) return; // Selection must be outside the inner radius
-      const currentAngle = toAngle(lx, ly);
-
-      const a0 = startAngle;
-      const a1 = currentAngle;
-
-      // 计算当前方向的弧段长度
-      const forward = (a1 - a0 + Math.PI * 2) % (Math.PI * 2);
-      const backward = (a0 - a1 + Math.PI * 2) % (Math.PI * 2);
-
-      // 首次移动时确定选取方向
-      if (selectionDirection === null) {
-        selectionDirection = forward <= backward ? 1 : -1; // 1 表示顺时针
-        lastCurrentAngle = a1; // 初始化上次角度
-      } else {
-        // 检测用户是否真正改变了拖拽方向（基于连续的角度变化）
-        if (lastCurrentAngle !== null) {
-          const currentDelta = selectionDirection === 1 ? forward : backward;
-
-          // 计算角度变化方向
-          const angleChange = normalizeAngle(a1 - lastCurrentAngle);
-          const isMovingClockwise = angleChange < Math.PI; // 小于π表示顺时针
-          const expectedDirection = selectionDirection === 1;
-
-          // 只有当选择已经超过180度，且用户明确反向拖拽时才切换方向
-          // 同时要求反方向弧段确实更小，避免在接近360度时的误判
-          const oppositeDelta = selectionDirection === 1 ? backward : forward;
-          if (
-            currentDelta > Math.PI && // 当前选择已超过180度
-            isMovingClockwise !== expectedDirection && // 用户在反向拖拽
-            oppositeDelta < currentDelta * 0.3
-          ) {
-            // 反方向弧段明显更小
-            selectionDirection = -selectionDirection; // 切换方向
-          }
-        }
-
-        // 更新上次角度记录
-        lastCurrentAngle = a1;
+    // Bind selection events using extracted function
+    bindCircularSelectionEvents(
+      selectionOverlay,
+      mainGroup,
+      selectionOverlayGroup,
+      innerRadius,
+      maxRadius,
+      {
+        startSelection,
+        updateSelection,
+        endSelection,
+        SELECTION_TYPES,
+        isSelectingRef,
+        selectionModeRef,
       }
-
-      // 根据确定的方向计算弧段（允许大于180度）
-      let startForArc, delta;
-      if (selectionDirection === 1) {
-        // 顺时针方向
-        delta = forward;
-        startForArc = a0;
-      } else {
-        // 逆时针方向
-        delta = backward;
-        startForArc = a1;
-      }
-
-      const arcGen = d3
-        .arc()
-        .innerRadius(innerRadius)
-        .outerRadius(maxRadius + 8)
-        .startAngle(startForArc)
-        .endAngle(startForArc + delta);
-
-      selectionPath.attr("d", arcGen());
-
-      // 更新终点径向线（角度需补回 π/2）
-      const angleForEndLine = currentAngle - Math.PI / 2;
-      const ex0 = Math.cos(angleForEndLine) * innerRadius;
-      const ey0 = Math.sin(angleForEndLine) * innerRadius;
-      const ex1 = Math.cos(angleForEndLine) * (maxRadius + 8);
-      const ey1 = Math.sin(angleForEndLine) * (maxRadius + 8);
-      if (endLine) {
-        endLine.attr("x1", ex0).attr("y1", ey0).attr("x2", ex1).attr("y2", ey1);
-      }
-    });
-
-    const endRightSelection = (event) => {
-      if (event && event.button !== undefined && event.button !== 2) return;
-      if (!isRightSelecting) return;
-
-      // 完全重置选择状态
-      isRightSelecting = false;
-      selectionDirection = null;
-      lastCurrentAngle = null;
-      startAngle = null;
-
-      // 清理选择相关的DOM元素
-      if (selectionPath) {
-        selectionPath.remove();
-        selectionPath = null;
-      }
-      if (startLine) {
-        startLine.remove();
-        startLine = null;
-      }
-      if (endLine) {
-        endLine.remove();
-        endLine = null;
-      }
-    };
-
-    svg.on("mouseup.selection", endRightSelection);
-    svg.on("mouseleave.selection", endRightSelection);
+    );
 
     // 清理函数：移除事件监听器
     return () => {
       // Event listeners are now handled in separate useEffect
     };
-  }, [data, width, height, onFeatureClick, hideInlineMeta]);
+  }, [
+    data,
+    width,
+    height,
+    onFeatureClick,
+    hideInlineMeta,
+    startSelection,
+    updateSelection,
+    endSelection,
+    getSelectionsForView,
+    SELECTION_TYPES,
+  ]);
 
   return (
     <div style={sequenceViewer.renderer}>
