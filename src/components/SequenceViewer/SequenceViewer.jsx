@@ -14,10 +14,12 @@ import CircularSequenceRenderer from "./CircularSequenceRenderer.jsx";
 import DetailedSequenceViewer from "./DetailedSequenceRenderer.jsx";
 import ViewModeToggle from "./ViewModeToggle";
 import MetadataPanel from "./MetadataPanel.jsx";
+import { parseGenbankText } from "../ParseAndPreparation/parse-genbank-input/browser-genbank-parser";
+import { annotateRestrictionSites } from "../ParseAndPreparation/restriction-sites.browser";
 import {
   SelectionProvider,
   useSelection,
-} from "../../contexts/SelectionContext";
+} from "../../contexts/SelectionContext.jsx.bak";
 import "./SequenceViewer.css";
 
 /**
@@ -125,7 +127,55 @@ const SequenceViewerInner = ({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, loadData]);
+
+  // Local file reader for GenBank input
+  const handleFileChosen = async (file) => {
+    if (!file) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const text = await file.text();
+      const parsed = parseGenbankText(text);
+      // normalize to existing expected schema
+      const normalized = {
+        definition: parsed.definition || "",
+        locus: parsed.locus || {},
+        features: parsed.features || [],
+        origin: parsed.origin || "",
+        res_site: parsed.res_site || [],
+      };
+      // compute restriction sites from origin if not provided
+      try {
+        if (
+          normalized.origin &&
+          (!normalized.res_site || normalized.res_site.length === 0)
+        ) {
+          const topology = (normalized.locus?.topology || "").toLowerCase();
+          const isCircular = topology.includes("circular");
+          const sites = annotateRestrictionSites(normalized.origin, {
+            topology: isCircular ? "circular" : "linear",
+          });
+          normalized.res_site = sites;
+        }
+      } catch (e) {
+        // Silently ignore restriction site annotation errors
+        console.warn("Failed to annotate restriction sites:", e);
+      }
+      setGenomeData(normalized);
+      if (normalized.locus?.sequenceLength) {
+        setSequenceLength(normalized.locus.sequenceLength);
+      }
+      setLoading(false);
+      // ensure layout after data load
+      setTimeout(() => updateDimensions(), 50);
+    } catch (e) {
+      console.error("SequenceViewer: GenBank parse error", e);
+      setError(e);
+      setLoading(false);
+    }
+  };
 
   // 处理视图模式切换
   const handleViewModeChange = (mode) => {
@@ -158,7 +208,30 @@ const SequenceViewerInner = ({
   }
 
   if (!genomeData) {
-    return <div>No sequence data provided</div>;
+    return (
+      <div
+        ref={containerRef}
+        className="sv-sequence-container"
+        style={{
+          ...style,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <div style={{ color: "#666", fontSize: 14 }}>
+          Load a GenBank file (.gb/.gbk) to view
+        </div>
+        <input
+          type="file"
+          accept=".gb,.gbk,.genbank,.txt"
+          onChange={(e) => handleFileChosen(e.target.files?.[0])}
+          style={{ cursor: "pointer" }}
+        />
+      </div>
+    );
   }
 
   // 确保有有效的尺寸才渲染

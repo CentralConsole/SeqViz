@@ -12,6 +12,7 @@ export const CONFIG = {
     fontSizeMultiplier: 1.4,
     vSpace: 5,
     safetyMargin: 20,
+    maxLayers: 3, // Maximum number of feature layers in circular view
   },
   styles: {
     box: {
@@ -19,7 +20,6 @@ export const CONFIG = {
       strokeColor: "#000",
       fillOpacity: 1.0,
       stroke: "#000", // 边框颜色
-      strokeWidth: 2, // 边框宽度
     },
     axis: {
       stroke: "rgb(161, 161, 161)", // 坐标轴和刻度线的颜色
@@ -89,13 +89,13 @@ export const CONFIG = {
       fill: " #614D7C",
       stroke: "rgb(187, 156, 210)",
       shape: "rect",
-      isDisplayed: true,
+      isDisplayed: false,
     },
     rRNA: {
       fill: " #7E4450",
       stroke: "rgb(213, 112, 112)",
       shape: "rect",
-      isDisplayed: true,
+      isDisplayed: false,
     },
     misc_feature: {
       fill: "#607D8B",
@@ -119,7 +119,7 @@ export const CONFIG = {
       fill: "#FF9800",
       stroke: "#DF7800",
       shape: "arrow",
-      isDisplayed: true,
+      isDisplayed: false,
     },
     exon: {
       fill: "#9C27B0",
@@ -161,7 +161,7 @@ export const CONFIG = {
       fill: "#757575",
       stroke: "rgb(185, 185, 185)",
       shape: "rect",
-      isDisplayed: true,
+      isDisplayed: false,
     },
   },
   fonts: {

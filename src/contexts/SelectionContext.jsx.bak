@@ -19,12 +19,16 @@ import React, {
 const SELECTION_TYPES = {
   LINEAR: "linear",
   CIRCULAR: "circular",
+  DETAILED: "detailed", //TODO
   NONE: "none",
 };
 
+// 生成唯一ID的计数器
+let selectionIdCounter = 0;
+
 // 选区数据结构
 const createSelection = (type, data) => ({
-  id: Date.now() + Math.random(), // 唯一ID
+  id: `selection_${Date.now()}_${++selectionIdCounter}`, // 唯一ID
   type, // 选区类型
   data, // 选区数据
   timestamp: Date.now(), // 创建时间
@@ -60,9 +64,9 @@ const convertCircularToLinear = (circularData, totalLength) => {
   return {
     start: Math.floor(start),
     end: Math.ceil(end),
-    startX: 0, // 实际渲染时会计算
-    endX: 0, // 实际渲染时会计算
-    width: 0, // 实际渲染时会计算
+    startX: 0,
+    endX: 0,
+    width: 0,
   };
 };
 

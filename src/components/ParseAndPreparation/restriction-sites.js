@@ -1,7 +1,13 @@
+/* eslint-env node */
+/* global require, module */
+/* eslint-disable no-useless-escape */
 // Description: Compute restriction enzyme cut sites on a DNA sequence.
 // Ported minimal logic from SMS (Sequence Manipulation Suite) to Node.
 // Reference patterns from sms_restriction_sites.js (GPL-3.0 licensed).
 
+const { STANDARD_SITE_STRING } = require("./enzymes/standard-sites.js");
+
+/*
 const STANDARD_SITE_STRING =
   "/aggcct/ (AatI agg|cct)3," +
   "/gacgtc/ (AatII gacgt|c)1," +
@@ -116,6 +122,7 @@ const STANDARD_SITE_STRING =
   "/tctaga/ (XbaI t|ctaga)5," +
   "/ctcgag/ (XhoI c|tcgag)5," +
   "/cccggg/ (XmaI c|ccggg)5";
+*/
 
 function parseStandardSites(siteString) {
   // Returns list of { enzyme, recognitionRe, cutDistance, cutPattern, recognition }
@@ -209,7 +216,7 @@ function annotateRestrictionSites(sequence, options = { topology: "linear" }) {
       const recogSeq = searchSeq.slice(matchIndex, matchIndex + matchLen);
       const cutIdx = enzyme.cutPattern.indexOf("|");
       const leftLen = cutIdx;
-      const rightLen = enzyme.recognition.length - cutIdx;
+      //const rightLen = enzyme.recognition.length - cutIdx;
       const overhangInfo = classifyOverhang(enzyme.cutPattern);
 
       // overhang sequence (approx) from matched recognition
