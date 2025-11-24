@@ -373,7 +373,7 @@ const DetailedSequenceViewer = ({
     ) {
       const x = i * 12 + 6;
 
-      // 绘制氢键 - 所有连线都是正确配对（细实线）
+      // 绘制氢键
       const topCharY = y + fontSize; // 正链字符的基线位置
       const bottomCharY = complementY + fontSize; // 互补链字符的基线位置
 
@@ -397,31 +397,75 @@ const DetailedSequenceViewer = ({
         const position = parseInt(site.position, 10);
         if (isNaN(position)) return;
 
-        // 检查位点是否在当前行范围内
+        // Cut position on forward strand (already known: position)
+        const forwardCutPos = position;
+
+        // Cut position on reverse strand
+        // Use reversePosition if available (calculated in restriction-sites.browser.js)
+        // Otherwise fall back to calculation from recognition sequence
+        let reverseCutPos;
+        if (site.reversePosition) {
+          reverseCutPos = parseInt(site.reversePosition, 10);
+        } else {
+          // Fallback calculation (for backward compatibility)
+          const cutDistance = site.cutDistance || 0;
+          const recognitionLength = site.recognition
+            ? site.recognition.length
+            : 0;
+          const cutIndexInRecognition = site.cutIndexInRecognition || 0;
+          const recognitionStart = position - cutDistance;
+          reverseCutPos =
+            recognitionStart + recognitionLength - 1 - cutIndexInRecognition;
+        }
+
+        // Check if either cut position is within current row
         const rowStart = startPos;
         const rowEnd = startPos + topSequence.length - 1;
 
-        if (position >= rowStart && position <= rowEnd) {
-          const relativePos = position - rowStart;
-          const x = relativePos * 12 + 6;
+        const forwardInRange =
+          forwardCutPos >= rowStart && forwardCutPos <= rowEnd;
+        const reverseInRange =
+          reverseCutPos >= rowStart && reverseCutPos <= rowEnd;
 
-          // 绘制分割线
-          rowGroup
-            .append("line")
-            .attr("class", "restriction-site-divider")
-            .attr("x1", x)
-            .attr("y1", y - 5) // 正链上方
-            .attr("x2", x)
-            .attr("y2", complementY + fontSize + 5) // 互补链下方
-            .attr("stroke", "#ff6b6b")
-            .attr("stroke-width", 2)
-            .style("opacity", 0.8);
+        if (forwardInRange || reverseInRange) {
+          // Draw forward strand cut line
+          if (forwardInRange) {
+            const forwardX = (forwardCutPos - rowStart - 1) * 12;
+            rowGroup
+              .append("line")
+              .attr("class", "restriction-site-divider-forward")
+              .attr("x1", forwardX)
+              .attr("y1", y - 5) // Above forward strand
+              .attr("x2", forwardX)
+              .attr("y2", y + fontSize + 2) // Below forward strand
+              .attr("stroke", "#ff6b6b")
+              .attr("stroke-width", 2)
+              .style("opacity", 0.8);
+          }
 
-          // 添加酶名称标签
+          // Draw reverse strand cut line
+          if (reverseInRange) {
+            const reverseX = (reverseCutPos - rowStart) * 12;
+            rowGroup
+              .append("line")
+              .attr("class", "restriction-site-divider-reverse")
+              .attr("x1", reverseX)
+              .attr("y1", complementY - 2) // Above reverse strand
+              .attr("x2", reverseX)
+              .attr("y2", complementY + fontSize + 5) // Below reverse strand
+              .attr("stroke", "#ff6b6b")
+              .attr("stroke-width", 2)
+              .style("opacity", 0.8);
+          }
+
+          // Add enzyme name label (position between the two cut lines or at the forward cut)
+          const labelX = forwardInRange
+            ? (forwardCutPos - rowStart) * 12 + 6
+            : (reverseCutPos - rowStart) * 12 + 6;
           rowGroup
             .append("text")
             .attr("class", "restriction-site-label")
-            .attr("x", x)
+            .attr("x", labelX)
             .attr("y", y - 10)
             .text(site.enzyme)
             .style("font-family", CONFIG.styles.annotation.fontFamily)

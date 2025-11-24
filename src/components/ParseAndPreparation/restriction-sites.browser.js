@@ -3,11 +3,14 @@
 import { STANDARD_SITE_STRING } from "./enzymes/standard-sites.js";
 
 function parseStandardSites(siteString) {
-  const items = siteString.split(",").map((s) => s.trim()).filter(Boolean);
+  const items = siteString
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const parsed = [];
   for (const item of items) {
     const reMatch = item.match(/\/(.+)\//);
-    const metaMatch = item.match(/\(([^\)]+)\)(\d+)/);
+    const metaMatch = item.match(/\(([^)]+)\)(\d+)/);
     if (!reMatch || !metaMatch) continue;
     const recognitionRe = reMatch[1];
     const meta = metaMatch[1];
@@ -16,7 +19,13 @@ function parseStandardSites(siteString) {
     const enzyme = parts[0];
     const cutPattern = parts[1];
     const recognition = cutPattern.replace("|", "");
-    parsed.push({ enzyme, recognitionRe, cutDistance, cutPattern, recognition });
+    parsed.push({
+      enzyme,
+      recognitionRe,
+      cutDistance,
+      cutPattern,
+      recognition,
+    });
   }
   return parsed;
 }
@@ -48,7 +57,10 @@ function classifyOverhang(cutPattern) {
   };
 }
 
-export function annotateRestrictionSites(sequence, options = { topology: "linear" }) {
+export function annotateRestrictionSites(
+  sequence,
+  options = { topology: "linear" }
+) {
   const seq = (sequence || "").toUpperCase();
   const isCircular = options?.topology === "circular";
   const lookAhead = 50;
@@ -76,10 +88,23 @@ export function annotateRestrictionSites(sequence, options = { topology: "linear
       if (!isCircular) {
         if (posInSeq0 < 0 || posInSeq0 >= seq.length) continue;
       }
-      const pos1 = ((posInSeq0 % seq.length) + seq.length) % seq.length;
+      const pos1 = ((posInSeq0 % seq.length) + seq.length) % seq.length; // The cut position on the forward strand (0-based, normalized for circular sequences)
       const recogSeq = searchSeq.slice(matchIndex, matchIndex + matchLen);
       const cutIdx = enzyme.cutPattern.indexOf("|");
       const leftLen = cutIdx;
+
+      // Calculate recognition sequence start position on forward strand (0-based)
+      const recognitionStart0 = matchIndex - shiftValue;
+      const recognitionStart =
+        ((recognitionStart0 % seq.length) + seq.length) % seq.length;
+
+      // Calculate cut position on reverse strand
+      // Recognition sequence on reverse strand is reversed, so cut position is:
+      // recognitionStart + recognitionLength - 1 - cutIndexInRecognition
+      const reverseCutPos0 = recognitionStart + matchLen - 1 - cutIdx;
+      const reverseCutPos =
+        ((reverseCutPos0 % seq.length) + seq.length) % seq.length;
+
       const overhangInfo = classifyOverhang(enzyme.cutPattern);
       const leftPart = recogSeq.slice(0, leftLen);
       const rightPart = recogSeq.slice(leftLen);
@@ -92,7 +117,8 @@ export function annotateRestrictionSites(sequence, options = { topology: "linear
         enzyme: enzyme.enzyme,
         recognition: enzyme.recognition,
         cutPattern: enzyme.cutPattern,
-        position: pos1 + 1,
+        position: pos1 + 1, // Forward strand cut position (1-based)
+        reversePosition: reverseCutPos + 1, // Reverse strand cut position (1-based)
         cutIndexInRecognition: cutIdx,
         cutDistance: enzyme.cutDistance,
         type: overhangInfo.type,
@@ -102,8 +128,8 @@ export function annotateRestrictionSites(sequence, options = { topology: "linear
       rx.lastIndex = matchIndex + 1;
     }
   }
-  results.sort((a, b) => a.position - b.position || a.enzyme.localeCompare(b.enzyme));
+  results.sort(
+    (a, b) => a.position - b.position || a.enzyme.localeCompare(b.enzyme)
+  );
   return results;
 }
-
-

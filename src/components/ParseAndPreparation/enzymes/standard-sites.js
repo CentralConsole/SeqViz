@@ -2,7 +2,7 @@
 // Format: /recognition_pattern/ (EnzymeName cut|pattern)cutDistance
 
 const STANDARD_SITE_STRING =
-  // Acc65I (same as Asp718I/KpnI isoschizomer)
+  // Acc65I
   "/ggtacc/ (Acc65I g|gtacc)5," +
   // AccI
   "/gt[cty][agr]ac/ (AccI gty|rac)3," +
@@ -55,9 +55,9 @@ const STANDARD_SITE_STRING =
   // SphI
   "/gcatgc/ (SphI gcatg|c)1," +
   // XbaI
-  "/tctaga/ (XbaI t|ctaga)5," +
-  // XcmI
-  "/ccan[acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn]tgg/ (XcmI ccannnnnnnn|ntgg)7";
+  "/tctaga/ (XbaI t|ctaga)5,"; //+
+// XcmI
+// "/ccan[acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn][acgturyswkmbdhvn]tgg/ (XcmI ccannnnnnnn|ntgg)7";
 
 export { STANDARD_SITE_STRING };
 
