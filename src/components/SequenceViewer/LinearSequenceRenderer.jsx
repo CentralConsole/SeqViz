@@ -281,31 +281,56 @@ function renderRestrictionSites(axisGroup, resSites, lengthScale) {
 
   const resSiteGroup = axisGroup.append("g").attr("class", "restriction-sites");
 
-  resSites.forEach((site) => {
-    if (!site.position || !site.enzyme) return;
+  // Pre-process sites to calculate positions and detect overlaps
+  const processedSites = resSites
+    .map((site) => {
+      if (!site.position || !site.enzyme) return null;
 
-    const position = parseInt(site.position, 10);
-    if (isNaN(position)) return;
+      const position = parseInt(site.position, 10);
+      if (isNaN(position)) return null;
 
-    const x = lengthScale(position);
+      const x = lengthScale(position);
+      return { site, x, position };
+    })
+    .filter(Boolean);
+
+  // Sort by x position to detect nearby sites
+  processedSites.sort((a, b) => a.x - b.x);
+
+  // Calculate y offsets to avoid overlaps
+  // Use a simple approach: detect sites within 30px of each other and offset them
+  const minSpacing = 30; // Minimum horizontal spacing to avoid overlap
+  const baseYOffset = -20; // Base y position (20px above axis)
+  const offsetStep = 10; // Vertical spacing between layers (10px per layer)
+
+  processedSites.forEach((item, index) => {
+    let yOffset = baseYOffset;
+
+    // Check if this site is close to previous sites
+    const nearbySites = processedSites
+      .slice(0, index)
+      .filter((prev) => Math.abs(prev.x - item.x) < minSpacing);
+
+    if (nearbySites.length > 0) {
+      // Dynamically assign layer based on number of nearby sites
+      // Each nearby site gets a different layer, no fixed limit
+      const layer = nearbySites.length; // Use count as layer index (0, 1, 2, 3, ...)
+      yOffset = baseYOffset - (layer * offsetStep + 5); // Offset increases with layer count
+    }
+
+    item.yOffset = yOffset;
+  });
+
+  // Render sites with calculated offsets
+  processedSites.forEach((item) => {
+    const { site, x, yOffset } = item;
     const axisY = 0; // Axis is at y=0 in axisGroup's coordinate system
 
-    // Draw vertical marker line (extending upward from axis)
-    resSiteGroup
-      .append("line")
-      .attr("x1", x)
-      .attr("y1", axisY) // Start at axis
-      .attr("x2", x)
-      .attr("y2", axisY - 15) // Extend 15px upward
-      .attr("stroke", "#ff6b6b")
-      .attr("stroke-width", 2)
-      .attr("class", "restriction-site-marker");
-
-    // Add enzyme name label (above the marker line)
+    // Add enzyme name label (above the marker line, with offset to avoid overlaps)
     resSiteGroup
       .append("text")
       .attr("x", x)
-      .attr("y", axisY - 20) // 20px above axis
+      .attr("y", axisY + yOffset) // Use calculated y offset
       .text(site.enzyme)
       .attr("class", "restriction-site-label")
       .style("font-family", CONFIG.styles.annotation.fontFamily)
@@ -314,6 +339,17 @@ function renderRestrictionSites(axisGroup, resSites, lengthScale) {
       .style("text-anchor", "middle")
       .style("dominant-baseline", "bottom")
       .style("pointer-events", "none");
+
+    // Draw vertical marker line (extending upward from axis)
+    resSiteGroup
+      .append("line")
+      .attr("x1", x)
+      .attr("y1", axisY) // Start at axis
+      .attr("x2", x)
+      .attr("y2", axisY + yOffset + 15) // Extend 15px upward
+      .attr("stroke", "#ff6b6b")
+      .attr("stroke-width", 2)
+      .attr("class", "restriction-site-marker");
   });
 }
 

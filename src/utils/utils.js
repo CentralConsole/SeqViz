@@ -116,4 +116,19 @@ export const MathUtils = {
   distance: (x1, y1, x2, y2) => {
     return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
   },
+
+  /**
+   * 生成基于种子的伪随机数（0 到 1 之间）
+   * 使用线性同余生成器（LCG），相同种子总是产生相同结果
+   * @param {number} seed - 种子值
+   * @returns {number} 0 到 1 之间的伪随机数
+   */
+  seededRandom: (seed) => {
+    // LCG parameters from Numerical Recipes
+    // Formula: (a * seed + c) % m
+    const a = 1664525;
+    const c = 1013904223;
+    const m = 4294967296; // 2^32
+    return ((seed * a + c) % m) / m;
+  },
 };

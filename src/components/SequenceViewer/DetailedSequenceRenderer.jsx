@@ -381,9 +381,9 @@ const DetailedSequenceViewer = ({
         .append("line")
         .attr("class", "hydrogen-bond")
         .attr("x1", x)
-        .attr("y1", topCharY + 2) // 正链字符下方一点
+        .attr("y1", topCharY + 2) // 正链字符下方
         .attr("x2", x)
-        .attr("y2", bottomCharY - 2) // 互补链字符上方一点
+        .attr("y2", bottomCharY - 2) // 互补链字符上方
         .attr("stroke", "#666") // 灰色
         .attr("stroke-width", 1) // 细实线
         .style("opacity", 0.6);
