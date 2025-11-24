@@ -12,6 +12,13 @@ import React, { useEffect } from "react";
 import SequenceViewer from "./components/SequenceViewer/SequenceViewer";
 import "./App.css";
 
+// 配置：GBK 文件路径
+// 可以通过环境变量或直接修改这里来指定后端文件路径
+// const GBK_FILE_PATH = import.meta.env.VITE_GBK_FILE_PATH || "/mito2.gbk";
+// 如果文件在后端 API，可以使用完整 URL，例如：
+// const GBK_FILE_PATH = "http://localhost:3000/api/files/mito2.gbk";
+// const GBK_FILE_PATH = "/api/genbank/mito2.gbk";
+const GBK_FILE_PATH = "/Homo sapiens mitochondrion sequence.gb";
 function App() {
   useEffect(() => {
     // 设置初始缩放
@@ -24,8 +31,14 @@ function App() {
   };
 
   const loadData = async () => {
-    const res = await fetch("/mito2.json");
-    return await res.json();
+    // 支持从后端 API 或本地 public 目录加载 GBK 文件
+    const res = await fetch(GBK_FILE_PATH);
+    if (!res.ok) {
+      throw new Error(
+        `Failed to load GBK file from ${GBK_FILE_PATH}: ${res.statusText}`
+      );
+    }
+    return await res.text();
   };
 
   return (

@@ -19,10 +19,62 @@ import { annotateRestrictionSites } from "../ParseAndPreparation/restriction-sit
 import "./SequenceViewer.css";
 
 /**
+ * GenBank数据处理器组件
+ * 负责将GBK文本解析为JSON格式，并注释酶切位点
+ * @param {string} gbkText - GenBank格式的文本
+ * @returns {Object} 符合mito2.json格式的数据对象
+ */
+function processGenBankData(gbkText) {
+  if (!gbkText || typeof gbkText !== "string") {
+    throw new Error("Invalid GenBank text input");
+  }
+
+  // 解析GenBank文本
+  const parsed = parseGenbankText(gbkText);
+
+  // 构建符合mito2.json格式的数据对象
+  const normalized = {
+    locus: parsed.locus || {},
+    definition: parsed.definition || "",
+    accession: parsed.accession || "",
+    version: parsed.version || "",
+    dblink: parsed.dblink || "",
+    keywords: parsed.keywords || "",
+    source: parsed.source || "",
+    reference: parsed.reference || "",
+    comment: parsed.comment || "",
+    features: parsed.features || [],
+    origin: parsed.origin || "",
+    res_site: parsed.res_site || [],
+  };
+
+  // 使用restriction-sites.browser.js注释酶切位点
+  try {
+    if (
+      normalized.origin &&
+      (!normalized.res_site || normalized.res_site.length === 0)
+    ) {
+      const topology = (normalized.locus?.topology || "").toLowerCase();
+      const isCircular = topology.includes("circular");
+      const sites = annotateRestrictionSites(normalized.origin, {
+        topology: isCircular ? "circular" : "linear",
+      });
+      normalized.res_site = sites;
+    }
+  } catch (e) {
+    // 如果注释失败，使用空数组
+    console.warn("Failed to annotate restriction sites:", e);
+    normalized.res_site = normalized.res_site || [];
+  }
+
+  return normalized;
+}
+
+/**
  * SequenceViewer组件 - 一个用于可视化DNA/RNA序列的可复用组件
  * @param {Object} props
  * @param {Object} props.data - 序列数据对象（推荐）
- * @param {Function} [props.loadData] - 懒加载数据的函数，返回 Promise<Object>
+ * @param {Function} [props.loadData] - 懒加载数据的函数，返回 Promise<string> (GBK文本) 或 Promise<Object> (已解析的JSON)
  * @param {Object} [props.style] - 可选的容器样式
  * @param {Function} [props.onFeatureClick] - 特征点击事件处理函数
  * @param {string} [props.viewMode="linear"] - 视图模式："linear"、"circular" 或 "detailed"
@@ -90,7 +142,21 @@ const SequenceViewerInner = ({
           const result = await loadData();
           if (!cancelled) {
             console.log("SequenceViewer: 数据加载完成", result);
-            setGenomeData(result || null);
+
+            // 判断返回的是GBK文本还是已解析的JSON对象
+            let processedData;
+            if (typeof result === "string") {
+              // 如果是字符串，当作GBK文本处理
+              console.log("SequenceViewer: 检测到GBK文本，开始解析...");
+              processedData = processGenBankData(result);
+            } else if (result && typeof result === "object") {
+              // 如果已经是对象，直接使用
+              processedData = result;
+            } else {
+              throw new Error("Invalid data format from loadData");
+            }
+
+            setGenomeData(processedData || null);
             setLoading(false);
             // 数据加载完成后，强制更新尺寸以确保渲染器能正确渲染
             setTimeout(() => {
@@ -122,33 +188,9 @@ const SequenceViewerInner = ({
       setLoading(true);
       setError(null);
       const text = await file.text();
-      const parsed = parseGenbankText(text);
-      // normalize to existing expected schema
-      const normalized = {
-        definition: parsed.definition || "",
-        locus: parsed.locus || {},
-        features: parsed.features || [],
-        origin: parsed.origin || "",
-        res_site: parsed.res_site || [],
-      };
-      // compute restriction sites from origin if not provided
-      try {
-        if (
-          normalized.origin &&
-          (!normalized.res_site || normalized.res_site.length === 0)
-        ) {
-          const topology = (normalized.locus?.topology || "").toLowerCase();
-          const isCircular = topology.includes("circular");
-          const sites = annotateRestrictionSites(normalized.origin, {
-            topology: isCircular ? "circular" : "linear",
-          });
-          normalized.res_site = sites;
-        }
-      } catch (e) {
-        // Silently ignore restriction site annotation errors
-        console.warn("Failed to annotate restriction sites:", e);
-      }
-      setGenomeData(normalized);
+      // 使用统一的处理函数
+      const processedData = processGenBankData(text);
+      setGenomeData(processedData);
       setLoading(false);
       // ensure layout after data load
       setTimeout(() => updateDimensions(), 50);

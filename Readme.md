@@ -5,7 +5,7 @@
 [![Electron](https://img.shields.io/badge/Electron-Friendly-green.svg)](https://electronjs.org/)
 [![Plug & Play](https://img.shields.io/badge/Plug%20%26%20Play-✅-brightgreen.svg)]()
 
-一个用于可视化基因组数据的 React 组件，支持特征（features）的展示和交互。组件已实现真正的"即插即用"：内置所有必要的样式和字体资源，无需额外配置。
+一个用于可视化基因组数据的 React 组件，支持特征（features）的展示和交互。组件"即插即用"。
 
 ## 快速开始
 
@@ -53,7 +53,7 @@ npm install react react-dom d3
 
 ## 字体说明
 
-本组件渲染强依赖字体 Maple Mono Nerd Font（Maple Mono NF）。它不仅是等宽字体，同时其字形比例与 Nerd Font 符号集是可视化文字测量与图标渲染的基础。**组件已内置此字体，无需额外配置**。
+本组件渲染强依赖字体 Maple Mono Nerd Font（Maple Mono NF）。**组件已内置此字体，无需额外配置**。
 
 ### 自定义字体（可选）
 
@@ -118,7 +118,7 @@ Electron 项目建议：在渲染进程可访问的静态目录（如 `resources
 
 ## 使用方法
 
-### 基本使用（即插即用）
+### 基本使用
 
 ```javascript
 import React from "react";
@@ -141,9 +141,7 @@ function App() {
 }
 ```
 
-**✨ 即插即用**：组件已内置所有样式和字体，无需额外引入 CSS 或配置字体路径。
-
-### 懒加载数据
+### 懒加载数据（支持 GBK 和 JSON 格式）
 
 ```javascript
 import React from "react";
@@ -151,10 +149,16 @@ import { SequenceViewer } from "sequence-viewer";
 
 function App() {
   const loadData = async () => {
-    // 从 API、文件或 IPC 获取数据
-    const res = await fetch("/api/genome-data");
-    return await res.json();
+    // 从后端 API 加载 GBK 文件（推荐）
+    const res = await fetch("/api/genbank/mito2.gbk");
+    return await res.text(); // 返回 GBK 文本，组件会自动解析
   };
+
+  // 或者加载已解析的 JSON 数据
+  // const loadData = async () => {
+  //   const res = await fetch("/api/genome-data.json");
+  //   return await res.json();
+  // };
 
   return (
     <div style={{ width: "100%", height: "600px" }}>
@@ -192,75 +196,7 @@ function App() {
 }
 ```
 
-### Electron 集成示例（通过 preload/IPC 读取本地文件）
-
-preload.js（启用 `contextIsolation: true`）
-
-```javascript
-// preload.js
-import { contextBridge, ipcRenderer } from "electron";
-
-contextBridge.exposeInMainWorld("genomeApi", {
-  readGenome: async (filePath) => {
-    // Returns parsed JSON object
-    return await ipcRenderer.invoke("read-genome-json", filePath);
-  },
-});
-```
-
-main.js（注册 IPC 并配置 BrowserWindow）
-
-```javascript
-// main.js
-import { app, BrowserWindow, ipcMain } from "electron";
-import { readFile } from "fs/promises";
-import path from "path";
-
-ipcMain.handle("read-genome-json", async (_e, filePath) => {
-  const content = await readFile(filePath, "utf-8");
-  return JSON.parse(content);
-});
-
-function createWindow() {
-  const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"),
-    },
-  });
-
-  win.loadURL("http://localhost:5173");
-}
-
-app.whenReady().then(createWindow);
-```
-
-渲染进程（React）
-
-```javascript
-// App.jsx (Renderer)
-import React from "react";
-import { SequenceViewer } from "sequence-viewer";
-
-export default function App() {
-  const loadData = async () => {
-    // Call preload API to read local JSON file
-    return await window.genomeApi.readGenome("C:/data/mito.json");
-  };
-
-  return (
-    <div style={{ width: "100%", height: "600px" }}>
-      <SequenceViewer loadData={loadData} viewMode="circular" />
-    </div>
-  );
-}
-```
-
-安全建议：启用 `contextIsolation: true`，仅通过 preload 暴露最小必要 API，避免在组件内直接使用 Node API。
-
-### 懒加载（通过回调）
+### 从后端 API 加载 GBK 文件
 
 ```javascript
 import React from "react";
@@ -268,9 +204,12 @@ import { SequenceViewer } from "sequence-viewer";
 
 function App() {
   const loadData = async () => {
-    // Fetch/IPC/file read outside of component; return parsed object
-    const res = await fetch("/path/to/your/data.json");
-    return await res.json();
+    // 从后端 API 加载 GBK 文件（推荐）
+    const res = await fetch("/api/genbank/mito2.gbk");
+    if (!res.ok) {
+      throw new Error(`Failed to load GBK file: ${res.statusText}`);
+    }
+    return await res.text(); // 返回 GBK 文本字符串，组件会自动解析
   };
 
   return (
@@ -281,27 +220,68 @@ function App() {
 }
 ```
 
+**配置后端路径**：可以通过环境变量 `VITE_GBK_FILE_PATH` 或在代码中直接修改路径。
+
 ### 数据格式
 
-组件期望的 JSON 数据格式如下：
+组件支持两种数据格式：
+
+#### 1. GenBank 格式（GBK/GB）
+
+组件可以直接加载和解析 GenBank 格式文件：
+
+```javascript
+const loadData = async () => {
+  // 从后端 API 加载 GBK 文件
+  const res = await fetch("/api/genbank/mito2.gbk");
+  return await res.text(); // 返回 GBK 文本字符串
+};
+```
+
+组件会自动：
+
+- 解析 GBK 文件内容
+- 提取 locus、features、origin 等信息
+- 自动注释限制性内切酶位点（restriction sites）
+
+#### 2. JSON 格式
+
+如果使用已解析的 JSON 数据，格式如下：
 
 ```json
 {
   "locus": {
-    "sequenceLength": 1000000
+    "locusName": "NC_012920",
+    "sequenceLength": 16569,
+    "moleculeType": "DNA",
+    "topology": "circular",
+    "division": "PRI",
+    "date": "31-OCT-2014"
   },
+  "definition": "Homo sapiens mitochondrion, complete genome.",
   "features": [
     {
-      "id": "feature1",
       "type": "gene",
-      "location": [["100", false, "200"]],
+      "location": [["577", false, "647"]],
       "information": {
-        "gene": "GENE1",
-        "product": "Protein 1",
-        "note": "Some notes"
+        "gene": "TRNF",
+        "product": "tRNA-Phe"
       }
     }
-    // ... 更多特征
+  ],
+  "origin": "gatcacaggtctatcaccctattaaccactcacggg...",
+  "res_site": [
+    {
+      "enzyme": "DpnII",
+      "recognition": "gatc",
+      "cutPattern": "|gatc",
+      "position": 1,
+      "cutIndexInRecognition": 0,
+      "cutDistance": 4,
+      "type": "unknown",
+      "overhangLength": 0,
+      "overhangSeq": ""
+    }
   ]
 }
 ```
@@ -314,7 +294,7 @@ function App() {
 
 ```javascript
 import React from "react";
-import { SequenceViewer } from "genome-visualizer";
+import { SequenceViewer } from "sequence-viewer";
 
 function App() {
   const handleFeatureClick = (feature) => {
@@ -338,7 +318,7 @@ function App() {
 
 ```javascript
 import React, { useEffect } from "react";
-import { SequenceViewer } from "genome-visualizer";
+import { SequenceViewer } from "sequence-viewer";
 
 function App() {
   useEffect(() => {
@@ -368,41 +348,16 @@ function App() {
 
 ## 组件属性
 
-| 属性           | 类型     | 必填 | 默认值   | 说明                                       |
-| -------------- | -------- | ---- | -------- | ------------------------------------------ |
-| data           | Object   | 否   | -        | 基因组数据对象（推荐）                     |
-| loadData       | Function | 否   | -        | 懒加载数据的函数，返回 Promise<Object>     |
-| viewMode       | String   | 否   | "linear" | 视图模式："linear"、"circular"、"detailed" |
-| width          | Number   | 否   | 自动     | 组件宽度，默认自适应容器                   |
-| height         | Number   | 否   | 自动     | 组件高度，默认自适应容器                   |
-| style          | Object   | 否   | {}       | 自定义容器样式                             |
-| onFeatureClick | Function | 否   | -        | 特征点击回调函数                           |
-| className      | String   | 否   | -        | 自定义 CSS 类名                            |
-
-### 数据格式
-
-组件期望的 JSON 数据格式：
-
-```json
-{
-  "locus": {
-    "sequenceLength": 1000000
-  },
-  "features": [
-    {
-      "id": "feature1",
-      "type": "gene",
-      "location": [["100", false, "200"]],
-      "information": {
-        "gene": "GENE1",
-        "product": "Protein 1",
-        "note": "Some notes"
-      }
-    }
-  ],
-  "origin": "ACGTACGTACGT..."
-}
-```
+| 属性           | 类型     | 必填 | 默认值   | 说明                                                                                     |
+| -------------- | -------- | ---- | -------- | ---------------------------------------------------------------------------------------- |
+| data           | Object   | 否   | -        | 基因组数据对象（推荐）                                                                   |
+| loadData       | Function | 否   | -        | 懒加载数据的函数，返回 Promise `<string>` (GBK文本) 或 Promise `<Object>` (JSON对象) |
+| viewMode       | String   | 否   | "linear" | 视图模式："linear"、"circular"、"detailed"                                               |
+| width          | Number   | 否   | 自动     | 组件宽度，默认自适应容器                                                                 |
+| height         | Number   | 否   | 自动     | 组件高度，默认自适应容器                                                                 |
+| style          | Object   | 否   | {}       | 自定义容器样式                                                                           |
+| onFeatureClick | Function | 否   | -        | 特征点击回调函数                                                                         |
+| className      | String   | 否   | -        | 自定义 CSS 类名                                                                          |
 
 ### 特征数据结构
 
@@ -429,7 +384,7 @@ function App() {
 
 ```javascript
 <SequenceViewer
-  data="/path/to/your/data.json"
+  data={yourDataObject} // 必须是对象，不能是路径字符串
   style={{
     width: "100%",
     height: "600px",
@@ -465,7 +420,6 @@ npm run build
 
 1. **简化测试**：运行 `npm run dev:simple` 查看组件在最小环境下的表现
 2. **构建测试**：运行 `npm run build` 验证字体和样式正确打包
-3. **独立测试**：打开 `test-standalone.html` 测试组件在纯 HTML 环境下的表现
 
 ### 开发指南
 
@@ -477,19 +431,20 @@ npm run build
 ## 注意事项
 
 1. **依赖要求**：React 18 或 19, ReactDOM 18 或 19, D3 >= 7（由宿主应用提供）
-2. **数据格式**：数据文件需要符合指定的 JSON 格式
+2. **数据格式**：支持 GenBank 格式（GBK/GB）和 JSON 格式。推荐使用 GBK 格式，组件会自动解析并注释酶切位点
 3. **数据验证**：建议在使用前对数据进行验证
-4. **数据传入**：组件不内置网络请求；请使用 `data` 对象或 `loadData()` 回调传入数据
+4. **数据传入**：组件不内置网络请求；请使用 `data` 对象或 `loadData()` 回调传入数据。`loadData` 可以返回 GBK 文本字符串或已解析的 JSON 对象
 5. **容器尺寸**：确保给组件容器设置明确的宽高，避免初始尺寸为 0
 6. **样式隔离**：组件使用 `sv-` 前缀，但仍需注意宿主全局样式的潜在影响
+7. **后端文件路径**：如果 GBK 文件在后端，可以通过环境变量 `VITE_GBK_FILE_PATH` 配置路径，或直接在代码中指定
 
 ## 示例
 
 完整的示例代码：
 
 ```javascript
-import React, { useEffect } from "react";
-import { SequenceViewer } from "genome-visualizer";
+import React from "react";
+import { SequenceViewer } from "sequence-viewer";
 
 function App() {
   // 通过回调函数处理点击
@@ -497,28 +452,16 @@ function App() {
     console.log("通过回调获取的特征数据：", feature);
   };
 
-  // 通过事件监听处理点击
-  useEffect(() => {
-    const handleGenomeFeatureClick = (event) => {
-      const { feature, timestamp } = event.detail;
-      console.log("通过事件获取的特征数据：", feature);
-      console.log("点击时间：", timestamp);
-    };
-
-    window.addEventListener("genomeFeatureClick", handleGenomeFeatureClick);
-
-    return () => {
-      window.removeEventListener(
-        "genomeFeatureClick",
-        handleGenomeFeatureClick
-      );
-    };
-  }, []);
+  // 加载 GBK 文件
+  const loadData = async () => {
+    const res = await fetch("/api/genbank/mito2.gbk");
+    return await res.text(); // 返回 GBK 文本，组件会自动解析
+  };
 
   return (
     <div style={{ width: "100%", height: "600px" }}>
       <SequenceViewer
-        data="/path/to/your/data.json"
+        loadData={loadData}
         onFeatureClick={handleFeatureClick}
         style={{
           width: "100%",
