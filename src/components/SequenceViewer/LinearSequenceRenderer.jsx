@@ -13,10 +13,6 @@ import React, { useRef, useEffect } from "react";
 import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
 import { DataUtils, TextUtils } from "../../utils/utils";
-import {
-  useSelection,
-  SELECTION_TYPES,
-} from "../../contexts/SelectionContext.jsx.bak";
 
 /**
  * Setup SVG and calculate layout parameters
@@ -274,17 +270,16 @@ function assignFeaturesToRows(features, lengthScale, minVisibleWidth) {
 
 /**
  * Render restriction sites
- * @param {d3.Selection} svg - SVG selection
+ * @param {d3.Selection} axisGroup - Axis group element (already translated to correct position)
  * @param {Array} resSites - Array of restriction sites
  * @param {Function} lengthScale - Length scale function
- * @param {number} vSpace - Vertical spacing
  */
-function renderRestrictionSites(svg, resSites, lengthScale, vSpace) {
+function renderRestrictionSites(axisGroup, resSites, lengthScale) {
   if (!resSites || !Array.isArray(resSites)) {
     return;
   }
 
-  const resSiteGroup = svg.append("g").attr("class", "restriction-sites");
+  const resSiteGroup = axisGroup.append("g").attr("class", "restriction-sites");
 
   resSites.forEach((site) => {
     if (!site.position || !site.enzyme) return;
@@ -293,23 +288,24 @@ function renderRestrictionSites(svg, resSites, lengthScale, vSpace) {
     if (isNaN(position)) return;
 
     const x = lengthScale(position);
+    const axisY = 0; // Axis is at y=0 in axisGroup's coordinate system
 
-    // Draw vertical marker line
+    // Draw vertical marker line (extending upward from axis)
     resSiteGroup
       .append("line")
       .attr("x1", x)
-      .attr("y1", vSpace * 2) // Above axis
+      .attr("y1", axisY) // Start at axis
       .attr("x2", x)
-      .attr("y2", vSpace * 2 - 15) // Extend upward
+      .attr("y2", axisY - 15) // Extend 15px upward
       .attr("stroke", "#ff6b6b")
       .attr("stroke-width", 2)
       .attr("class", "restriction-site-marker");
 
-    // Add enzyme name label
+    // Add enzyme name label (above the marker line)
     resSiteGroup
       .append("text")
       .attr("x", x)
-      .attr("y", vSpace * 2 - 20)
+      .attr("y", axisY - 20) // 20px above axis
       .text(site.enzyme)
       .attr("class", "restriction-site-label")
       .style("font-family", CONFIG.styles.annotation.fontFamily)
@@ -318,48 +314,6 @@ function renderRestrictionSites(svg, resSites, lengthScale, vSpace) {
       .style("text-anchor", "middle")
       .style("dominant-baseline", "bottom")
       .style("pointer-events", "none");
-  });
-}
-
-/**
- * Render existing selections
- * @param {d3.Selection} contentGroup - Content group element
- * @param {Array} selections - Array of existing selections
- * @param {Function} lengthScale - Length scale function
- * @param {Object} margin - Margin object
- * @param {number} contentHeight - Content height
- */
-function renderExistingSelections(
-  contentGroup,
-  selections,
-  lengthScale,
-  margin,
-  contentHeight
-) {
-  selections.forEach((selection) => {
-    if (
-      selection.data.start !== undefined &&
-      selection.data.end !== undefined
-    ) {
-      const startX = lengthScale(selection.data.start);
-      const endX = lengthScale(selection.data.end);
-      const width = Math.max(2, endX - startX);
-
-      // Create selection rectangle
-      contentGroup
-        .append("rect")
-        .attr("class", "existing-selection")
-        .attr("x", startX)
-        .attr("y", margin.top + 20) // Below axis
-        .attr("width", width)
-        .attr("height", contentHeight - margin.top - 20)
-        .attr("fill", "#1e90ff")
-        .attr("fill-opacity", 0.1)
-        .attr("stroke", "#1e90ff")
-        .attr("stroke-width", 1)
-        .attr("stroke-dasharray", "5,5")
-        .style("pointer-events", "none");
-    }
   });
 }
 
@@ -465,7 +419,10 @@ function renderFeature(
 ) {
   const typeConf =
     CONFIG.featureType[feature.type] || CONFIG.featureType.others;
-  const featureGroup = rowGroup.append("g").attr("class", "feature");
+  const featureGroup = rowGroup
+    .append("g")
+    .attr("class", "feature")
+    .datum(feature); // Store feature data for highlight/unhighlight
 
   // Collect segment centers for drawing bone lines
   const segmentCenters = [];
@@ -654,10 +611,20 @@ function renderArrowSegment(
     .attr("class", "arrow-rect")
     .style("cursor", CONFIG.interaction.hover.cursor)
     .on("click", () => onFeatureClick?.(feature))
-    .on("mouseover", function () {
-      highlightFeature(featureGroup);
+    .on("mousedown", function (event) {
+      if (event.button === 0) {
+        // Left mouse button
+        highlightFeature(featureGroup);
+      }
     })
-    .on("mouseout", function () {
+    .on("mouseup", function (event) {
+      if (event.button === 0) {
+        // Left mouse button
+        unhighlightFeature(featureGroup);
+      }
+    })
+    .on("mouseleave", function () {
+      // Cancel highlight if mouse leaves while button is pressed
       unhighlightFeature(featureGroup);
     });
 }
@@ -797,10 +764,20 @@ function renderRowTextLabels(
               .style("cursor", CONFIG.interaction.hover.cursor)
               .style("fill", CONFIG.styles.annotation.fillDark)
               .on("click", () => onFeatureClick?.(feature))
-              .on("mouseover", function () {
-                highlightFeature(featureGroup);
+              .on("mousedown", function (event) {
+                if (event.button === 0) {
+                  // Left mouse button
+                  highlightFeature(featureGroup);
+                }
               })
-              .on("mouseout", function () {
+              .on("mouseup", function (event) {
+                if (event.button === 0) {
+                  // Left mouse button
+                  unhighlightFeature(featureGroup);
+                }
+              })
+              .on("mouseleave", function () {
+                // Cancel highlight if mouse leaves while button is pressed
                 unhighlightFeature(featureGroup);
               });
           }
@@ -833,30 +810,14 @@ function renderRowTextLabels(
 }
 
 /**
- * Setup scroll and selection functionality
+ * Setup scroll functionality
  * @param {d3.Selection} svg - SVG selection
  * @param {d3.Selection} contentGroup - Content group element
  * @param {Object} margin - Margin object
  * @param {number} contentHeight - Content height
  * @param {number} viewportHeight - Viewport height
- * @param {number} width - Container width
- * @param {number} height - Container height
- * @param {number} totalLength - Total sequence length
- * @param {Function} lengthScale - Length scale function
- * @param {Object} selectionContext - Selection context with handlers and refs
  */
-function setupScrollAndSelection(
-  svg,
-  contentGroup,
-  margin,
-  contentHeight,
-  viewportHeight,
-  width,
-  height,
-  totalLength,
-  lengthScale,
-  selectionContext
-) {
+function setupScroll(svg, contentGroup, margin, contentHeight, viewportHeight) {
   const maxScroll = Math.max(0, contentHeight - viewportHeight + margin.bottom); // Add bottom margin
 
   // Create zoom behavior
@@ -888,241 +849,15 @@ function setupScrollAndSelection(
     // Apply new transform
     svg.call(zoom.transform, d3.zoomIdentity.translate(0, limitedY));
   });
-
-  // Right-click drag selection (exclude axis and Meta area)
-  const overlayGroup = svg
-    .append("g")
-    .attr("class", "selection-overlay")
-    .style("pointer-events", "none");
-
-  // Create transparent selection overlay (ensure it's on top)
-  let selectionOverlay = svg.select(".selection-overlay-rect");
-  if (selectionOverlay.empty()) {
-    selectionOverlay = svg
-      .append("rect")
-      .attr("class", "selection-overlay-rect")
-      .attr("x", 0)
-      .attr("y", 0)
-      .attr("width", width)
-      .attr("height", height)
-      .attr("fill", "transparent")
-      .style("pointer-events", "all")
-      .style("cursor", "crosshair")
-      .style("z-index", "9999");
-
-    console.log("LinearSequenceRenderer: selectionOverlay created", {
-      width,
-      height,
-      element: selectionOverlay.node(),
-    });
-
-    // Bind event listeners only on first creation
-    bindSelectionEvents(
-      selectionOverlay,
-      svg,
-      margin,
-      contentHeight,
-      totalLength,
-      lengthScale,
-      overlayGroup,
-      selectionContext
-    );
-  } else {
-    // Update existing overlay dimensions
-    selectionOverlay.attr("width", width).attr("height", height);
-  }
 }
 
 /**
- * 绑定选区事件监听器 - 修复版本
- */
-function bindSelectionEvents(
-  selectionOverlay,
-  svg,
-  margin,
-  contentHeight,
-  totalLength,
-  lengthScale,
-  overlayGroup,
-  selectionContext
-) {
-  const {
-    startSelection,
-    updateSelection,
-    endSelection,
-    SELECTION_TYPES,
-    isSelectingRef,
-    selectionModeRef,
-  } = selectionContext;
-
-  let isRightSelecting = false;
-  let selectStart = null;
-  let selectionRect = null;
-  let startLine = null;
-  let endLine = null;
-
-  // 阻止右键菜单
-  selectionOverlay.on("contextmenu.selection", (event) => {
-    event.preventDefault();
-  });
-
-  selectionOverlay.on("mousedown.selection", (event) => {
-    if (event.button !== 2) return; // 仅右键
-
-    const [px, py] = d3.pointer(event, svg.node());
-
-    // 检查是否在有效区域内（排除坐标轴和Meta区域）
-    if (py <= margin.top + 20) {
-      return;
-    }
-
-    isRightSelecting = true;
-    selectStart = { x: px, y: py };
-
-    // 开始全局选区
-    startSelection(SELECTION_TYPES.LINEAR);
-
-    // 清理之前的选择元素
-    if (selectionRect) selectionRect.remove();
-    if (startLine) startLine.remove();
-    if (endLine) endLine.remove();
-
-    // 创建选择矩形
-    selectionRect = overlayGroup
-      .append("rect")
-      .attr("class", "selection-rect")
-      .attr("x", px)
-      .attr("y", margin.top + 20)
-      .attr("width", 0)
-      .attr("height", contentHeight - 20)
-      .attr("fill", "#1e90ff")
-      .attr("fill-opacity", 0.15)
-      .attr("stroke", "#1e90ff")
-      .attr("stroke-width", 1)
-      .attr("pointer-events", "none");
-
-    // 创建起始线
-    startLine = overlayGroup
-      .append("line")
-      .attr("class", "selection-start-line")
-      .attr("x1", px)
-      .attr("y1", margin.top + 20)
-      .attr("x2", px)
-      .attr("y2", margin.top + contentHeight)
-      .attr("stroke", "#1e90ff")
-      .attr("stroke-width", 1.5)
-      .attr("pointer-events", "none");
-
-    // 创建结束线（初始与起始线相同）
-    endLine = overlayGroup
-      .append("line")
-      .attr("class", "selection-end-line")
-      .attr("x1", px)
-      .attr("y1", margin.top + 20)
-      .attr("x2", px)
-      .attr("y2", margin.top + contentHeight)
-      .attr("stroke", "#1e90ff")
-      .attr("stroke-width", 1.5)
-      .attr("pointer-events", "none");
-
-    event.preventDefault();
-  });
-
-  selectionOverlay.on("mousemove.selection", (event) => {
-    if (!isRightSelecting || !selectionRect) return;
-
-    const [cx] = d3.pointer(event, svg.node());
-
-    // 计算选择区域
-    const startX = Math.min(cx, selectStart.x);
-    const width = Math.abs(cx - selectStart.x);
-
-    // 更新选择矩形
-    selectionRect.attr("x", startX).attr("width", width);
-
-    // 更新结束线位置
-    if (endLine) {
-      endLine.attr("x1", cx).attr("x2", cx);
-    }
-
-    // 更新全局选区状态
-    if (
-      isSelectingRef.current &&
-      selectionModeRef.current === SELECTION_TYPES.LINEAR
-    ) {
-      const startPos = Math.max(0, Math.floor(lengthScale.invert(startX)));
-      const endPos = Math.min(
-        totalLength,
-        Math.ceil(lengthScale.invert(startX + width))
-      );
-
-      updateSelection({
-        start: startPos,
-        end: endPos,
-        startX: startX,
-        endX: startX + width,
-        width: width,
-      });
-    }
-
-    event.preventDefault();
-  });
-
-  const endRightSelection = (event) => {
-    if (event && event.button !== undefined && event.button !== 2) return;
-    if (!isRightSelecting) return;
-
-    // 结束全局选区
-    if (
-      isSelectingRef.current &&
-      selectionModeRef.current === SELECTION_TYPES.LINEAR &&
-      selectStart
-    ) {
-      let endX = selectStart.x;
-
-      if (event) {
-        try {
-          const [cx] = d3.pointer(event, svg.node());
-          endX = cx;
-        } catch (e) {
-          console.warn("Failed to get pointer position:", e);
-        }
-      }
-
-      const startPos = Math.max(
-        0,
-        Math.floor(lengthScale.invert(Math.min(endX, selectStart.x)))
-      );
-      const endPos = Math.min(
-        totalLength,
-        Math.ceil(lengthScale.invert(Math.max(endX, selectStart.x)))
-      );
-
-      endSelection({
-        start: startPos,
-        end: endPos,
-        startX: Math.min(endX, selectStart.x),
-        endX: Math.max(endX, selectStart.x),
-        width: Math.abs(endX - selectStart.x),
-      });
-    }
-
-    // 重置状态
-    isRightSelecting = false;
-    selectStart = null;
-  };
-
-  selectionOverlay.on("mouseup.selection", endRightSelection);
-  selectionOverlay.on("mouseleave.selection", endRightSelection);
-}
-
-/**
- * 直线序列渲染组件
- * @param {Object} props - 组件属性
- * @param {Object} props.data - 序列数据对象
- * @param {number} props.width - 渲染区域宽度
- * @param {number} props.height - 渲染区域高度
- * @param {Function} [props.onFeatureClick] - 特征点击事件处理函数
+ * Linear sequence renderer component
+ * @param {Object} props - Component props
+ * @param {Object} props.data - Sequence data object
+ * @param {number} props.width - Render area width
+ * @param {number} props.height - Render area height
+ * @param {Function} [props.onFeatureClick] - Feature click event handler
  */
 const LinearSequenceRenderer = ({
   data,
@@ -1133,25 +868,6 @@ const LinearSequenceRenderer = ({
 }) => {
   const svgRef = useRef(null);
   const { sequenceViewer } = CONFIG;
-
-  // 使用全局选区状态
-  const {
-    startSelection,
-    updateSelection,
-    endSelection,
-    isSelecting,
-    selectionMode,
-    getSelectionsForView,
-    SELECTION_TYPES,
-  } = useSelection();
-
-  // 使用ref来避免依赖项问题
-  const isSelectingRef = useRef(isSelecting);
-  const selectionModeRef = useRef(selectionMode);
-
-  // 更新ref值
-  isSelectingRef.current = isSelecting;
-  selectionModeRef.current = selectionMode;
 
   useEffect(() => {
     console.log("LinearSequenceRenderer useEffect triggered", {
@@ -1211,51 +927,12 @@ const LinearSequenceRenderer = ({
     const textBuffer = vSpace * 8; // Buffer space for outer text
     const contentHeight = maxY - margin.top + textBuffer;
 
-    // Render restriction sites
-    renderRestrictionSites(svg, data.res_site, lengthScale, vSpace);
+    // Render restriction sites (on axis group to align with axis)
+    renderRestrictionSites(axisGroup, data.res_site, lengthScale);
 
-    // Render existing selections
-    const existingSelections = getSelectionsForView(SELECTION_TYPES.LINEAR);
-    renderExistingSelections(
-      contentGroup,
-      existingSelections,
-      lengthScale,
-      margin,
-      contentHeight
-    );
-
-    // Setup scroll and selection
-    setupScrollAndSelection(
-      svg,
-      contentGroup,
-      margin,
-      contentHeight,
-      viewportHeight,
-      width,
-      height,
-      totalLength,
-      lengthScale,
-      {
-        startSelection,
-        updateSelection,
-        endSelection,
-        SELECTION_TYPES,
-        isSelectingRef,
-        selectionModeRef,
-      }
-    );
-  }, [
-    data,
-    width,
-    height,
-    onFeatureClick,
-    hideInlineMeta,
-    startSelection,
-    updateSelection,
-    endSelection,
-    getSelectionsForView,
-    SELECTION_TYPES,
-  ]);
+    // Setup scroll
+    setupScroll(svg, contentGroup, margin, contentHeight, viewportHeight);
+  }, [data, width, height, onFeatureClick, hideInlineMeta]);
 
   return (
     <div style={sequenceViewer.renderer}>
@@ -1272,10 +949,14 @@ const LinearSequenceRenderer = ({
   );
 };
 
-// 高亮和恢复函数
+// Highlight & Unhighlight Feature
 function highlightFeature(featureGroup) {
+  // Use a brighter color for highlight (white or bright yellow)
+  const highlightStroke = "#ffffff"; // White for maximum visibility
+
   featureGroup
     .selectAll("rect.box, polygon.arrow-rect")
+    .attr("stroke", highlightStroke)
     .attr(
       "stroke-width",
       CONFIG.styles.box.strokeWidth *
@@ -1294,12 +975,21 @@ function highlightFeature(featureGroup) {
     .style("opacity", 1);
   featureGroup
     .selectAll(".annotation-leader")
-    .attr("stroke", CONFIG.interaction.hover.leader.stroke)
+    .attr("stroke", highlightStroke)
     .attr("stroke-width", CONFIG.interaction.hover.leader.strokeWidth);
 }
 function unhighlightFeature(featureGroup) {
+  // Get feature data to restore original stroke color
+  const feature = featureGroup.datum();
+  const typeConfig =
+    feature && feature.type
+      ? CONFIG.featureType[feature.type] || CONFIG.featureType.others
+      : CONFIG.featureType.others;
+  const originalStroke = typeConfig.stroke;
+
   featureGroup
     .selectAll("rect.box, polygon.arrow-rect")
+    .attr("stroke", originalStroke)
     .attr("stroke-width", CONFIG.styles.box.strokeWidth);
   featureGroup
     .selectAll("text.annotation")
@@ -1340,10 +1030,20 @@ function drawRect(
     .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
     .style("cursor", CONFIG.interaction.hover.cursor)
     .on("click", () => onFeatureClick?.(feature))
-    .on("mouseover", function () {
-      highlightFeature(featureGroup);
+    .on("mousedown", function (event) {
+      if (event.button === 0) {
+        // Left mouse button
+        highlightFeature(featureGroup);
+      }
     })
-    .on("mouseout", function () {
+    .on("mouseup", function (event) {
+      if (event.button === 0) {
+        // Left mouse button
+        unhighlightFeature(featureGroup);
+      }
+    })
+    .on("mouseleave", function () {
+      // Cancel highlight if mouse leaves while button is pressed
       unhighlightFeature(featureGroup);
     });
 }

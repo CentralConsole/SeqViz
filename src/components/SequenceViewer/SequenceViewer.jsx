@@ -16,10 +16,6 @@ import ViewModeToggle from "./ViewModeToggle";
 import MetadataPanel from "./MetadataPanel.jsx";
 import { parseGenbankText } from "../ParseAndPreparation/parse-genbank-input/browser-genbank-parser";
 import { annotateRestrictionSites } from "../ParseAndPreparation/restriction-sites.browser";
-import {
-  SelectionProvider,
-  useSelection,
-} from "../../contexts/SelectionContext.jsx.bak";
 import "./SequenceViewer.css";
 
 /**
@@ -31,7 +27,7 @@ import "./SequenceViewer.css";
  * @param {Function} [props.onFeatureClick] - 特征点击事件处理函数
  * @param {string} [props.viewMode="linear"] - 视图模式："linear"、"circular" 或 "detailed"
  */
-// 内部组件，使用SelectionContext
+// 内部组件，管理选区状态
 const SequenceViewerInner = ({
   data,
   loadData,
@@ -49,9 +45,6 @@ const SequenceViewerInner = ({
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState(initialViewMode);
   const [showMeta, setShowMeta] = useState(false);
-
-  // 使用SelectionContext
-  const { setSequenceLength } = useSelection();
 
   // 更新尺寸的函数
   const updateDimensions = () => {
@@ -89,10 +82,6 @@ const SequenceViewerInner = ({
         if (data) {
           console.log("SequenceViewer: 使用传入的data", data);
           setGenomeData(data);
-          // 设置序列长度到SelectionContext
-          if (data.locus?.sequenceLength) {
-            setSequenceLength(data.locus.sequenceLength);
-          }
           return;
         }
         if (typeof loadData === "function") {
@@ -102,10 +91,6 @@ const SequenceViewerInner = ({
           if (!cancelled) {
             console.log("SequenceViewer: 数据加载完成", result);
             setGenomeData(result || null);
-            // 设置序列长度到SelectionContext
-            if (result?.locus?.sequenceLength) {
-              setSequenceLength(result.locus.sequenceLength);
-            }
             setLoading(false);
             // 数据加载完成后，强制更新尺寸以确保渲染器能正确渲染
             setTimeout(() => {
@@ -164,9 +149,6 @@ const SequenceViewerInner = ({
         console.warn("Failed to annotate restriction sites:", e);
       }
       setGenomeData(normalized);
-      if (normalized.locus?.sequenceLength) {
-        setSequenceLength(normalized.locus.sequenceLength);
-      }
       setLoading(false);
       // ensure layout after data load
       setTimeout(() => updateDimensions(), 50);
@@ -311,13 +293,9 @@ const SequenceViewerInner = ({
   );
 };
 
-// 外层组件，提供SelectionProvider
+// 外层组件
 const SequenceViewer = (props) => {
-  return (
-    <SelectionProvider>
-      <SequenceViewerInner {...props} />
-    </SelectionProvider>
-  );
+  return <SequenceViewerInner {...props} />;
 };
 
 export default SequenceViewer;

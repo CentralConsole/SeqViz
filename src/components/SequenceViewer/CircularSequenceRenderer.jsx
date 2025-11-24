@@ -12,10 +12,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
-import {
-  useSelection,
-  SELECTION_TYPES,
-} from "../../contexts/SelectionContext.jsx.bak";
 
 /**
  * Highlight a circular feature element
@@ -82,199 +78,6 @@ function unhighlightFeature(featureElement, feature) {
     .selectAll(".annotation-leader")
     .attr("stroke", CONFIG.interaction.normal.leader.stroke)
     .attr("stroke-width", CONFIG.interaction.normal.leader.strokeWidth);
-}
-
-/**
- * Bind circular selection events to the selection overlay
- * @param {d3.Selection} selectionOverlay - D3 selection of the overlay element
- * @param {d3.Selection} mainGroup - D3 selection of the main group
- * @param {d3.Selection} selectionOverlayGroup - D3 selection of the overlay group
- * @param {number} innerRadius - Inner radius of the circle
- * @param {number} maxRadius - Maximum radius of the visualization
- * @param {Object} selectionContext - Selection context with handlers and refs
- */
-function bindCircularSelectionEvents(
-  selectionOverlay,
-  mainGroup,
-  selectionOverlayGroup,
-  innerRadius,
-  maxRadius,
-  selectionContext
-) {
-  const {
-    startSelection,
-    updateSelection,
-    endSelection,
-    SELECTION_TYPES,
-    isSelectingRef,
-    selectionModeRef,
-  } = selectionContext;
-
-  let isRightSelecting = false;
-  let startAngle = null;
-  let selectionPath = null;
-  let startLine = null;
-  let endLine = null;
-
-  // Prevent context menu
-  selectionOverlay.on("contextmenu.selection", (event) => {
-    event.preventDefault();
-  });
-
-  const getLocalPointer = (event) => {
-    const [px, py] = d3.pointer(event, mainGroup.node());
-    return [px, py];
-  };
-
-  const toAngle = (x, y) => {
-    let ang = Math.atan2(y, x);
-    if (ang < 0) ang += Math.PI * 2;
-    ang = (ang + Math.PI / 2) % (Math.PI * 2);
-    return ang;
-  };
-
-  selectionOverlay.on("mousedown.selection", (event) => {
-    if (event.button !== 2) return;
-
-    const [lx, ly] = getLocalPointer(event);
-    const r = Math.hypot(lx, ly);
-
-    if (r <= innerRadius) return;
-
-    isRightSelecting = true;
-    startAngle = toAngle(lx, ly);
-
-    startSelection(SELECTION_TYPES.CIRCULAR);
-
-    if (selectionPath) selectionPath.remove();
-    if (startLine) startLine.remove();
-    if (endLine) endLine.remove();
-
-    selectionPath = selectionOverlayGroup
-      .append("path")
-      .attr("class", "selection-sector")
-      .attr("fill", "#1e90ff")
-      .attr("fill-opacity", 0.15)
-      .attr("stroke", "#1e90ff")
-      .attr("stroke-width", 1);
-
-    const angleForStartLine = startAngle - Math.PI / 2;
-    const sx0 = Math.cos(angleForStartLine) * innerRadius;
-    const sy0 = Math.sin(angleForStartLine) * innerRadius;
-    const sx1 = Math.cos(angleForStartLine) * (maxRadius + 8);
-    const sy1 = Math.sin(angleForStartLine) * (maxRadius + 8);
-
-    startLine = selectionOverlayGroup
-      .append("line")
-      .attr("class", "selection-start-line")
-      .attr("x1", sx0)
-      .attr("y1", sy0)
-      .attr("x2", sx1)
-      .attr("y2", sy1)
-      .attr("stroke", "#1e90ff")
-      .attr("stroke-width", 1.5);
-
-    endLine = selectionOverlayGroup
-      .append("line")
-      .attr("class", "selection-end-line")
-      .attr("x1", sx0)
-      .attr("y1", sy0)
-      .attr("x2", sx1)
-      .attr("y2", sy1)
-      .attr("stroke", "#1e90ff")
-      .attr("stroke-width", 1.5);
-  });
-
-  selectionOverlay.on("mousemove.selection", (event) => {
-    if (!isRightSelecting || !selectionPath) return;
-
-    const [lx, ly] = getLocalPointer(event);
-    const r = Math.hypot(lx, ly);
-
-    if (r <= innerRadius) return;
-
-    const currentAngle = toAngle(lx, ly);
-
-    const arcGen = d3
-      .arc()
-      .innerRadius(innerRadius)
-      .outerRadius(maxRadius + 8)
-      .startAngle(startAngle)
-      .endAngle(currentAngle);
-
-    selectionPath.attr("d", arcGen());
-
-    if (
-      isSelectingRef.current &&
-      selectionModeRef.current === SELECTION_TYPES.CIRCULAR
-    ) {
-      updateSelection({
-        startAngle: startAngle,
-        endAngle: currentAngle,
-        arcLength: (Math.abs(currentAngle - startAngle) * 180) / Math.PI,
-        innerRadius,
-        outerRadius: maxRadius + 8,
-      });
-    }
-
-    const angleForEndLine = currentAngle - Math.PI / 2;
-    const ex0 = Math.cos(angleForEndLine) * innerRadius;
-    const ey0 = Math.sin(angleForEndLine) * innerRadius;
-    const ex1 = Math.cos(angleForEndLine) * (maxRadius + 8);
-    const ey1 = Math.sin(angleForEndLine) * (maxRadius + 8);
-
-    if (endLine) {
-      endLine.attr("x1", ex0).attr("y1", ey0).attr("x2", ex1).attr("y2", ey1);
-    }
-  });
-
-  const endRightSelection = (event) => {
-    if (event && event.button !== undefined && event.button !== 2) return;
-    if (!isRightSelecting) return;
-
-    if (
-      isSelectingRef.current &&
-      selectionModeRef.current === SELECTION_TYPES.CIRCULAR
-    ) {
-      let endAngle = startAngle;
-
-      if (event) {
-        try {
-          const [lx, ly] = getLocalPointer(event);
-          endAngle = toAngle(lx, ly);
-        } catch (e) {
-          console.warn("Failed to get pointer position:", e);
-        }
-      }
-
-      endSelection({
-        startAngle: startAngle,
-        endAngle: endAngle,
-        arcLength: (Math.abs(endAngle - startAngle) * 180) / Math.PI,
-        innerRadius,
-        outerRadius: maxRadius + 8,
-      });
-    }
-
-    isRightSelecting = false;
-    startAngle = null;
-
-    if (selectionPath) {
-      selectionPath.remove();
-      selectionPath = null;
-    }
-    if (startLine) {
-      startLine.remove();
-      startLine = null;
-    }
-    if (endLine) {
-      endLine.remove();
-      endLine = null;
-    }
-  };
-
-  selectionOverlay.on("mouseup.selection", endRightSelection);
-  selectionOverlay.on("mouseleave.selection", endRightSelection);
 }
 
 /**
@@ -644,20 +447,61 @@ function processFeaturesForLayering(features, angleScale) {
           console.warn("Invalid location array:", loc);
           return;
         }
-        // Start and stop positions of each segment
-        const start = parseInt(loc[0], 10);
-        const stop = parseInt(loc[loc.length - 1], 10);
-        if (isNaN(start) || isNaN(stop)) {
-          console.warn("Invalid start/stop values:", { start, stop });
+
+        // Parse start position
+        const startStr = String(loc[0] || "").trim();
+        const start = parseInt(startStr, 10);
+        if (isNaN(start)) {
+          console.warn("Invalid start value:", { start, loc });
+          return;
+        }
+
+        // Parse stop position based on array format
+        let stop;
+        let isReverse = false;
+
+        if (loc.length === 2) {
+          // Format: [start, isReverse] or [start, stop]
+          if (typeof loc[1] === "boolean") {
+            // Format: [start, isReverse] - single point location
+            stop = start;
+            isReverse = loc[1];
+          } else {
+            // Format: [start, stop] - try to parse as number
+            const stopStr = String(loc[1] || "").trim();
+            stop = parseInt(stopStr, 10);
+            if (isNaN(stop)) {
+              // If cannot parse, treat as single point location
+              console.warn(
+                "Cannot parse stop position, treating as single point:",
+                { loc, stopStr }
+              );
+              stop = start;
+            }
+          }
+        } else if (loc.length >= 3) {
+          // Format: [start, isReverse, stop] or [start, ..., stop]
+          // Second element is isReverse (boolean)
+          if (typeof loc[1] === "boolean") {
+            isReverse = loc[1];
+            // Last element is stop
+            const stopStr = String(loc[loc.length - 1] || "").trim();
+            stop = parseInt(stopStr, 10);
+          } else {
+            // Fallback: treat last element as stop
+            const stopStr = String(loc[loc.length - 1] || "").trim();
+            stop = parseInt(stopStr, 10);
+          }
+        }
+
+        if (isNaN(stop)) {
+          console.warn("Invalid stop value:", { start, stop, loc });
           return;
         }
 
         // Convert position to angle
         const startAngle = angleScale(start);
         const stopAngle = angleScale(stop);
-
-        // Get direction (the second value of location list in json)
-        const isReverse = loc.length > 1 ? loc[1] : false;
 
         // Add processed segments
         processedSegments.push({
@@ -706,10 +550,29 @@ function processFeaturesForLayering(features, angleScale) {
             : angleScale(processedSegments[0].start),
         radialOffset: 0,
         totalLength: feature.location.reduce((sum, loc) => {
-          const start = parseInt(loc[0], 10);
-          const stop = parseInt(loc[loc.length - 1], 10);
-          if (isNaN(start) || isNaN(stop)) return sum;
-          return sum + (stop - start);
+          if (!Array.isArray(loc) || loc.length < 2) return sum;
+
+          const startStr = String(loc[0] || "").trim();
+          const start = parseInt(startStr, 10);
+          if (isNaN(start)) return sum;
+
+          let stop;
+          if (loc.length === 2) {
+            if (typeof loc[1] === "boolean") {
+              stop = start; // Single point
+            } else {
+              const stopStr = String(loc[1] || "").trim();
+              stop = parseInt(stopStr, 10);
+              if (isNaN(stop)) stop = start; // Fallback to single point
+            }
+          } else {
+            // loc.length >= 3, last element is stop
+            const stopStr = String(loc[loc.length - 1] || "").trim();
+            stop = parseInt(stopStr, 10);
+            if (isNaN(stop)) return sum; // Skip if cannot parse
+          }
+
+          return sum + Math.abs(stop - start);
         }, 0),
         angleRange: {
           min: minAngle,
@@ -1014,10 +877,20 @@ function renderLayerFeatures(
         .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
         .style("cursor", CONFIG.interaction.hover.cursor)
         .on("click", () => onFeatureClick?.(d))
-        .on("mouseover", function () {
-          highlightFeature(featureElement, d);
+        .on("mousedown", function (event) {
+          if (event.button === 0) {
+            // Left mouse button
+            highlightFeature(featureElement);
+          }
         })
-        .on("mouseout", function () {
+        .on("mouseup", function (event) {
+          if (event.button === 0) {
+            // Left mouse button
+            unhighlightFeature(featureElement, d);
+          }
+        })
+        .on("mouseleave", function () {
+          // Cancel highlight if mouse leaves while button is pressed
           unhighlightFeature(featureElement, d);
         });
 
@@ -1373,10 +1246,20 @@ function collectTextNode(
         isInBottomHalf ? `translate(${dx}, ${dy})` : `translate(0,0)`
       )
       .style("cursor", CONFIG.interaction.hover.cursor)
-      .on("mouseover", function () {
-        highlightFeature(featureElement, feature);
+      .on("mousedown", function (event) {
+        if (event.button === 0) {
+          // Left mouse button
+          highlightFeature(featureElement);
+        }
       })
-      .on("mouseout", function () {
+      .on("mouseup", function (event) {
+        if (event.button === 0) {
+          // Left mouse button
+          unhighlightFeature(featureElement, feature);
+        }
+      })
+      .on("mouseleave", function () {
+        // Cancel highlight if mouse leaves while button is pressed
         unhighlightFeature(featureElement, feature);
       })
       .on("click", () => onFeatureClick?.(feature))
@@ -1494,12 +1377,20 @@ function renderOuterTextNodes(layerOuterTextNodes, onFeatureClick) {
       .style("pointer-events", "auto")
       .style("cursor", CONFIG.interaction.hover.cursor)
       .style("fill", CONFIG.styles.annotation.fillDark)
-      .on("mouseover", function () {
-        if (node.feature) {
-          highlightFeature(node.featureElement, node.feature);
+      .on("mousedown", function (event) {
+        if (event.button === 0 && node.feature) {
+          // Left mouse button
+          highlightFeature(node.featureElement);
         }
       })
-      .on("mouseout", function () {
+      .on("mouseup", function (event) {
+        if (event.button === 0 && node.feature) {
+          // Left mouse button
+          unhighlightFeature(node.featureElement, node.feature);
+        }
+      })
+      .on("mouseleave", function () {
+        // Cancel highlight if mouse leaves while button is pressed
         if (node.feature) {
           unhighlightFeature(node.featureElement, node.feature);
         }
@@ -1577,71 +1468,22 @@ function renderTicks(mainGroup, totalLength, angleScale, innerRadius) {
 }
 
 /**
- * Render existing selections
- * @param {d3.Selection} mainGroup - Main SVG group
- * @param {Array} selections - Array of existing selections
- * @param {number} innerRadius - Inner radius of the circle
- */
-function renderExistingSelections(mainGroup, selections, innerRadius) {
-  selections.forEach((selection) => {
-    if (
-      selection.data.startAngle !== undefined &&
-      selection.data.endAngle !== undefined
-    ) {
-      const {
-        startAngle,
-        endAngle,
-        innerRadius: selInnerRadius,
-        outerRadius: selOuterRadius,
-      } = selection.data;
-
-      // Use radius from selection data, or default values
-      const selInner = selInnerRadius || innerRadius + 8;
-      const selOuter = selOuterRadius || innerRadius + 24;
-
-      // Create selection sector
-      const selectionArc = d3
-        .arc()
-        .innerRadius(selInner)
-        .outerRadius(selOuter)
-        .startAngle(startAngle)
-        .endAngle(endAngle);
-
-      mainGroup
-        .append("path")
-        .attr("class", "existing-selection")
-        .attr("d", selectionArc())
-        .attr("fill", "#1e90ff")
-        .attr("fill-opacity", 0.1)
-        .attr("stroke", "#1e90ff")
-        .attr("stroke-width", 1)
-        .attr("stroke-dasharray", "5,5")
-        .style("pointer-events", "none");
-    }
-  });
-}
-
-/**
- * Setup zoom and selection functionality
+ * Setup zoom functionality
  * @param {d3.Selection} svg - SVG selection
  * @param {d3.Selection} mainGroup - Main group selection
  * @param {number} width - Container width
  * @param {number} height - Container height
  * @param {number} maxRadius - Maximum radius of visualization
- * @param {number} innerRadius - Inner radius of the circle
- * @param {Object} selectionContext - Selection context with handlers and refs
  * @param {Object} transformRef - Transform reference for keyboard shortcuts
  * @param {Function} setScale - Set scale state function
  * @param {Function} setTranslate - Set translate state function
  */
-function setupZoomAndSelection(
+function setupZoom(
   svg,
   mainGroup,
   width,
   height,
   maxRadius,
-  innerRadius,
-  selectionContext,
   transformRef,
   setScale,
   setTranslate
@@ -1681,39 +1523,6 @@ function setupZoomAndSelection(
   svg.on("click", () => {
     svg.node().focus();
   });
-
-  // Right-click drag sector selection (outside circle axis)
-  const selectionOverlayGroup = mainGroup
-    .append("g")
-    .attr("class", "selection-overlay")
-    .style("pointer-events", "none");
-
-  // Create transparent selection overlay
-  const selectionOverlay = mainGroup
-    .append("circle")
-    .attr("class", "selection-overlay-circle")
-    .attr("cx", 0)
-    .attr("cy", 0)
-    .attr("r", maxRadius + 50) // Slightly larger than max radius
-    .attr("fill", "transparent")
-    .style("pointer-events", "all")
-    .style("cursor", "crosshair")
-    .style("z-index", "9999");
-
-  console.log("CircularSequenceRenderer: selectionOverlay created", {
-    maxRadius,
-    element: selectionOverlay.node(),
-  });
-
-  // Bind selection events using extracted function
-  bindCircularSelectionEvents(
-    selectionOverlay,
-    mainGroup,
-    selectionOverlayGroup,
-    innerRadius,
-    maxRadius,
-    selectionContext
-  );
 }
 
 /**
@@ -1723,6 +1532,11 @@ function setupZoomAndSelection(
  * @param {number} props.width - width of container
  * @param {number} props.height - height of container
  * @param {Function} [props.onFeatureClick] - handle user interactions
+ * @param {Object|null} props.selection - Current selection: { type: 'circular', data: {...} } or null
+ * @param {boolean} props.isSelecting - Whether currently selecting
+ * @param {Function} props.onSelectionStart - Callback when selection starts: (type) => void
+ * @param {Function} props.onSelectionUpdate - Callback when selection updates: (type, data) => void
+ * @param {Function} props.onSelectionEnd - Callback when selection ends: (type, data) => void
  */
 const CircularSequenceRenderer = ({
   data,
@@ -1735,25 +1549,6 @@ const CircularSequenceRenderer = ({
   const [, setScale] = useState(1);
   const [, setTranslate] = useState({ x: 0, y: 0 });
   const { sequenceViewer } = CONFIG;
-
-  // Use global selection state (shared by Circular Renderer and Linear Renderer)
-  const {
-    startSelection,
-    updateSelection,
-    endSelection,
-    isSelecting,
-    selectionMode,
-    getSelectionsForView,
-    SELECTION_TYPES,
-  } = useSelection();
-
-  // use reference to avoid state closure
-  const isSelectingRef = useRef(isSelecting);
-  const selectionModeRef = useRef(selectionMode);
-
-  // update ref
-  isSelectingRef.current = isSelecting;
-  selectionModeRef.current = selectionMode;
 
   // Use refs to maintain stable references for keyboard shortcuts
   const currentTransformRef = useRef(null);
@@ -1895,29 +1690,16 @@ const CircularSequenceRenderer = ({
     );
     maxRadius = Math.max(maxRadius, featuresMaxRadius);
 
-    // Render existing selections
-    const existingSelections = getSelectionsForView(SELECTION_TYPES.CIRCULAR);
-    renderExistingSelections(mainGroup, existingSelections, innerRadius);
-
     // Render ticks
     renderTicks(mainGroup, totalLength, angleScale, innerRadius);
 
-    // Setup zoom and selection
-    setupZoomAndSelection(
+    // Setup zoom
+    setupZoom(
       svg,
       mainGroup,
       width,
       height,
       maxRadius,
-      innerRadius,
-      {
-        startSelection,
-        updateSelection,
-        endSelection,
-        SELECTION_TYPES,
-        isSelectingRef,
-        selectionModeRef,
-      },
       currentTransformRef,
       setScale,
       setTranslate
@@ -1927,18 +1709,8 @@ const CircularSequenceRenderer = ({
     return () => {
       // Event listeners are now handled in separate useEffect
     };
-  }, [
-    data,
-    width,
-    height,
-    onFeatureClick,
-    hideInlineMeta,
-    startSelection,
-    updateSelection,
-    endSelection,
-    getSelectionsForView,
-    SELECTION_TYPES,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, width, height, onFeatureClick, hideInlineMeta]);
 
   return (
     <div style={sequenceViewer.renderer}>
