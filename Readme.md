@@ -242,7 +242,7 @@ const loadData = async () => {
 
 - 解析 GBK 文件内容
 - 提取 locus、features、origin 等信息
-- 自动注释限制性内切酶位点（restriction sites）
+- 自动注释限制性内切酶位点（restriction sites），包括正链和反义链的切割位置
 
 #### 2. JSON 格式
 
@@ -276,6 +276,7 @@ const loadData = async () => {
       "recognition": "gatc",
       "cutPattern": "|gatc",
       "position": 1,
+      "reversePosition": 4,
       "cutIndexInRecognition": 0,
       "cutDistance": 4,
       "type": "unknown",
@@ -348,16 +349,16 @@ function App() {
 
 ## 组件属性
 
-| 属性           | 类型     | 必填 | 默认值   | 说明                                                                                     |
-| -------------- | -------- | ---- | -------- | ---------------------------------------------------------------------------------------- |
-| data           | Object   | 否   | -        | 基因组数据对象（推荐）                                                                   |
-| loadData       | Function | 否   | -        | 懒加载数据的函数，返回 Promise `<string>` (GBK文本) 或 Promise `<Object>` (JSON对象) |
-| viewMode       | String   | 否   | "linear" | 视图模式："linear"、"circular"、"detailed"                                               |
-| width          | Number   | 否   | 自动     | 组件宽度，默认自适应容器                                                                 |
-| height         | Number   | 否   | 自动     | 组件高度，默认自适应容器                                                                 |
-| style          | Object   | 否   | {}       | 自定义容器样式                                                                           |
-| onFeatureClick | Function | 否   | -        | 特征点击回调函数                                                                         |
-| className      | String   | 否   | -        | 自定义 CSS 类名                                                                          |
+| 属性           | 类型     | 必填 | 默认值   | 说明                                                                                   |
+| -------------- | -------- | ---- | -------- | -------------------------------------------------------------------------------------- |
+| data           | Object   | 否   | -        | 基因组数据对象（推荐）                                                                 |
+| loadData       | Function | 否   | -        | 懒加载数据的函数，返回 Promise `<string>` (GBK 文本) 或 Promise `<Object>` (JSON 对象) |
+| viewMode       | String   | 否   | "linear" | 视图模式："linear"、"circular"、"detailed"                                             |
+| width          | Number   | 否   | 自动     | 组件宽度，默认自适应容器                                                               |
+| height         | Number   | 否   | 自动     | 组件高度，默认自适应容器                                                               |
+| style          | Object   | 否   | {}       | 自定义容器样式                                                                         |
+| onFeatureClick | Function | 否   | -        | 特征点击回调函数                                                                       |
+| className      | String   | 否   | -        | 自定义 CSS 类名                                                                        |
 
 ### 特征数据结构
 

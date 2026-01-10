@@ -274,7 +274,7 @@ const DetailedSequenceViewer = ({
       .text("3'");
 
     // 3' to 5' 方向标记（互补链）
-    const complementY = y + lineHeight + strandSpacing;
+    const complementY = y + lineHeight;
     rowGroup
       .append("text")
       .attr("x", -80)
@@ -428,31 +428,55 @@ const DetailedSequenceViewer = ({
           reverseCutPos >= rowStart && reverseCutPos <= rowEnd;
 
         if (forwardInRange || reverseInRange) {
-          // Draw forward strand cut line
+          // Calculate X coordinates once (DRY principle)
+          // Position to pixel: each nucleotide is 12px wide, centered at position * 12
+          const forwardX = (forwardCutPos - rowStart) * 12;
+          const reverseX = (reverseCutPos - rowStart) * 12;
+
+          // Define Y coordinates for alignment
+          const forwardTopY = y - 5;
+          const forwardBottomY = y + fontSize + 10;
+          const reverseTopY = forwardBottomY; // Align with forward strand bottom for visual continuity
+          const reverseBottomY = complementY + fontSize;
+          const connectionY = complementY; // Horizontal connection line at reverse strand level
+
+          // Draw forward strand cut line (vertical)
           if (forwardInRange) {
-            const forwardX = (forwardCutPos - rowStart - 1) * 12;
             rowGroup
               .append("line")
               .attr("class", "restriction-site-divider-forward")
               .attr("x1", forwardX)
-              .attr("y1", y - 5) // Above forward strand
+              .attr("y1", forwardTopY)
               .attr("x2", forwardX)
-              .attr("y2", y + fontSize + 2) // Below forward strand
+              .attr("y2", forwardBottomY)
               .attr("stroke", "#ff6b6b")
               .attr("stroke-width", 2)
               .style("opacity", 0.8);
           }
 
-          // Draw reverse strand cut line
+          // Draw reverse strand cut line (vertical)
           if (reverseInRange) {
-            const reverseX = (reverseCutPos - rowStart) * 12;
             rowGroup
               .append("line")
               .attr("class", "restriction-site-divider-reverse")
               .attr("x1", reverseX)
-              .attr("y1", complementY - 2) // Above reverse strand
+              .attr("y1", reverseTopY)
               .attr("x2", reverseX)
-              .attr("y2", complementY + fontSize + 5) // Below reverse strand
+              .attr("y2", reverseBottomY)
+              .attr("stroke", "#ff6b6b")
+              .attr("stroke-width", 2)
+              .style("opacity", 0.8);
+          }
+
+          // Draw horizontal connection line from forward cut to reverse cut
+          if (forwardInRange && reverseInRange) {
+            rowGroup
+              .append("line")
+              .attr("class", "restriction-site-divider-forward-to-reverse")
+              .attr("x1", forwardX)
+              .attr("y1", connectionY)
+              .attr("x2", reverseX)
+              .attr("y2", connectionY)
               .attr("stroke", "#ff6b6b")
               .attr("stroke-width", 2)
               .style("opacity", 0.8);

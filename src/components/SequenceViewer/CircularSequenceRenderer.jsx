@@ -131,13 +131,13 @@ function setupSVGAndScales(svgRef, width, height, totalLength) {
  * @param {d3.Selection} mainGroup - Main SVG group
  * @param {Array} resSites - Array of restriction sites
  * @param {Function} angleScale - Angle scale function
- * @param {number} _innerRadius - Inner radius of the circle (used for positioning)
+ * @param {number} _outerRadius - Outer radius of the circle (used for positioning)
  * @returns {number} Maximum radius after rendering restriction sites
  */
-function renderRestrictionSites(mainGroup, resSites, angleScale, _innerRadius) {
-  const innerRadius = _innerRadius; // Use parameter for positioning
+function renderRestrictionSites(mainGroup, resSites, angleScale, _outerRadius) {
+  const outerRadius = _outerRadius; // Use parameter for positioning
   if (!resSites || !Array.isArray(resSites)) {
-    return innerRadius;
+    return outerRadius;
   }
 
   const resSiteGroup = mainGroup.append("g").attr("class", "restriction-sites");
@@ -154,25 +154,9 @@ function renderRestrictionSites(mainGroup, resSites, angleScale, _innerRadius) {
     // Convert position to angle
     const angle = angleScale(position);
 
-    // Create one group per site and rotate it; draw a radial tick in local coords
-    const siteGroup = resSiteGroup.append("g").attr("transform", () => {
-      const angle = angleScale(position) - Math.PI / 2;
-      return `rotate(${(angle * 180) / Math.PI})`;
-    });
-
-    // Radial line from innerRadius outward
-    siteGroup
-      .append("line")
-      .attr("x1", innerRadius)
-      .attr("y1", 0)
-      .attr("x2", innerRadius + CONFIG.styles.axis.tickLength) // outward or inward
-      .attr("y2", 0)
-      .attr("stroke", "#ff6b6b")
-      .attr("stroke-width", 2)
-      .attr("class", "restriction-site-marker");
-
-    // Collect label target position (slightly outside inner circle)
-    const labelRadius = innerRadius + 50;
+    // Collect label target position (slightly outside outer circle)
+    // Pre-calculate the label position to avoid recalculating it for each site
+    const labelRadius = outerRadius + 15;
     const labelX = Math.cos(angle) * labelRadius;
     const labelY = Math.sin(angle) * labelRadius;
     processedSites.push({
@@ -180,12 +164,14 @@ function renderRestrictionSites(mainGroup, resSites, angleScale, _innerRadius) {
       x: labelX,
       y: labelY,
       enzyme: site.enzyme,
+      position: position, // Store position for line drawing
     });
   });
 
-  // Group nearby labels into clusters and render merged labels
+  // Group nearby labels into clusters and render merged labels first
+  const clusterLabelPositions = new Map(); // Map cluster index to label position
   if (processedSites.length > 0) {
-    const labelRadius = innerRadius + 50;
+    const labelRadius = outerRadius + 50;
     const arcPixelThreshold = 5; // pixels along the circle
     const angleThreshold = arcPixelThreshold / Math.max(1, labelRadius);
 
@@ -220,7 +206,23 @@ function renderRestrictionSites(mainGroup, resSites, angleScale, _innerRadius) {
       }
     }
 
-    groups.forEach((cluster) => {
+    // Render labels first and store their positions
+    const totalLabels = groups.reduce(
+      (sum, cluster) => sum + cluster.length,
+      0
+    );
+    // Calculate Y offset multiplier based on total labels using sigmoid function
+    // Sigmoid: 1 / (1 + e^(-k*(x - x0)))
+    // More labels = more offset, but growth is bounded and smooth
+    const sigmoid = (x, k = 0.2, x0 = 50) => {
+      return 1 / (1 + Math.exp(-k * (x - x0)));
+    };
+    // Map sigmoid output (0-1) to offset range (0.375 to 1.0)
+    // So multiplier ranges from 1.0 (no offset) to 1.375 (max offset)
+    const sigmoidValue = sigmoid(totalLabels, 0.1, 50);
+    const yOffsetMultiplier = 1.0 + sigmoidValue * 0.375;
+
+    groups.forEach((cluster, clusterIndex) => {
       const names = cluster.map((c) => c.enzyme).filter(Boolean);
       if (names.length === 0) return;
       const labelText = names.slice(0, 3).join(" - ");
@@ -235,11 +237,18 @@ function renderRestrictionSites(mainGroup, resSites, angleScale, _innerRadius) {
       avg.x /= cluster.length;
       avg.y /= cluster.length;
 
-      // Mark names of restriction sites
+      // Calculate label position (accounting for text baseline and total labels)
+      const labelX = avg.x;
+      const labelY = avg.y * yOffsetMultiplier; // Y offset increases with total labels
+
+      // Store label position for this cluster
+      clusterLabelPositions.set(clusterIndex, { x: labelX, y: labelY });
+
+      // Render label
       resSiteGroup
         .append("text")
-        .attr("x", avg.x)
-        .attr("y", avg.y * 1.375)
+        .attr("x", labelX)
+        .attr("y", labelY)
         .text(labelText)
         .attr("class", "restriction-site-label")
         .style("font-family", CONFIG.styles.annotation.fontFamily)
@@ -253,9 +262,35 @@ function renderRestrictionSites(mainGroup, resSites, angleScale, _innerRadius) {
         // do something
       }
     });
+
+    // Now draw lines from outerRadius to label positions
+    groups.forEach((cluster, clusterIndex) => {
+      const labelPos = clusterLabelPositions.get(clusterIndex);
+      if (!labelPos) return;
+
+      // For each site in the cluster, draw a line from outerRadius to label position
+      cluster.forEach((site) => {
+        const angle = angleScale(site.position);
+
+        // Calculate point on outerRadius circle at this angle
+        const outerX = Math.cos(angle) * outerRadius;
+        const outerY = Math.sin(angle) * outerRadius;
+
+        // Draw line from outerRadius point to label position (in global coordinates)
+        resSiteGroup
+          .append("line")
+          .attr("x1", outerX)
+          .attr("y1", outerY)
+          .attr("x2", labelPos.x)
+          .attr("y2", labelPos.y)
+          .attr("stroke", "#ff6b6b")
+          .attr("stroke-width", 2)
+          .attr("class", "restriction-site-marker");
+      });
+    });
   }
 
-  return innerRadius; // Restriction sites don't extend the radius
+  return outerRadius; // Restriction sites don't extend the radius
 }
 
 /**
@@ -1256,7 +1291,7 @@ function renderOuterTextNodes(layerOuterTextNodes, onFeatureClick) {
 }
 
 /**
- * Render ticks around the circle
+ * Render ticks around the inner circle
  * @param {d3.Selection} mainGroup - Main SVG group
  * @param {number} totalLength - Total sequence length
  * @param {Function} angleScale - Angle scale function
@@ -1316,6 +1351,42 @@ function renderTicks(mainGroup, totalLength, angleScale, innerRadius) {
           return "";
         })
         .text(Math.floor(d));
+    });
+}
+
+/**
+ * Render ticks on the outer circle (inward from outer radius)
+ * @param {d3.Selection} mainGroup - Main SVG group
+ * @param {number} totalLength - Total sequence length
+ * @param {Function} angleScale - Angle scale function
+ * @param {number} outerRadius - Outer radius of the circle
+ */
+function renderOuterTicks(mainGroup, totalLength, angleScale, outerRadius) {
+  const tickCount = 12;
+  const ticks = d3.range(tickCount).map((i) => (i * totalLength) / tickCount);
+
+  // Create outer tick group
+  const outerTickGroup = mainGroup.append("g").attr("class", "outer-ticks");
+
+  // Draw tick lines (inward from outer radius, no labels for now)
+  outerTickGroup
+    .selectAll("g")
+    .data(ticks)
+    .enter()
+    .append("g")
+    .attr("transform", (d) => {
+      const angle = angleScale(d) - Math.PI / 2;
+      return `rotate(${(angle * 180) / Math.PI})`;
+    })
+    .each(function () {
+      d3.select(this)
+        .append("line")
+        .attr("x1", outerRadius)
+        .attr("y1", 0)
+        .attr("x2", outerRadius - CONFIG.styles.axis.tickLength)
+        .attr("y2", 0)
+        .attr("stroke", CONFIG.styles.axis.stroke)
+        .attr("stroke-width", CONFIG.styles.axis.strokeWidth);
     });
 }
 
@@ -1524,10 +1595,7 @@ const CircularSequenceRenderer = ({
 
     let maxRadius = innerRadius; // Initiate the basic radius
 
-    // Render restriction sites
-    renderRestrictionSites(mainGroup, data.res_site, angleScale, innerRadius);
-
-    // Process and render features
+    // Process and render features first to get outer radius
     const featuresMaxRadius = renderFeatures(
       mainGroup,
       data.features,
@@ -1537,7 +1605,24 @@ const CircularSequenceRenderer = ({
     );
     maxRadius = Math.max(maxRadius, featuresMaxRadius);
 
-    // Render ticks
+    // Render restriction sites on outer radius (after features)
+    renderRestrictionSites(mainGroup, data.res_site, angleScale, maxRadius);
+
+    // Draw outer circle (explicitly) - based on features max radius only
+    if (maxRadius > innerRadius) {
+      mainGroup
+        .append("circle")
+        .attr("r", maxRadius)
+        .attr("fill", "none")
+        .attr("stroke", CONFIG.styles.axis.stroke)
+        .attr("stroke-width", CONFIG.styles.axis.strokeWidth)
+        .attr("class", "outer-circle");
+
+      // Render outer ticks (inward from outer circle)
+      renderOuterTicks(mainGroup, totalLength, angleScale, maxRadius);
+    }
+
+    // Render inner ticks
     renderTicks(mainGroup, totalLength, angleScale, innerRadius);
 
     // Setup zoom
