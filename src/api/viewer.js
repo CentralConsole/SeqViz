@@ -5,7 +5,7 @@ import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import SequenceViewer from "../components/SequenceViewer/SequenceViewer.jsx";
 import { parseGenbankText } from "../components/ParseAndPreparation/parse-genbank-input/browser-genbank-parser";
-import { annotateRestrictionSites } from "../components/ParseAndPreparation/restriction-sites.browser";
+import { annotateRestrictionSites } from "../components/ParseAndPreparation/enzymes/restriction-sites.browser";
 
 function normalizeParsed(parsed) {
   const normalized = {

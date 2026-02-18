@@ -1,0 +1,9 @@
+# Netlify config for deploying the demo app
+# Build the demo SPA and publish dist-demo
+
+[build]
+  command = "npm run build:demo"
+  publish = "dist-demo"
+
+[build.environment]
+  NODE_VERSION = "18"

@@ -21,7 +21,9 @@
     "dev": "vite",
     "dev:simple": "vite --config vite.config.js --open index.simple.html",
     "build": "vite build",
+    "build:demo": "vite build --config vite.config.demo.js",
     "preview": "vite preview",
+    "preview:demo": "vite preview --config vite.config.demo.js",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "prepare": "npm run build"
   },

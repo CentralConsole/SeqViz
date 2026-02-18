@@ -1,6 +1,6 @@
 // ESM browser-friendly restriction sites annotator
 
-import { STANDARD_SITE_STRING } from "./enzymes/standard-sites.js";
+import { STANDARD_SITE_STRING } from "./standard-sites.js";
 
 function parseStandardSites(siteString) {
   const items = siteString

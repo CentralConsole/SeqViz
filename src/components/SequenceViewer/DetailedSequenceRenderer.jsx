@@ -401,7 +401,7 @@ const DetailedSequenceViewer = ({
         const forwardCutPos = position;
 
         // Cut position on reverse strand
-        // Use reversePosition if available (calculated in restriction-sites.browser.js)
+        // Use reversePosition if available (calculated in enzymes/restriction-sites.browser.js)
         // Otherwise fall back to calculation from recognition sequence
         let reverseCutPos;
         if (site.reversePosition) {
