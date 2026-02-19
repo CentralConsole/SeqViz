@@ -389,25 +389,43 @@ const DetailedSequenceViewer = ({
         .style("opacity", 0.6);
     }
 
-    // 绘制限制性内切酶位点分割线
+    // Restriction site dividers and labels: CONFIG style; greedy multi-row label layout to avoid overlap
     if (data.res_site && Array.isArray(data.res_site)) {
+      const resLabelStyle = CONFIG.restrictionSiteLabels?.style ?? {};
+      const resLeaderStroke =
+        resLabelStyle.leader?.stroke ?? CONFIG.interaction.normal.leader.stroke;
+      const resLeaderStrokeWidth =
+        resLabelStyle.leader?.strokeWidth ??
+        CONFIG.interaction.normal.leader.strokeWidth;
+      const resLabelFill =
+        resLabelStyle.fill ?? CONFIG.styles.annotation.fillDark;
+      const charWidthApprox =
+        CONFIG.restrictionSiteLabels?.charWidthApprox ?? 5.5;
+      const detailedCfg =
+        CONFIG.restrictionSiteLabels?.detailed ??
+        CONFIG.restrictionSiteLabels?.linear;
+      const yStep = detailedCfg?.yStep ?? 14;
+      const labelPadding = detailedCfg?.labelPadding ?? 4;
+
+      const rowStart = startPos;
+      const rowEnd = startPos + topSequence.length - 1;
+      const forwardTopY = y - 5;
+      const forwardBottomY = y + fontSize + 10;
+      const reverseTopY = forwardBottomY;
+      const reverseBottomY = complementY + fontSize;
+      const connectionY = complementY;
+
+      // Build list of in-range sites with draw data and label geometry
+      const items = [];
       data.res_site.forEach((site) => {
         if (!site.position || !site.enzyme) return;
-
         const position = parseInt(site.position, 10);
         if (isNaN(position)) return;
-
-        // Cut position on forward strand (already known: position)
         const forwardCutPos = position;
-
-        // Cut position on reverse strand
-        // Use reversePosition if available (calculated in enzymes/restriction-sites.browser.js)
-        // Otherwise fall back to calculation from recognition sequence
         let reverseCutPos;
         if (site.reversePosition) {
           reverseCutPos = parseInt(site.reversePosition, 10);
         } else {
-          // Fallback calculation (for backward compatibility)
           const cutDistance = site.cutDistance || 0;
           const recognitionLength = site.recognition
             ? site.recognition.length
@@ -417,90 +435,142 @@ const DetailedSequenceViewer = ({
           reverseCutPos =
             recognitionStart + recognitionLength - 1 - cutIndexInRecognition;
         }
-
-        // Check if either cut position is within current row
-        const rowStart = startPos;
-        const rowEnd = startPos + topSequence.length - 1;
-
         const forwardInRange =
           forwardCutPos >= rowStart && forwardCutPos <= rowEnd;
         const reverseInRange =
           reverseCutPos >= rowStart && reverseCutPos <= rowEnd;
+        if (!forwardInRange && !reverseInRange) return;
 
-        if (forwardInRange || reverseInRange) {
-          // Calculate X coordinates once (DRY principle)
-          // Position to pixel: each nucleotide is 12px wide, centered at position * 12
-          const forwardX = (forwardCutPos - rowStart) * 12;
-          const reverseX = (reverseCutPos - rowStart) * 12;
+        const forwardX = (forwardCutPos - rowStart) * 12;
+        const reverseX = (reverseCutPos - rowStart) * 12;
+        const labelX = forwardInRange
+          ? (forwardCutPos - rowStart) * 12 + 6
+          : (reverseCutPos - rowStart) * 12 + 6;
+        const labelW = site.enzyme.length * charWidthApprox;
 
-          // Define Y coordinates for alignment
-          const forwardTopY = y - 5;
-          const forwardBottomY = y + fontSize + 10;
-          const reverseTopY = forwardBottomY; // Align with forward strand bottom for visual continuity
-          const reverseBottomY = complementY + fontSize;
-          const connectionY = complementY; // Horizontal connection line at reverse strand level
+        items.push({
+          site,
+          forwardX,
+          reverseX,
+          forwardInRange,
+          reverseInRange,
+          labelX,
+          labelW,
+        });
+      });
 
-          // Draw forward strand cut line (vertical)
-          if (forwardInRange) {
-            rowGroup
-              .append("line")
-              .attr("class", "restriction-site-divider-forward")
-              .attr("x1", forwardX)
-              .attr("y1", forwardTopY)
-              .attr("x2", forwardX)
-              .attr("y2", forwardBottomY)
-              .attr("stroke", "#ff6b6b")
-              .attr("stroke-width", 2)
-              .style("opacity", 0.8);
+      // Greedy row assignment: sort by labelX, place each on first row where it does not overlap
+      items.sort((a, b) => a.labelX - b.labelX);
+      const rowIntervals = []; // rowIntervals[r] = [{ left, right }, ...]
+      const maxRows = 20;
+      items.forEach((item) => {
+        const half = item.labelW / 2 + labelPadding;
+        const left = item.labelX - half;
+        const right = item.labelX + half;
+        let rowIndex = 0;
+        for (; rowIndex < maxRows; rowIndex++) {
+          if (!rowIntervals[rowIndex]) rowIntervals[rowIndex] = [];
+          const overlaps = rowIntervals[rowIndex].some(
+            (seg) => !(right < seg.left || left > seg.right)
+          );
+          if (!overlaps) {
+            rowIntervals[rowIndex].push({ left, right });
+            item.labelRow = rowIndex;
+            break;
           }
-
-          // Draw reverse strand cut line (vertical)
-          if (reverseInRange) {
-            rowGroup
-              .append("line")
-              .attr("class", "restriction-site-divider-reverse")
-              .attr("x1", reverseX)
-              .attr("y1", reverseTopY)
-              .attr("x2", reverseX)
-              .attr("y2", reverseBottomY)
-              .attr("stroke", "#ff6b6b")
-              .attr("stroke-width", 2)
-              .style("opacity", 0.8);
-          }
-
-          // Draw horizontal connection line from forward cut to reverse cut
-          if (forwardInRange && reverseInRange) {
-            rowGroup
-              .append("line")
-              .attr("class", "restriction-site-divider-forward-to-reverse")
-              .attr("x1", forwardX)
-              .attr("y1", connectionY)
-              .attr("x2", reverseX)
-              .attr("y2", connectionY)
-              .attr("stroke", "#ff6b6b")
-              .attr("stroke-width", 2)
-              .style("opacity", 0.8);
-          }
-
-          // Add enzyme name label (position between the two cut lines or at the forward cut)
-          const labelX = forwardInRange
-            ? (forwardCutPos - rowStart) * 12 + 6
-            : (reverseCutPos - rowStart) * 12 + 6;
-          rowGroup
-            .append("text")
-            .attr("class", "restriction-site-label")
-            .attr("x", labelX)
-            .attr("y", y - 10)
-            .text(site.enzyme)
-            .style("font-family", CONFIG.styles.annotation.fontFamily)
-            .style("font-size", "8px")
-            .style("fill", "#ff6b6b")
-            .style("text-anchor", "middle")
-            .style("dominant-baseline", "bottom")
-            .style("pointer-events", "none");
+        }
+        if (item.labelRow === undefined) {
+          item.labelRow = 0;
+          rowIntervals[0] = rowIntervals[0] || [];
+          rowIntervals[0].push({ left, right });
         }
       });
+
+      // Draw lines then labels
+      items.forEach((item) => {
+        const {
+          site,
+          forwardX,
+          reverseX,
+          forwardInRange,
+          reverseInRange,
+          labelX,
+          labelRow,
+        } = item;
+
+        if (forwardInRange) {
+          rowGroup
+            .append("line")
+            .attr("class", "restriction-site-divider-forward")
+            .attr("x1", forwardX)
+            .attr("y1", forwardTopY)
+            .attr("x2", forwardX)
+            .attr("y2", forwardBottomY)
+            .attr("stroke", resLeaderStroke)
+            .attr("stroke-width", resLeaderStrokeWidth)
+            .style("opacity", 0.8);
+        }
+        if (reverseInRange) {
+          rowGroup
+            .append("line")
+            .attr("class", "restriction-site-divider-reverse")
+            .attr("x1", reverseX)
+            .attr("y1", reverseTopY)
+            .attr("x2", reverseX)
+            .attr("y2", reverseBottomY)
+            .attr("stroke", resLeaderStroke)
+            .attr("stroke-width", resLeaderStrokeWidth)
+            .style("opacity", 0.8);
+        }
+        if (forwardInRange && reverseInRange) {
+          rowGroup
+            .append("line")
+            .attr("class", "restriction-site-divider-forward-to-reverse")
+            .attr("x1", forwardX)
+            .attr("y1", connectionY)
+            .attr("x2", reverseX)
+            .attr("y2", connectionY)
+            .attr("stroke", resLeaderStroke)
+            .attr("stroke-width", resLeaderStrokeWidth)
+            .style("opacity", 0.8);
+        }
+
+        const labelY = y - 10 - labelRow * yStep;
+        rowGroup
+          .append("text")
+          .attr("class", "restriction-site-label")
+          .attr("x", labelX)
+          .attr("y", labelY)
+          .text(site.enzyme)
+          .style("font-family", CONFIG.styles.annotation.fontFamily)
+          .style("font-size", `${fontSize}px`)
+          .style("fill", resLabelFill)
+          .style("text-anchor", "middle")
+          .style("dominant-baseline", "bottom")
+          .style("pointer-events", "none");
+      });
     }
+  };
+
+  /**
+   * Parse one location segment to 0-based [featureStart, featureEnd].
+   * Parser format: [start, isComplement, end]; end may be undefined for point (length-1).
+   * Returns null for invalid/empty loc or NaN bounds.
+   */
+  const parseFeatureSegmentBounds = (loc) => {
+    if (!loc || !Array.isArray(loc) || loc.length < 1) return null;
+    const rawStart = DataUtils.cleanString(loc[0]);
+    const featureStart = Number(rawStart) - 1;
+    if (isNaN(featureStart)) return null;
+    const hasEnd =
+      loc.length >= 3 &&
+      loc[2] != null &&
+      String(loc[2]).trim() !== "";
+    const featureEnd = hasEnd
+      ? Number(DataUtils.cleanString(loc[2])) - 1
+      : featureStart;
+    if (isNaN(featureEnd)) return { featureStart, featureEnd: featureStart };
+    return { featureStart, featureEnd };
   };
 
   // 计算指定行的高度
@@ -522,15 +592,15 @@ const DetailedSequenceViewer = ({
       if (!typeConf.isDisplayed) return;
 
       feature.location.forEach((loc) => {
-        const featureStart = Number(DataUtils.cleanString(loc[0])) - 1;
-        const featureEnd =
-          loc.length > 1
-            ? Number(DataUtils.cleanString(loc[loc.length - 1])) - 1
-            : featureStart;
+        const parsed = parseFeatureSegmentBounds(loc);
+        if (parsed == null) return;
+        let { featureStart, featureEnd } = parsed;
+        if (featureStart > featureEnd) featureEnd = featureStart;
 
         if (!(featureEnd < rowStart || featureStart > rowEnd)) {
           const segmentStart = Math.max(featureStart, rowStart);
           const segmentEnd = Math.min(featureEnd, rowEnd);
+          if (segmentStart > segmentEnd) return;
 
           rowFeatures.push({
             segmentStartCol: segmentStart % nucleotidesPerRow,
@@ -605,16 +675,15 @@ const DetailedSequenceViewer = ({
       if (!typeConf.isDisplayed) return;
 
       feature.location.forEach((loc) => {
-        const featureStart = Number(DataUtils.cleanString(loc[0])) - 1;
-        const featureEnd =
-          loc.length > 1
-            ? Number(DataUtils.cleanString(loc[loc.length - 1])) - 1
-            : featureStart;
+        const parsed = parseFeatureSegmentBounds(loc);
+        if (parsed == null) return;
+        let { featureStart, featureEnd } = parsed;
+        if (featureStart > featureEnd) featureEnd = featureStart;
 
-        // 检查是否与当前行相交
         if (!(featureEnd < rowStart || featureStart > rowEnd)) {
           const segmentStart = Math.max(featureStart, rowStart);
           const segmentEnd = Math.min(featureEnd, rowEnd);
+          if (segmentStart > segmentEnd) return;
 
           rowFeatures.push({
             feature,
@@ -711,16 +780,17 @@ const DetailedSequenceViewer = ({
     typeConf,
     feature
   ) => {
+    const safeWidth = Math.max(width, 12);
     if (typeConf.shape === "arrow") {
-      // 使用与LinearSequenceRenderer完全相同的箭头参数
-      const arrowWidth = Math.min(boxHeight * 1.2, width / 3);
+      // 使用与LinearSequenceRenderer完全相同的箭头参数；保证最小宽度以便 length-1 可见
+      const arrowWidth = Math.min(boxHeight * 1.2, safeWidth / 3);
       const arrowNeck = boxHeight * 0.6;
-      const rectW = width - arrowWidth;
+      const rectW = safeWidth - arrowWidth;
 
       let points;
       if (isComplementary) {
         // 向左箭头
-        const leftTop = [x + width, y];
+        const leftTop = [x + safeWidth, y];
         const rightTop = [x + arrowWidth, y];
         const neckTop = [
           x + arrowWidth,
@@ -732,7 +802,7 @@ const DetailedSequenceViewer = ({
           y + boxHeight / 2 + (boxHeight + arrowNeck) / 2,
         ];
         const rightBottom = [x + arrowWidth, y + boxHeight];
-        const leftBottom = [x + width, y + boxHeight];
+        const leftBottom = [x + safeWidth, y + boxHeight];
         points = [
           leftTop,
           rightTop,
@@ -750,7 +820,7 @@ const DetailedSequenceViewer = ({
           x + rectW,
           y + boxHeight / 2 - (boxHeight + arrowNeck) / 2,
         ];
-        const tip = [x + width, y + boxHeight / 2];
+        const tip = [x + safeWidth, y + boxHeight / 2];
         const neckBottom = [
           x + rectW,
           y + boxHeight / 2 + (boxHeight + arrowNeck) / 2,
@@ -784,9 +854,9 @@ const DetailedSequenceViewer = ({
         feature.information?.product ||
         feature.type;
 
-      if (text && width > 20) {
+      if (text && safeWidth > 20) {
         // 只有箭头足够宽时才显示文字
-        const textX = x + width / 2; // 箭头中心位置
+        const textX = x + safeWidth / 2; // 箭头中心位置
         const textY = y + boxHeight / 2; // 箭头垂直中心
 
         parent
@@ -810,7 +880,7 @@ const DetailedSequenceViewer = ({
         .attr("class", `box ${feature.type}`)
         .attr("x", x)
         .attr("y", y)
-        .attr("width", width > 0 ? width : 2)
+        .attr("width", safeWidth > 0 ? safeWidth : 2)
         .attr("height", boxHeight > 0 ? boxHeight : 2)
         .attr("fill", typeConf.fill)
         .attr("stroke", typeConf.stroke)

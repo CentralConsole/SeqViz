@@ -386,6 +386,11 @@ export const CONFIG = {
       lineExtension: 15,
       axisTopBuffer: 500, // Px above axis included in scroll; larger = more upward scroll to see restriction labels
     },
+    // Detailed view: greedy multi-row label placement above each sequence row
+    detailed: {
+      yStep: 14,
+      labelPadding: 4,
+    },
   },
   // 详细序列查看器配置
   detailedSequenceViewer: {
