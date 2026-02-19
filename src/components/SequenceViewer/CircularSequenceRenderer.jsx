@@ -28,7 +28,7 @@ function highlightFeature(featureElement, feature) {
     .attr(
       "stroke-width",
       CONFIG.styles.box.strokeWidth *
-        CONFIG.interaction.hover.strokeWidthMultiplier
+        CONFIG.interaction.hover.strokeWidthMultiplier,
     );
 
   featureElement
@@ -142,6 +142,33 @@ function renderRestrictionSites(mainGroup, resSites, angleScale, _outerRadius) {
 
   const resSiteGroup = mainGroup.append("g").attr("class", "restriction-sites");
 
+  const minGapFromOuter =
+    CONFIG.restrictionSiteLabels?.minGapFromOuter ?? 12;
+  const radiusStep = CONFIG.restrictionSiteLabels?.radiusStep ?? 8;
+  const labelPadding = CONFIG.restrictionSiteLabels?.labelPadding ?? 4;
+  const charWidthApprox =
+    CONFIG.restrictionSiteLabels?.charWidthApprox ?? 5.5;
+  const labelStyle = CONFIG.restrictionSiteLabels?.style ?? {};
+  const fontSize =
+    labelStyle.fontSize ?? CONFIG.styles.annotation.fontSize;
+  const fontFamily =
+    labelStyle.fontFamily ?? CONFIG.styles.annotation.fontFamily;
+  const labelFill =
+    labelStyle.fill ?? CONFIG.styles.annotation.fillDark;
+  const leaderStroke =
+    labelStyle.leader?.stroke ?? CONFIG.interaction.normal.leader.stroke;
+  const leaderStrokeWidth =
+    labelStyle.leader?.strokeWidth ?? CONFIG.interaction.normal.leader.strokeWidth;
+
+  function marginRadiusForLabel(text) {
+    const w = text.length * charWidthApprox;
+    const h = fontSize;
+    return Math.sqrt(w * w + h * h) / 2 + labelPadding;
+  }
+  function labelDistance(x1, y1, x2, y2) {
+    return Math.hypot(x2 - x1, y2 - y1);
+  }
+
   // Collect processed site label positions for grouping
   const processedSites = [];
 
@@ -151,116 +178,105 @@ function renderRestrictionSites(mainGroup, resSites, angleScale, _outerRadius) {
     const position = parseInt(site.position, 10);
     if (isNaN(position)) return;
 
-    // Convert position to angle
     const angle = angleScale(position);
-
-    // Collect label target position (slightly outside outer circle)
-    // Pre-calculate the label position to avoid recalculating it for each site
-    const labelRadius = outerRadius + 15;
-    const labelX = Math.cos(angle) * labelRadius;
-    const labelY = Math.sin(angle) * labelRadius;
     processedSites.push({
       angle,
-      x: labelX,
-      y: labelY,
       enzyme: site.enzyme,
-      position: position, // Store position for line drawing
+      position,
     });
   });
 
-  // Group nearby labels into clusters and render merged labels first
-  const clusterLabelPositions = new Map(); // Map cluster index to label position
+  const clusterLabelPositions = new Map();
   if (processedSites.length > 0) {
-    const labelRadius = outerRadius + 50;
-    const arcPixelThreshold = 5; // pixels along the circle
-    const angleThreshold = arcPixelThreshold / Math.max(1, labelRadius);
+    const sorted = processedSites.slice().sort((a, b) => a.angle - b.angle);
+    // Clustering: merge nearby sites into one label (commented out → one label per site)
+    // const refRadius = outerRadius + minGapFromOuter;
+    // const angleThreshold = clusterPx / Math.max(1, refRadius);
+    // const groups = [];
+    // let current = [];
+    // for (let i = 0; i < sorted.length; i++) {
+    //   if (current.length === 0) {
+    //     current.push(sorted[i]);
+    //   } else {
+    //     const prev = current[current.length - 1];
+    //     const delta = sorted[i].angle - prev.angle;
+    //     if (delta <= angleThreshold) {
+    //       current.push(sorted[i]);
+    //     } else {
+    //       groups.push(current);
+    //       current = [sorted[i]];
+    //     }
+    //   }
+    // }
+    // if (current.length > 0) groups.push(current);
+    // if (groups.length > 1) {
+    //   const first = groups[0];
+    //   const last = groups[groups.length - 1];
+    //   const wrapDelta =
+    //     first[0].angle + 2 * Math.PI - last[last.length - 1].angle;
+    //   if (wrapDelta <= angleThreshold) {
+    //     groups[0] = last.concat(first);
+    //     groups.pop();
+    //   }
+    // }
+    const groups = sorted.map((s) => [s]); // No clustering: one label per site
 
-    const sorted = processedSites.slice().sort((a, b) => a.angle - b.angle); // sort by angle
-    const groups = []; // prepare for clustering
-    let current = [];
-    for (let i = 0; i < sorted.length; i++) {
-      if (current.length === 0) {
-        current.push(sorted[i]);
-      } else {
-        const prev = current[current.length - 1];
-        const delta = sorted[i].angle - prev.angle;
-        if (delta <= angleThreshold) {
-          current.push(sorted[i]);
-        } else {
-          groups.push(current);
-          current = [sorted[i]];
-        }
-      }
-    }
-    if (current.length > 0) groups.push(current);
-
-    // Wrap-around merge between last and first cluster
-    if (groups.length > 1) {
-      const first = groups[0];
-      const last = groups[groups.length - 1];
-      const wrapDelta =
-        first[0].angle + 2 * Math.PI - last[last.length - 1].angle;
-      if (wrapDelta <= angleThreshold) {
-        groups[0] = last.concat(first);
-        groups.pop();
-      }
-    }
-
-    // Render labels first and store their positions
-    const totalLabels = groups.reduce(
-      (sum, cluster) => sum + cluster.length,
-      0
-    );
-    // Calculate Y offset multiplier based on total labels using sigmoid function
-    // Sigmoid: 1 / (1 + e^(-k*(x - x0)))
-    // More labels = more offset, but growth is bounded and smooth
-    const sigmoid = (x, k = 0.2, x0 = 50) => {
-      return 1 / (1 + Math.exp(-k * (x - x0)));
-    };
-    // Map sigmoid output (0-1) to offset range (0.375 to 1.0)
-    // So multiplier ranges from 1.0 (no offset) to 1.375 (max offset)
-    const sigmoidValue = sigmoid(totalLabels, 0.1, 50);
-    const yOffsetMultiplier = 1.0 + sigmoidValue * 0.375;
+    // Greedy placement: place each label at minimum radius that avoids overlap with outer ring and already-placed labels
+    const minRadius = outerRadius + minGapFromOuter;
+    const placed = []; // { x, y, marginRadius }
 
     groups.forEach((cluster, clusterIndex) => {
       const names = cluster.map((c) => c.enzyme).filter(Boolean);
       if (names.length === 0) return;
       const labelText = names.slice(0, 3).join(" - ");
-      const avg = cluster.reduce(
-        (acc, c) => {
-          acc.x += c.x;
-          acc.y += c.y;
-          return acc;
-        },
-        { x: 0, y: 0 }
-      );
-      avg.x /= cluster.length;
-      avg.y /= cluster.length;
+      const angle0 = cluster[0].angle;
+      const margin = marginRadiusForLabel(labelText);
 
-      // Calculate label position (accounting for text baseline and total labels)
-      const labelX = avg.x;
-      const labelY = avg.y * yOffsetMultiplier; // Y offset increases with total labels
+      let r = minRadius;
+      const maxRadius = minRadius + 200;
+      for (;;) {
+        const x = Math.cos(angle0) * r;
+        const y = Math.sin(angle0) * r;
+        let overlaps = false;
+        for (const p of placed) {
+          if (labelDistance(x, y, p.x, p.y) < margin + p.marginRadius) {
+            overlaps = true;
+            break;
+          }
+        }
+        if (!overlaps) {
+          placed.push({ x, y, marginRadius: margin });
+          clusterLabelPositions.set(clusterIndex, { x, y });
+          break;
+        }
+        r += radiusStep;
+        if (r > maxRadius) {
+          placed.push({ x, y, marginRadius: margin });
+          clusterLabelPositions.set(clusterIndex, { x, y });
+          break;
+        }
+      }
+    });
 
-      // Store label position for this cluster
-      clusterLabelPositions.set(clusterIndex, { x: labelX, y: labelY });
+    groups.forEach((cluster, clusterIndex) => {
+      const names = cluster.map((c) => c.enzyme).filter(Boolean);
+      if (names.length === 0) return;
+      const labelText = names.slice(0, 3).join(" - ");
+      const pos = clusterLabelPositions.get(clusterIndex);
+      if (!pos) return;
 
-      // Render label
       resSiteGroup
         .append("text")
-        .attr("x", labelX)
-        .attr("y", labelY)
+        .attr("x", pos.x)
+        .attr("y", pos.y)
         .text(labelText)
         .attr("class", "restriction-site-label")
-        .style("font-family", CONFIG.styles.annotation.fontFamily)
-        .style("font-size", "10px")
-        .style("fill", "#ff6b6b")
+        .style("font-family", fontFamily)
+        .style("font-size", `${fontSize}px`)
+        .style("fill", labelFill)
         .style("text-anchor", "middle")
         .style("dominant-baseline", "middle")
         .style("pointer-events", "none");
-
-      if (names.length > 3) {
-        // do something
-      }
     });
 
     // Now draw lines from outerRadius to label positions
@@ -283,8 +299,8 @@ function renderRestrictionSites(mainGroup, resSites, angleScale, _outerRadius) {
           .attr("y1", outerY)
           .attr("x2", labelPos.x)
           .attr("y2", labelPos.y)
-          .attr("stroke", "#ff6b6b")
-          .attr("stroke-width", 2)
+          .attr("stroke", leaderStroke)
+          .attr("stroke-width", leaderStrokeWidth)
           .attr("class", "restriction-site-marker");
       });
     });
@@ -361,7 +377,7 @@ function processFeaturesForLayering(features, angleScale) {
               // If cannot parse, treat as single point location
               console.warn(
                 "Cannot parse stop position, treating as single point:",
-                { loc, stopStr }
+                { loc, stopStr },
               );
               stop = start;
             }
@@ -409,7 +425,7 @@ function processFeaturesForLayering(features, angleScale) {
       if (processedSegments.length === 0) {
         console.warn(
           "Feature has no valid segments after processing:",
-          feature
+          feature,
         );
         return null;
       }
@@ -545,7 +561,7 @@ function calculateLayerRadii(processedFeatures, innerRadius) {
   const maxLayers = CONFIG.dimensions.maxLayers || Infinity;
   const maxLayer = Math.min(
     Math.max(...processedFeatures.map((f) => f.radialOffset), 0),
-    maxLayers - 1
+    maxLayers - 1,
   );
 
   for (let layer = 0; layer <= maxLayer; layer++) {
@@ -581,7 +597,7 @@ function renderFeatures(
   features,
   angleScale,
   innerRadius,
-  onFeatureClick
+  onFeatureClick,
 ) {
   if (!features || !Array.isArray(features) || features.length === 0) {
     return innerRadius;
@@ -604,12 +620,12 @@ function renderFeatures(
     .innerRadius(
       (d) =>
         layerRadii.get(d.radialOffset)?.inner ||
-        innerRadius + 8 + d.radialOffset * layerSpacing
+        innerRadius + 8 + d.radialOffset * layerSpacing,
     )
     .outerRadius(
       (d) =>
         layerRadii.get(d.radialOffset)?.outer ||
-        innerRadius + 24 + d.radialOffset * layerSpacing
+        innerRadius + 24 + d.radialOffset * layerSpacing,
     );
 
   // Group features according to their layers
@@ -625,7 +641,7 @@ function renderFeatures(
   const maxLayers = CONFIG.dimensions.maxLayers || Infinity;
   const maxLayer = Math.min(
     Math.max(...processedFeatures.map((f) => f.radialOffset), 0),
-    maxLayers - 1
+    maxLayers - 1,
   );
   let currentLayerMaxRadius = innerRadius + 24; // Initialize radius
   let maxRadius = innerRadius;
@@ -656,7 +672,7 @@ function renderFeatures(
       layerSpacing,
       segmentArc,
       currentLayerMaxRadius,
-      onFeatureClick
+      onFeatureClick,
     );
 
     currentLayerMaxRadius = layerMaxRadius;
@@ -690,7 +706,7 @@ function renderLayerFeatures(
   layerSpacing,
   segmentArc,
   currentLayerMaxRadius,
-  onFeatureClick
+  onFeatureClick,
 ) {
   // Render feature elements
   const featureElements = layerGroup
@@ -754,11 +770,11 @@ function renderLayerFeatures(
         .attr("d", segmentD)
         .attr(
           "fill",
-          (CONFIG.featureType[d.type] || CONFIG.featureType.others).fill
+          (CONFIG.featureType[d.type] || CONFIG.featureType.others).fill,
         )
         .attr(
           "stroke",
-          (CONFIG.featureType[d.type] || CONFIG.featureType.others).stroke
+          (CONFIG.featureType[d.type] || CONFIG.featureType.others).stroke,
         )
         .attr("stroke-width", CONFIG.styles.box.strokeWidth)
         .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
@@ -795,7 +811,7 @@ function renderLayerFeatures(
           layerSpacing,
           layer,
           featureIndex,
-          segmentIndex
+          segmentIndex,
         );
       }
 
@@ -808,7 +824,7 @@ function renderLayerFeatures(
           startAngle,
           stopAngle,
           layerRadii,
-          d.radialOffset
+          d.radialOffset,
         );
       }
     });
@@ -833,7 +849,7 @@ function renderLayerFeatures(
         layerSpacing,
         currentLayerMaxRadius,
         layerOuterTextNodes,
-        onFeatureClick
+        onFeatureClick,
       );
     }
   });
@@ -873,7 +889,7 @@ function createTextPath(
   layerSpacing,
   layer,
   featureIndex,
-  segmentIndex
+  segmentIndex,
 ) {
   const textContent =
     feature.information?.gene || feature.information?.product || feature.type;
@@ -947,7 +963,7 @@ function generateArrowPath(
   startAngle,
   stopAngle,
   layerRadii,
-  radialOffset
+  radialOffset,
 ) {
   const pathNode = pathElement.node();
   if (!pathNode) return;
@@ -1027,7 +1043,7 @@ function generateArrowPath(
     if (segment.isReverse) {
       outerEndPoint = [arrowX, arrowY];
       const innerArcEndMatch = pathData.match(
-        /.*\s+([-\d.e]+)[,\s]+([-\d.e]+)\s*Z?\s*$/
+        /.*\s+([-\d.e]+)[,\s]+([-\d.e]+)\s*Z?\s*$/,
       );
       innerEndPoint = innerArcEndMatch
         ? [parseFloat(innerArcEndMatch[1]), parseFloat(innerArcEndMatch[2])]
@@ -1035,7 +1051,7 @@ function generateArrowPath(
     } else {
       outerEndPoint = [outerArc.endX, outerArc.endY];
       const innerArcStartMatch = pathData.match(
-        /L\s*([-\d.e]+)[,\s]+([-\d.e]+)/
+        /L\s*([-\d.e]+)[,\s]+([-\d.e]+)/,
       );
       innerEndPoint = innerArcStartMatch
         ? [parseFloat(innerArcStartMatch[1]), parseFloat(innerArcStartMatch[2])]
@@ -1058,7 +1074,7 @@ function generateArrowPath(
         arrowPath = `M ${innerEndPoint[0]} ${innerEndPoint[1]} L ${tip[0]} ${
           tip[1]
         } L ${originalStart[1]} ${originalStart[2]} ${beforeFirstL.substring(
-          beforeFirstL.indexOf("A")
+          beforeFirstL.indexOf("A"),
         )} ${fromFirstL} Z`;
       }
     } else {
@@ -1089,12 +1105,12 @@ function collectTextNode(
   layerSpacing,
   currentLayerMaxRadius,
   layerOuterTextNodes,
-  onFeatureClick
+  onFeatureClick,
 ) {
   const text =
     feature.information?.gene || feature.information?.product || feature.type;
   const textPathId = `text-path-${layer}-${featureIndex}-${feature.segments.indexOf(
-    textSegment
+    textSegment,
   )}`;
   const textPathElement = featureElement.select(`#${textPathId}`).node();
 
@@ -1130,7 +1146,7 @@ function collectTextNode(
       .append("text")
       .attr(
         "transform",
-        isInBottomHalf ? `translate(${dx}, ${dy})` : `translate(0,0)`
+        isInBottomHalf ? `translate(${dx}, ${dy})` : `translate(0,0)`,
       )
       .style("cursor", CONFIG.interaction.hover.cursor)
       .on("mousedown", function (event) {
@@ -1204,7 +1220,7 @@ function applyForceSimulation(layerOuterTextNodes, layer) {
     .velocityDecay(0.7)
     .force(
       "repel",
-      d3.forceManyBody().strength(-0.00001).distanceMax(30).distanceMin(0)
+      d3.forceManyBody().strength(-0.00001).distanceMax(30).distanceMin(0),
     )
     .force("centerX", d3.forceX(() => 0).strength(centerStrength))
     .force("centerY", d3.forceY(() => 0).strength(centerStrength))
@@ -1213,7 +1229,7 @@ function applyForceSimulation(layerOuterTextNodes, layer) {
       d3
         .forceCollide()
         .radius((d) => d.width / 2)
-        .iterations(3)
+        .iterations(3),
     )
     .stop();
 
@@ -1409,7 +1425,7 @@ function setupZoom(
   maxRadius,
   transformRef,
   setScale,
-  setTranslate
+  setTranslate,
 ) {
   // Calculate fit scale based on current content max radius
   const fitPadding = 20; // Appropriate padding (pixels)
@@ -1506,7 +1522,7 @@ const CircularSequenceRenderer = ({
         const newTransform = d3.zoomIdentity
           .translate(
             currentTransformRef.current.x,
-            currentTransformRef.current.y
+            currentTransformRef.current.y,
           )
           .scale(newScale);
         // Apply transform directly without zoom behavior
@@ -1522,7 +1538,7 @@ const CircularSequenceRenderer = ({
         const newTransform = d3.zoomIdentity
           .translate(
             currentTransformRef.current.x,
-            currentTransformRef.current.y
+            currentTransformRef.current.y,
           )
           .scale(newScale);
         // Apply transform directly without zoom behavior
@@ -1590,7 +1606,7 @@ const CircularSequenceRenderer = ({
       svgRef,
       width,
       height,
-      totalLength
+      totalLength,
     );
 
     let maxRadius = innerRadius; // Initiate the basic radius
@@ -1601,9 +1617,9 @@ const CircularSequenceRenderer = ({
       data.features,
       angleScale,
       innerRadius,
-      onFeatureClick
+      onFeatureClick,
     );
-    maxRadius = Math.max(maxRadius, featuresMaxRadius);
+    maxRadius = Math.max(maxRadius, featuresMaxRadius) + 8;
 
     // Render restriction sites on outer radius (after features)
     renderRestrictionSites(mainGroup, data.res_site, angleScale, maxRadius);
@@ -1634,7 +1650,7 @@ const CircularSequenceRenderer = ({
       maxRadius,
       currentTransformRef,
       setScale,
-      setTranslate
+      setTranslate,
     );
 
     // 清理函数：移除事件监听器

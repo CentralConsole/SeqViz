@@ -105,20 +105,10 @@ function renderAxisAndMetadata(
   margin,
   width,
   lengthScale,
-  hideInlineMeta
+  hideInlineMeta,
 ) {
   // Create axis and metadata container group
   const axisContainer = axisGroup.append("g").attr("class", "axis-container");
-
-  // Add axis background
-  axisContainer
-    .append("rect")
-    .attr("x", -margin.left)
-    .attr("y", -margin.top)
-    .attr("width", width + margin.left + margin.right)
-    .attr("height", margin.top + 20)
-    .attr("fill", CONFIG.styles.axis.background.fill)
-    .attr("stroke", CONFIG.styles.axis.background.stroke);
 
   // Add metadata display
   if (!hideInlineMeta) {
@@ -191,7 +181,7 @@ function assignFeaturesToRows(features, lengthScale, minVisibleWidth) {
   const sorted = [...features]
     .sort((a, b) => {
       const aStart = Math.min(
-        ...a.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
+        ...a.location.map((loc) => Number(DataUtils.cleanString(loc[0]))),
       );
       const aEnd = Math.max(
         ...a.location.map((loc) => {
@@ -199,12 +189,12 @@ function assignFeaturesToRows(features, lengthScale, minVisibleWidth) {
           return loc[2] === null
             ? s + minVisibleWidth
             : loc.length > 1
-            ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-            : s;
-        })
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : s;
+        }),
       );
       const bStart = Math.min(
-        ...b.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
+        ...b.location.map((loc) => Number(DataUtils.cleanString(loc[0]))),
       );
       const bEnd = Math.max(
         ...b.location.map((loc) => {
@@ -212,9 +202,9 @@ function assignFeaturesToRows(features, lengthScale, minVisibleWidth) {
           return loc[2] === null
             ? s + minVisibleWidth
             : loc.length > 1
-            ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-            : s;
-        })
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : s;
+        }),
       );
       return bEnd - bStart - (aEnd - aStart);
     })
@@ -229,7 +219,7 @@ function assignFeaturesToRows(features, lengthScale, minVisibleWidth) {
     for (let row = 0; ; row++) {
       if (!rows[row]) rows[row] = [];
       const aStart = Math.min(
-        ...item.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
+        ...item.location.map((loc) => Number(DataUtils.cleanString(loc[0]))),
       );
       const aEnd = Math.max(
         ...item.location.map((loc) => {
@@ -237,13 +227,13 @@ function assignFeaturesToRows(features, lengthScale, minVisibleWidth) {
           return loc[2] === null
             ? s + minVisibleWidth
             : loc.length > 1
-            ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-            : s;
-        })
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : s;
+        }),
       );
       const overlap = rows[row].some((other) => {
         const bStart = Math.min(
-          ...other.location.map((loc) => Number(DataUtils.cleanString(loc[0])))
+          ...other.location.map((loc) => Number(DataUtils.cleanString(loc[0]))),
         );
         const bEnd = Math.max(
           ...other.location.map((loc) => {
@@ -251,9 +241,9 @@ function assignFeaturesToRows(features, lengthScale, minVisibleWidth) {
             return loc[2] === null
               ? s + minVisibleWidth
               : loc.length > 1
-              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-              : s;
-          })
+                ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+                : s;
+          }),
         );
         return !(aEnd < bStart || aStart > bEnd);
       });
@@ -269,86 +259,127 @@ function assignFeaturesToRows(features, lengthScale, minVisibleWidth) {
 }
 
 /**
- * Render restriction sites
- * @param {d3.Selection} axisGroup - Axis group element (already translated to correct position)
- * @param {Array} resSites - Array of restriction sites
- * @param {Function} lengthScale - Length scale function
+ * Render restriction sites with greedy label placement (min y, no overlap) and CONFIG-driven style
  */
 function renderRestrictionSites(axisGroup, resSites, lengthScale) {
   if (!resSites || !Array.isArray(resSites)) {
     return;
   }
 
-  const resSiteGroup = axisGroup.append("g").attr("class", "restriction-sites");
+  const labelStyle = CONFIG.restrictionSiteLabels?.style ?? {};
+  const fontSize = labelStyle.fontSize ?? CONFIG.styles.annotation.fontSize;
+  const fontFamily =
+    labelStyle.fontFamily ?? CONFIG.styles.annotation.fontFamily;
+  const labelFill = labelStyle.fill ?? CONFIG.styles.annotation.fillDark;
+  const leaderStroke =
+    labelStyle.leader?.stroke ?? CONFIG.interaction.normal.leader.stroke;
+  const leaderStrokeWidth =
+    labelStyle.leader?.strokeWidth ??
+    CONFIG.interaction.normal.leader.strokeWidth;
+  const charWidthApprox = CONFIG.restrictionSiteLabels?.charWidthApprox ?? 5.5;
+  const linearCfg = CONFIG.restrictionSiteLabels?.linear ?? {};
+  const baseYOffset = linearCfg.baseYOffset ?? -20;
+  const yStep = linearCfg.yStep ?? 14;
+  const labelPadding = linearCfg.labelPadding ?? 4;
+  const lineExtension = linearCfg.lineExtension ?? 15;
 
-  // Pre-process sites to calculate positions and detect overlaps
+  function labelWidth(text) {
+    return text.length * charWidthApprox;
+  }
+  function labelHeight() {
+    return fontSize;
+  }
+
+  function rectsOverlap(a, b) {
+    const aLeft = a.x - a.w / 2;
+    const aRight = a.x + a.w / 2;
+    const aTop = a.y - a.h;
+    const aBottom = a.y;
+    const bLeft = b.x - b.w / 2;
+    const bRight = b.x + b.w / 2;
+    const bTop = b.y - b.h;
+    const bBottom = b.y;
+    const pad = labelPadding;
+    return !(
+      aRight + pad < bLeft - pad ||
+      aLeft - pad > bRight + pad ||
+      aBottom + pad < bTop - pad ||
+      aTop - pad > bBottom + pad
+    );
+  }
+
+  const resSiteGroup = axisGroup.append("g").attr("class", "restriction-sites");
+  const axisY = 0;
+
   const processedSites = resSites
     .map((site) => {
       if (!site.position || !site.enzyme) return null;
-
       const position = parseInt(site.position, 10);
       if (isNaN(position)) return null;
-
       const x = lengthScale(position);
       return { site, x, position };
     })
     .filter(Boolean);
 
-  // Sort by x position to detect nearby sites
   processedSites.sort((a, b) => a.x - b.x);
 
-  // Calculate y offsets to avoid overlaps
-  // Use a simple approach: detect sites within 30px of each other and offset them
-  const minSpacing = 30; // Minimum horizontal spacing to avoid overlap
-  const baseYOffset = -20; // Base y position (20px above axis)
-  const offsetStep = 10; // Vertical spacing between layers (10px per layer)
-
-  processedSites.forEach((item, index) => {
-    let yOffset = baseYOffset;
-
-    // Check if this site is close to previous sites
-    const nearbySites = processedSites
-      .slice(0, index)
-      .filter((prev) => Math.abs(prev.x - item.x) < minSpacing);
-
-    if (nearbySites.length > 0) {
-      // Dynamically assign layer based on number of nearby sites
-      // Each nearby site gets a different layer, no fixed limit
-      const layer = nearbySites.length; // Use count as layer index (0, 1, 2, 3, ...)
-      yOffset = baseYOffset - (layer * offsetStep + 5); // Offset increases with layer count
+  const placed = [];
+  processedSites.forEach((item) => {
+    const text = item.site.enzyme;
+    const w = labelWidth(text);
+    const h = labelHeight();
+    let y = axisY + baseYOffset;
+    const maxRows = 20;
+    for (let row = 0; row < maxRows; row++) {
+      const candidate = { x: item.x, y, w, h };
+      let overlaps = false;
+      for (const p of placed) {
+        if (rectsOverlap(candidate, p)) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (!overlaps) {
+        placed.push(candidate);
+        item.yOffset = y - axisY;
+        item.labelHeight = h;
+        break;
+      }
+      y -= yStep;
     }
-
-    item.yOffset = yOffset;
+    if (item.yOffset === undefined) {
+      item.yOffset = baseYOffset;
+      item.labelHeight = h;
+      placed.push({ x: item.x, y: axisY + baseYOffset, w, h });
+    }
   });
 
-  // Render sites with calculated offsets
   processedSites.forEach((item) => {
     const { site, x, yOffset } = item;
-    const axisY = 0; // Axis is at y=0 in axisGroup's coordinate system
+    const y = axisY + yOffset;
 
-    // Add enzyme name label (above the marker line, with offset to avoid overlaps)
     resSiteGroup
       .append("text")
       .attr("x", x)
-      .attr("y", axisY + yOffset) // Use calculated y offset
+      .attr("y", y)
       .text(site.enzyme)
       .attr("class", "restriction-site-label")
-      .style("font-family", CONFIG.styles.annotation.fontFamily)
-      .style("font-size", "10px")
-      .style("fill", "#ff6b6b")
+      .style("font-family", fontFamily)
+      .style("font-size", `${fontSize}px`)
+      .style("fill", labelFill)
       .style("text-anchor", "middle")
       .style("dominant-baseline", "bottom")
       .style("pointer-events", "none");
 
-    // Draw vertical marker line (extending upward from axis)
+    const lineEndY = y; // IMPORTANT: Line from axis to just below label (DO NOT CHANGE)
     resSiteGroup
       .append("line")
       .attr("x1", x)
-      .attr("y1", axisY) // Start at axis
+      .attr("y1", axisY)
       .attr("x2", x)
-      .attr("y2", axisY + yOffset + 15) // Extend 15px upward
-      .attr("stroke", "#ff6b6b")
-      .attr("stroke-width", 2)
+      .attr("y2", lineEndY)
+      .attr("stroke", leaderStroke)
+      .attr("stroke-width", leaderStrokeWidth)
       .attr("class", "restriction-site-marker");
   });
 }
@@ -373,7 +404,7 @@ function renderFeatures(
   boxHeight,
   fontSize,
   vSpace,
-  onFeatureClick
+  onFeatureClick,
 ) {
   if (!features || features.length === 0) {
     return vSpace * 5; // Return initial row Y
@@ -402,7 +433,7 @@ function renderFeatures(
         boxHeight,
         fontSize,
         rowTextNodes,
-        onFeatureClick
+        onFeatureClick,
       );
     });
 
@@ -421,14 +452,14 @@ function renderFeatures(
       minVisibleWidth,
       boxHeight,
       fontSize,
-      onFeatureClick
+      onFeatureClick,
     );
 
     // Calculate max Y for this row
     let rowMaxY = currentRowY + boxHeight;
     if (rowTextNodes.length > 0) {
       const textMaxY = Math.max(
-        ...rowTextNodes.map((node) => node.y + node.height / 2)
+        ...rowTextNodes.map((node) => node.y + node.height / 2),
       );
       rowMaxY = Math.max(rowMaxY, textMaxY);
     }
@@ -451,7 +482,7 @@ function renderFeature(
   boxHeight,
   fontSize,
   rowTextNodes,
-  onFeatureClick
+  onFeatureClick,
 ) {
   const typeConf =
     CONFIG.featureType[feature.type] || CONFIG.featureType.others;
@@ -470,8 +501,8 @@ function renderFeature(
       loc[2] === null
         ? segmentStart
         : loc.length > 1
-        ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-        : segmentStart;
+          ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+          : segmentStart;
     const segmentX = lengthScale(segmentStart);
     const segmentW =
       loc[2] === null
@@ -509,8 +540,8 @@ function renderFeature(
       loc[2] === null
         ? segmentStart
         : loc.length > 1
-        ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-        : segmentStart;
+          ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+          : segmentStart;
     const segmentX = lengthScale(segmentStart);
     const segmentW =
       loc[2] === null
@@ -528,7 +559,7 @@ function renderFeature(
         segmentW,
         boxHeight,
         typeConf,
-        onFeatureClick
+        onFeatureClick,
       );
     } else {
       drawRect(
@@ -539,7 +570,7 @@ function renderFeature(
         segmentW,
         boxHeight,
         typeConf,
-        onFeatureClick
+        onFeatureClick,
       );
     }
 
@@ -550,7 +581,7 @@ function renderFeature(
       const textWidth = TextUtils.measureTextWidth(
         text,
         fontSize,
-        CONFIG.fonts.primary.family
+        CONFIG.fonts.primary.family,
       );
       const availableWidth = segmentW - 10;
       const isTruncated = textWidth > availableWidth;
@@ -605,7 +636,7 @@ function renderArrowSegment(
   segmentW,
   boxHeight,
   typeConf,
-  onFeatureClick
+  onFeatureClick,
 ) {
   const arrowWidth = Math.min(boxHeight * 1.2, segmentW / 3);
   const arrowNeck = boxHeight * 0.6;
@@ -676,11 +707,11 @@ function applyForceSimulationForRow(rowTextNodes, row) {
     .velocityDecay(0.5)
     .force(
       "repel",
-      d3.forceManyBody().strength(-0.02).distanceMax(50).distanceMin(0)
+      d3.forceManyBody().strength(-0.02).distanceMax(50).distanceMin(0),
     )
     .force(
       "attract",
-      d3.forceManyBody().strength(0.02).distanceMax(100).distanceMin(50)
+      d3.forceManyBody().strength(0.02).distanceMax(100).distanceMin(50),
     )
     .force("x", d3.forceX((d) => d.targetX).strength(1))
     .force("y", d3.forceY((d) => d.targetY).strength(1))
@@ -690,7 +721,7 @@ function applyForceSimulationForRow(rowTextNodes, row) {
       d3
         .forceCollide()
         .radius((d) => d.width / 2)
-        .iterations(3)
+        .iterations(3),
     )
     .stop();
 
@@ -709,7 +740,7 @@ function renderRowTextLabels(
   minVisibleWidth,
   boxHeight,
   fontSize,
-  onFeatureClick
+  onFeatureClick,
 ) {
   rowFeatures.forEach((feature, index) => {
     const y = currentRowY;
@@ -726,8 +757,8 @@ function renderRowTextLabels(
           loc[2] === null
             ? segmentStart
             : loc.length > 1
-            ? Number(DataUtils.cleanString(loc[loc.length - 1]))
-            : segmentStart;
+              ? Number(DataUtils.cleanString(loc[loc.length - 1]))
+              : segmentStart;
         const segmentX = lengthScale(segmentStart);
         const segmentW =
           loc[2] === null
@@ -737,7 +768,7 @@ function renderRowTextLabels(
         const textWidth = TextUtils.measureTextWidth(
           text,
           fontSize,
-          CONFIG.fonts.primary.family
+          CONFIG.fonts.primary.family,
         );
         const availableWidth = segmentW - 10;
         const isTruncated = textWidth > availableWidth;
@@ -750,7 +781,7 @@ function renderRowTextLabels(
               n.box.x === segmentX &&
               n.box.y === y &&
               n.box.width === segmentW &&
-              n.featureIndex === index
+              n.featureIndex === index,
           );
 
           if (textNode) {
@@ -765,7 +796,7 @@ function renderRowTextLabels(
               .attr("stroke", CONFIG.interaction.normal.leader.stroke)
               .attr(
                 "stroke-width",
-                CONFIG.interaction.normal.leader.strokeWidth
+                CONFIG.interaction.normal.leader.strokeWidth,
               )
               .style("pointer-events", "none");
 
@@ -781,7 +812,7 @@ function renderRowTextLabels(
               .attr("stroke", CONFIG.interaction.normal.textBackground.stroke)
               .attr(
                 "stroke-width",
-                CONFIG.interaction.normal.textBackground.strokeWidth
+                CONFIG.interaction.normal.textBackground.strokeWidth,
               )
               .style("opacity", 0);
 
@@ -846,44 +877,51 @@ function renderRowTextLabels(
 }
 
 /**
- * Setup scroll functionality
- * @param {d3.Selection} svg - SVG selection
- * @param {d3.Selection} contentGroup - Content group element
- * @param {Object} margin - Margin object
- * @param {number} contentHeight - Content height
- * @param {number} viewportHeight - Viewport height
+ * Setup scroll functionality (axis and content move together with wheel)
+ * limitedY > 0: content moves down → see more above (restriction labels)
+ * limitedY < 0: content moves up → see more below (features)
  */
-function setupScroll(svg, contentGroup, margin, contentHeight, viewportHeight) {
-  const maxScroll = Math.max(0, contentHeight - viewportHeight + margin.bottom); // Add bottom margin
+function setupScroll(
+  svg,
+  contentGroup,
+  axisGroup,
+  margin,
+  axisTopBuffer,
+  maxY,
+  viewportHeight,
+  textBuffer,
+) {
+  // How far we can scroll to bring top of content (labels above axis) into view: limitedY up to maxScrollUp
+  const maxScrollUp = Math.max(0, axisTopBuffer - margin.top);
+  // How far we can scroll to bring bottom into view: limitedY down to -maxScrollDown
+  const maxScrollDown = Math.max(
+    0,
+    margin.top + maxY + textBuffer - viewportHeight,
+  );
 
-  // Create zoom behavior
+  const applyScroll = (limitedY) => {
+    const ty = margin.top + limitedY;
+    contentGroup.attr("transform", `translate(${margin.left}, ${ty})`);
+    axisGroup.attr("transform", `translate(${margin.left}, ${ty})`);
+  };
+
+  const clampY = (y) => Math.max(-maxScrollDown, Math.min(maxScrollUp, y));
+
   const zoom = d3
     .zoom()
-    .scaleExtent([1, 1]) // Disable scaling
+    .scaleExtent([1, 1])
     .on("zoom", (event) => {
-      // Only apply y-direction transform, keep x position fixed
-      const limitedY = Math.max(-maxScroll, Math.min(0, event.transform.y));
-      contentGroup.attr(
-        "transform",
-        `translate(${margin.left}, ${margin.top + limitedY})`
-      );
+      applyScroll(clampY(event.transform.y));
     });
 
-  // Apply zoom behavior to SVG
   svg.call(zoom);
 
-  // Add mouse wheel event handling
   svg.on("wheel", (event) => {
     event.preventDefault();
-    const delta = -event.deltaY; // Invert deltaY to correct scroll direction
+    const delta = -event.deltaY;
     const currentTransform = d3.zoomTransform(svg.node());
     const newY = currentTransform.y + delta;
-
-    // Limit scroll range
-    const limitedY = Math.max(-maxScroll, Math.min(0, newY));
-
-    // Apply new transform
-    svg.call(zoom.transform, d3.zoomIdentity.translate(0, limitedY));
+    svg.call(zoom.transform, d3.zoomIdentity.translate(0, clampY(newY)));
   });
 }
 
@@ -943,7 +981,7 @@ const LinearSequenceRenderer = ({
       margin,
       width,
       lengthScale,
-      hideInlineMeta
+      hideInlineMeta,
     );
 
     // Render features
@@ -956,18 +994,26 @@ const LinearSequenceRenderer = ({
       boxHeight,
       fontSize,
       vSpace,
-      onFeatureClick
+      onFeatureClick,
     );
 
-    // Calculate content height
-    const textBuffer = vSpace * 8; // Buffer space for outer text
-    const contentHeight = maxY - margin.top + textBuffer;
-
-    // Render restriction sites (on axis group to align with axis)
+    // Render restriction sites (on axis group; may extend above axis)
     renderRestrictionSites(axisGroup, data.res_site, lengthScale);
 
-    // Setup scroll
-    setupScroll(svg, contentGroup, margin, contentHeight, viewportHeight);
+    const linearCfgScroll = CONFIG.restrictionSiteLabels?.linear ?? {};
+    const axisTopBuffer = linearCfgScroll.axisTopBuffer ?? 120;
+    const textBuffer = vSpace * 8;
+
+    setupScroll(
+      svg,
+      contentGroup,
+      axisGroup,
+      margin,
+      axisTopBuffer,
+      Math.max(0, maxY),
+      viewportHeight,
+      textBuffer,
+    );
   }, [data, width, height, onFeatureClick, hideInlineMeta]);
 
   return (
@@ -996,7 +1042,7 @@ function highlightFeature(featureGroup) {
     .attr(
       "stroke-width",
       CONFIG.styles.box.strokeWidth *
-        CONFIG.interaction.hover.strokeWidthMultiplier
+        CONFIG.interaction.hover.strokeWidthMultiplier,
     );
   featureGroup
     .selectAll("text.annotation")
@@ -1051,7 +1097,7 @@ function drawRect(
   segmentW,
   boxHeight,
   typeConf,
-  onFeatureClick
+  onFeatureClick,
 ) {
   return featureGroup
     .append("rect")

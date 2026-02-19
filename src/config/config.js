@@ -361,6 +361,32 @@ export const CONFIG = {
       },
     },
   },
+  // Restriction site labels (greedy placement; style aligned with feature annotations; shared by circular and linear)
+  restrictionSiteLabels: {
+    clusterAngleThresholdPx: 18,
+    minGapFromOuter: 12,
+    radiusStep: 8,
+    labelPadding: 4,
+    charWidthApprox: 5.5,
+    style: {
+      fontSize: 14,
+      fontFamily:
+        "Maple Mono NF, Maple Mono, Consolas, Monaco, 'Courier New', monospace",
+      fill: "#e0e0e0",
+      leader: {
+        stroke: "#aaa",
+        strokeWidth: 1,
+      },
+    },
+    // Linear view: greedy vertical stacking and scroll range
+    linear: {
+      baseYOffset: -20,
+      yStep: 14,
+      labelPadding: 4,
+      lineExtension: 15,
+      axisTopBuffer: 500, // Px above axis included in scroll; larger = more upward scroll to see restriction labels
+    },
+  },
   // 详细序列查看器配置
   detailedSequenceViewer: {
     nucleotidesPerRow: 50, // 每行显示的核苷酸数量
