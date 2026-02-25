@@ -12,7 +12,7 @@
 import React, { useRef, useEffect } from "react";
 import * as d3 from "d3";
 import { CONFIG } from "../../config/config";
-import { DataUtils, TextUtils } from "../../utils/utils";
+import { DataUtils, TextUtils, TranslationUtils } from "../../utils/utils";
 
 /**
  * 详细序列渲染组件
@@ -96,13 +96,24 @@ const DetailedSequenceViewer = ({
   const maxNucleotidesFromWidth = Math.floor(contentWidth / charWidth);
   const nucleotidesPerRow = Math.max(
     10,
-    Math.floor(maxNucleotidesFromWidth / 10) * 10
+    Math.floor(maxNucleotidesFromWidth / 10) * 10,
   );
 
   // 双链DNA显示参数
   const strandSpacing = detailedConfig.strandSpacing; // 两条链之间的间距
   const rowPadding = detailedConfig.rowPadding; // 行与行之间的额外间距
-  const doubleStrandHeight = lineHeight * 2 + strandSpacing + rowPadding; // 双链总高度
+  // 翻译轨道参数 - 只显示一条肽链
+  const translationConfig = detailedConfig.translation || {};
+  const showTranslation =
+    translationConfig.showForward || translationConfig.showReverse;
+  const translationTrackHeight = showTranslation
+    ? translationConfig.trackHeight || 20
+    : 0;
+  const translationFontSize = translationConfig.fontSize || 12;
+
+  // 双链总高度（只显示一条翻译轨道）
+  const doubleStrandHeight =
+    lineHeight * 2 + strandSpacing + rowPadding + translationTrackHeight;
 
   useEffect(() => {
     if (!svgRef.current || !data || !sequence) return;
@@ -158,7 +169,7 @@ const DetailedSequenceViewer = ({
         const rowSequence = sequence.slice(startPos, endPos);
         const rowComplementSequence = complementSequence.slice(
           startPos,
-          endPos
+          endPos,
         );
 
         const rowContainer = contentGroup
@@ -172,7 +183,7 @@ const DetailedSequenceViewer = ({
           0,
           startPos,
           rowSequence,
-          rowComplementSequence
+          rowComplementSequence,
         );
 
         renderRowFeatures(rowContainer, rowIndex);
@@ -246,7 +257,7 @@ const DetailedSequenceViewer = ({
     y,
     startPos,
     topSequence,
-    bottomSequence
+    bottomSequence,
   ) => {
     const rowGroup = parent
       .append("g")
@@ -313,7 +324,7 @@ const DetailedSequenceViewer = ({
       .map((nucleotide, i) => {
         const x = i * 12 + 6;
         return `<tspan x="${x}" fill="${getNucleotideColor(
-          nucleotide
+          nucleotide,
         )}">${nucleotide.toUpperCase()}</tspan>`;
       })
       .join("");
@@ -350,7 +361,7 @@ const DetailedSequenceViewer = ({
       .map((nucleotide, i) => {
         const x = i * 12 + 6;
         return `<tspan x="${x}" fill="${getNucleotideColor(
-          nucleotide
+          nucleotide,
         )}">${nucleotide.toUpperCase()}</tspan>`;
       })
       .join("");
@@ -387,6 +398,193 @@ const DetailedSequenceViewer = ({
         .attr("stroke", "#666") // 灰色
         .attr("stroke-width", 1) // 细实线
         .style("opacity", 0.6);
+    }
+
+    // ==================== 翻译轨道 Rendering ====================
+    // 优先使用 GenBank /translation，对齐到实际 CDS 位置；按行只显示覆盖当前行的氨基酸
+    if (showTranslation && sequence && features && features.length > 0) {
+      const nucleotidesInRow = topSequence.length;
+      if (nucleotidesInRow < 3) {
+        // 行太短，不足一个密码子，直接跳过
+        // 仍保持行高，避免布局抖动
+      } else {
+        const rowStart = startPos + 1; // 当前行起点（1-based）
+        const rowEnd = startPos + topSequence.length; // 当前行终点（1-based，包含）
+
+        // 统计该行区域内的 CDS 方向，并记录首个覆盖该行的 CDS 作为主 CDS
+        let forwardCDS = 0;
+        let reverseCDS = 0;
+        let mainForwardCDS = null;
+        let mainReverseCDS = null;
+
+        features.forEach((feature) => {
+          if (feature.type !== "CDS" && feature.type !== "gene") return;
+          const locations = feature.location || [];
+          locations.forEach((loc) => {
+            if (!loc || !Array.isArray(loc) || loc.length < 2) return;
+            const startStr = String(loc[0] || "").trim();
+            const start = parseInt(startStr, 10);
+            if (isNaN(start)) return;
+            const isReverse = !!loc[1];
+            const endStr = String((loc[2] ?? loc[0]) || "").trim();
+            const end = parseInt(endStr, 10);
+            const featEnd = isNaN(end) ? start : end;
+
+            if (!(featEnd < rowStart || start > rowEnd)) {
+              if (isReverse) {
+                reverseCDS++;
+                if (!mainReverseCDS && feature.type === "CDS") {
+                  mainReverseCDS = feature;
+                }
+              } else {
+                forwardCDS++;
+                if (!mainForwardCDS && feature.type === "CDS") {
+                  mainForwardCDS = feature;
+                }
+              }
+            }
+          });
+        });
+
+        // 决定显示哪条链的翻译（保持原有策略）
+        const showForwardTranslation =
+          forwardCDS > 0 || (forwardCDS === 0 && reverseCDS === 0);
+        const showReverseTranslation = reverseCDS > 0 && forwardCDS === 0;
+
+        // 通用：按 CDS 与 /translation 映射当前行氨基酸到坐标
+        const renderTranslationTrack = (opts) => {
+          const { cdsFeature, isReverse, isForwardTrack } = opts;
+
+          const translationY = complementY + fontSize + 8;
+          const aaY = translationY + translationFontSize;
+          const aaColor = translationConfig.aminoAcidColor || "#ffffff";
+
+          // Frame label（+1/+2/+3 或 -1/-2/-3），基于 CDS 起点与 /codon_start
+          let frameOffset = 0; // 0/1/2，对应密码子在 CDS 中的偏移
+          let frameLabelPrefix = isForwardTrack ? "+" : "-";
+
+          if (
+            !cdsFeature ||
+            !Array.isArray(cdsFeature.location) ||
+            cdsFeature.location.length === 0
+          ) {
+            return;
+          }
+
+          const firstLoc = cdsFeature.location[0];
+          const cdsStartStr = String(firstLoc[0] || "").trim();
+          const cdsStart = parseInt(cdsStartStr, 10); // 1-based
+          const cdsIsReverse = !!firstLoc[1];
+          const cdsEndStr = String((firstLoc[2] ?? firstLoc[0]) || "").trim();
+          const cdsEnd = parseInt(cdsEndStr, 10) || cdsStart;
+          if (isNaN(cdsStart) || isNaN(cdsEnd)) {
+            return;
+          }
+
+          // /codon_start (1,2,3)，默认 1
+          const codonStartRaw = cdsFeature.information?.codon_start;
+          let codonStart = parseInt(codonStartRaw || "1", 10);
+          if (!(codonStart >= 1 && codonStart <= 3)) codonStart = 1;
+          frameOffset = (codonStart - 1) % 3;
+
+          // 计算阅读框标签：基因组整体 frame
+          // 对正向： (cdsStart - 1 + frameOffset) % 3 + 1
+          // 对反向：同理，方向只影响符号
+          const genomeFrame = (((cdsStart - 1 + frameOffset) % 3) + 3) % 3; // 0,1,2
+          const frameLabel = `${frameLabelPrefix}${genomeFrame + 1}`;
+
+          // 选择氨基酸序列来源：优先 /translation，回退到动态翻译
+          let fullAA = null;
+          if (cdsFeature.information?.translation) {
+            fullAA = cdsFeature.information.translation + "*";
+          } else {
+            if (!isReverse) {
+              fullAA = TranslationUtils.translate(sequence, genomeFrame);
+            } else {
+              const rc = TranslationUtils.reverseComplement(sequence);
+              fullAA = TranslationUtils.translate(rc, genomeFrame);
+            }
+          }
+          if (!fullAA || !fullAA.length) {
+            return;
+          }
+
+          // 将 /translation 中的每个氨基酸索引映射到基因组位置（取密码子的第2个碱基）
+          const tspans = [];
+          const charWidth = 12;
+          const maxCols = nucleotidesInRow;
+
+          for (let i = 0; i < fullAA.length; i++) {
+            const aa = fullAA[i];
+            // 只处理标准氨基酸和终止符，其它符号可跳过
+            if (!aa || aa === " ") continue;
+
+            let genomePos; // 1-based
+            if (!cdsIsReverse) {
+              // 正向 CDS：从 cdsStart 开始、考虑 codon_start 偏移
+              genomePos = cdsStart + frameOffset + i * 3 + 1;
+            } else {
+              // 反向 CDS：从 cdsEnd 向左，考虑 codon_start 偏移
+              genomePos = cdsEnd - frameOffset - i * 3 - 1;
+            }
+
+            if (genomePos < rowStart || genomePos > rowEnd) {
+              continue;
+            }
+
+            const baseIndex0 = genomePos - 1; // 0-based
+            const col = baseIndex0 - startPos;
+            if (col < 0 || col >= maxCols) continue;
+
+            const x = col * charWidth + charWidth / 2;
+            tspans.push(`<tspan x="${x}" fill="${aaColor}">${aa}</tspan>`);
+          }
+
+          if (tspans.length === 0) {
+            return;
+          }
+
+          // 绘制 frame 标签
+          rowGroup
+            .append("text")
+            .attr("x", -65)
+            .attr("y", translationY + translationFontSize)
+            .attr("text-anchor", "end")
+            .style("font-family", CONFIG.styles.annotation.fontFamily)
+            .style("font-size", "10px")
+            .style("fill", CONFIG.styles.axis.text.fill)
+            .text(frameLabel);
+
+          // 绘制氨基酸字母（对齐到每个密码子的第一个碱基）
+          rowGroup
+            .append("text")
+            .attr(
+              "class",
+              isForwardTrack ? "forward-translation" : "reverse-translation",
+            )
+            .attr("y", aaY)
+            .attr("text-anchor", "middle")
+            .style("font-family", CONFIG.styles.annotation.fontFamily)
+            .style("font-size", `${translationFontSize}px`)
+            .style("font-weight", "normal")
+            .html(tspans.join(""));
+        };
+
+        // 根据主导方向渲染一条翻译轨道（正向或反向）
+        if (showForwardTranslation && mainForwardCDS) {
+          renderTranslationTrack({
+            cdsFeature: mainForwardCDS,
+            isReverse: false,
+            isForwardTrack: true,
+          });
+        } else if (showReverseTranslation && mainReverseCDS) {
+          renderTranslationTrack({
+            cdsFeature: mainReverseCDS,
+            isReverse: true,
+            isForwardTrack: false,
+          });
+        }
+      }
     }
 
     // Restriction site dividers and labels: CONFIG style; greedy multi-row label layout to avoid overlap
@@ -471,7 +669,7 @@ const DetailedSequenceViewer = ({
         for (; rowIndex < maxRows; rowIndex++) {
           if (!rowIntervals[rowIndex]) rowIntervals[rowIndex] = [];
           const overlaps = rowIntervals[rowIndex].some(
-            (seg) => !(right < seg.left || left > seg.right)
+            (seg) => !(right < seg.left || left > seg.right),
           );
           if (!overlaps) {
             rowIntervals[rowIndex].push({ left, right });
@@ -563,9 +761,7 @@ const DetailedSequenceViewer = ({
     const featureStart = Number(rawStart) - 1;
     if (isNaN(featureStart)) return null;
     const hasEnd =
-      loc.length >= 3 &&
-      loc[2] != null &&
-      String(loc[2]).trim() !== "";
+      loc.length >= 3 && loc[2] != null && String(loc[2]).trim() !== "";
     const featureEnd = hasEnd
       ? Number(DataUtils.cleanString(loc[2])) - 1
       : featureStart;
@@ -750,7 +946,7 @@ const DetailedSequenceViewer = ({
             boxHeight,
             isComplementary,
             typeConf,
-            item.feature
+            item.feature,
           );
         });
       });
@@ -778,7 +974,7 @@ const DetailedSequenceViewer = ({
     boxHeight,
     isComplementary,
     typeConf,
-    feature
+    feature,
   ) => {
     const safeWidth = Math.max(width, 12);
     if (typeConf.shape === "arrow") {
@@ -1036,7 +1232,7 @@ const DetailedSequenceViewer = ({
         0,
         startPos,
         rowSequence,
-        rowComplementSequence
+        rowComplementSequence,
       );
 
       renderRowFeatures(rowContainer, rowIndex);
@@ -1060,7 +1256,7 @@ const DetailedSequenceViewer = ({
 
         contentGroup.attr(
           "transform",
-          `translate(${margin.left}, ${margin.top})`
+          `translate(${margin.left}, ${margin.top})`,
         );
 
         updateVisibleContent(currentScrollOffset);

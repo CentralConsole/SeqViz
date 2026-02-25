@@ -400,6 +400,15 @@ export const CONFIG = {
     positionWidth: 80, // 位置标记宽度
     strandSpacing: 8, // 两条DNA链之间的间距
     rowPadding: 15, // 行与行之间的额外间距
+    // 翻译轨道配置
+    translation: {
+      showForward: true, // 显示正义链翻译
+      showReverse: true, // 显示反义链翻译
+      trackHeight: 20, // 翻译轨道高度
+      fontSize: 12, // 氨基酸字体大小
+      showFrameLabels: true, // 显示阅读框标签
+      aminoAcidColor: "#ffffff", // 统一白色
+    },
     nucleotideColors: {
       A: "#ff6b6b", // 腺嘌呤 - 红色
       T: "#4ecdc4", // 胸腺嘧啶 - 青色
