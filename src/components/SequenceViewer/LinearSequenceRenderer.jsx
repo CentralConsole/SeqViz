@@ -939,6 +939,7 @@ const LinearSequenceRenderer = ({
   height = 600,
   onFeatureClick,
   hideInlineMeta,
+  colorVersion = 0,
 }) => {
   const svgRef = useRef(null);
   const { sequenceViewer } = CONFIG;
@@ -1014,7 +1015,7 @@ const LinearSequenceRenderer = ({
       viewportHeight,
       textBuffer,
     );
-  }, [data, width, height, onFeatureClick, hideInlineMeta]);
+  }, [data, width, height, onFeatureClick, hideInlineMeta, colorVersion]);
 
   return (
     <div style={sequenceViewer.renderer}>

@@ -18,13 +18,12 @@ import { CONFIG } from "../../config/config";
  * @param {d3.Selection} featureElement - D3 selection of the feature element
  * @param {Object} feature - Feature data object
  */
-function highlightFeature(featureElement, feature) {
-  const typeConfig =
-    CONFIG.featureType[feature.type] || CONFIG.featureType.others;
+function highlightFeature(featureElement) {
+  const highlightStroke = "#ffffff";
 
   featureElement
     .selectAll("path")
-    .attr("stroke", typeConfig.stroke)
+    .attr("stroke", highlightStroke)
     .attr(
       "stroke-width",
       CONFIG.styles.box.strokeWidth *
@@ -41,11 +40,12 @@ function highlightFeature(featureElement, feature) {
     .selectAll(".text-bg")
     .style("fill", CONFIG.interaction.hover.textBackground.fill)
     .style("stroke", CONFIG.interaction.hover.textBackground.stroke)
-    .style("stroke-width", CONFIG.interaction.hover.textBackground.strokeWidth);
+    .style("stroke-width", CONFIG.interaction.hover.textBackground.strokeWidth)
+    .style("opacity", 1);
 
   featureElement
     .selectAll(".annotation-leader")
-    .attr("stroke", CONFIG.interaction.hover.leader.stroke)
+    .attr("stroke", highlightStroke)
     .attr("stroke-width", CONFIG.interaction.hover.leader.strokeWidth);
 }
 
@@ -56,7 +56,7 @@ function highlightFeature(featureElement, feature) {
  */
 function unhighlightFeature(featureElement, feature) {
   const typeConfig =
-    CONFIG.featureType[feature.type] || CONFIG.featureType.others;
+    CONFIG.featureType[feature?.type] || CONFIG.featureType.others;
 
   featureElement
     .selectAll("path")
@@ -72,7 +72,9 @@ function unhighlightFeature(featureElement, feature) {
   featureElement
     .selectAll(".text-bg")
     .style("fill", CONFIG.interaction.normal.textBackground.fill)
-    .style("stroke", CONFIG.interaction.normal.textBackground.stroke);
+    .style("stroke", CONFIG.interaction.normal.textBackground.stroke)
+    .style("stroke-width", CONFIG.interaction.normal.textBackground.strokeWidth)
+    .style("opacity", 0);
 
   featureElement
     .selectAll(".annotation-leader")
@@ -782,7 +784,6 @@ function renderLayerFeatures(
         .on("click", () => onFeatureClick?.(d))
         .on("mousedown", function (event) {
           if (event.button === 0) {
-            // Left mouse button
             highlightFeature(featureElement);
           }
         })
@@ -1151,18 +1152,15 @@ function collectTextNode(
       .style("cursor", CONFIG.interaction.hover.cursor)
       .on("mousedown", function (event) {
         if (event.button === 0) {
-          // Left mouse button
           highlightFeature(featureElement);
         }
       })
       .on("mouseup", function (event) {
         if (event.button === 0) {
-          // Left mouse button
           unhighlightFeature(featureElement, feature);
         }
       })
       .on("mouseleave", function () {
-        // Cancel highlight if mouse leaves while button is pressed
         unhighlightFeature(featureElement, feature);
       })
       .on("click", () => onFeatureClick?.(feature))
@@ -1282,13 +1280,11 @@ function renderOuterTextNodes(layerOuterTextNodes, onFeatureClick) {
       .style("fill", CONFIG.styles.annotation.fillDark)
       .on("mousedown", function (event) {
         if (event.button === 0 && node.feature) {
-          // Left mouse button
           highlightFeature(node.featureElement);
         }
       })
       .on("mouseup", function (event) {
         if (event.button === 0 && node.feature) {
-          // Left mouse button
           unhighlightFeature(node.featureElement, node.feature);
         }
       })
@@ -1483,6 +1479,7 @@ const CircularSequenceRenderer = ({
   height,
   onFeatureClick,
   hideInlineMeta,
+  colorVersion = 0,
 }) => {
   const svgRef = useRef(null);
   const [, setScale] = useState(1);
@@ -1658,7 +1655,7 @@ const CircularSequenceRenderer = ({
       // Event listeners are now handled in separate useEffect
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, width, height, onFeatureClick, hideInlineMeta]);
+  }, [data, width, height, onFeatureClick, hideInlineMeta, colorVersion]);
 
   return (
     <div style={sequenceViewer.renderer}>

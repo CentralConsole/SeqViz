@@ -107,6 +107,33 @@
   background-color: #4caf50;
 }
 
+.sv-color-button {
+  position: absolute;
+  top: 20px;
+  left: 70px;
+  z-index: 1000;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  transition: background-color 0.3s;
+  background-color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sv-color-button:hover {
+  opacity: 0.9;
+}
+
+.sv-color-button.active {
+  background-color: #4caf50;
+}
+
 /* 注释文本样式 */
 .sv-annotation {
   font-family: "Maple Mono NF", "Maple Mono CN", "Maple Mono", monospace !important;

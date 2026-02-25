@@ -28,6 +28,7 @@ const DetailedSequenceViewer = ({
   height = 600,
   onFeatureClick,
   hideInlineMeta,
+  colorVersion = 0,
 }) => {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
@@ -80,13 +81,17 @@ const DetailedSequenceViewer = ({
 
   const complementSequence = getComplementSequence();
 
-  // 配置参数
-  const margin = { top: 100, right: 40, bottom: 100, left: 120 };
-  const contentWidth = Math.max(0, width - margin.left - margin.right);
-  const contentHeight = Math.max(0, height - margin.top - margin.bottom);
-
   // 从配置文件获取序列显示参数
   const detailedConfig = CONFIG.detailedSequenceViewer;
+  // 配置参数（顶部留白从 config 读取，避免与顶端按钮重叠）
+  const margin = {
+    top: detailedConfig.topMargin ?? 100,
+    right: 40,
+    bottom: 100,
+    left: 120,
+  };
+  const contentWidth = Math.max(0, width - margin.left - margin.right);
+  const contentHeight = Math.max(0, height - margin.top - margin.bottom);
   const lineHeight = detailedConfig.lineHeight;
   const fontSize = detailedConfig.fontSize;
   //const positionWidth = detailedConfig.positionWidth;
@@ -156,12 +161,15 @@ const DetailedSequenceViewer = ({
         renderHeader(svg);
       }
 
+      // 第一行上方留白，使限制酶标签不被 clipPath 裁剪（标签在 y - 10 - n*yStep）
+      const firstRowTopPadding = detailedConfig.firstRowTopPadding ?? 60;
       // 渲染初始序列内容（渲染前几行）
       const initialRows = Math.min(5, totalRows);
       for (let i = 0; i < initialRows; i++) {
         const rowIndex = i;
         const absoluteY =
-          rowIndex === 0 ? 0 : calculateCumulativeHeight(0, rowIndex);
+          firstRowTopPadding +
+          (rowIndex === 0 ? 0 : calculateCumulativeHeight(0, rowIndex));
         const currentY = absoluteY; // 初始时 scrollOffset 为 0
 
         const startPos = rowIndex * nucleotidesPerRow;
@@ -194,7 +202,7 @@ const DetailedSequenceViewer = ({
     };
 
     renderDetailedView();
-  }, [data, width, height, sequence]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, width, height, sequence, colorVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderHeader = (svg) => {
     // 创建固定坐标轴组（移到内容组之后，确保在最上层）
@@ -966,6 +974,38 @@ const DetailedSequenceViewer = ({
     }
   };
 
+  const highlightFeature = (featureGroup) => {
+    const highlightStroke = "#ffffff";
+    featureGroup
+      .selectAll("rect.box, polygon.arrow-rect")
+      .attr("stroke", highlightStroke)
+      .attr(
+        "stroke-width",
+        CONFIG.styles.box.strokeWidth *
+          CONFIG.interaction.hover.strokeWidthMultiplier,
+      );
+    featureGroup
+      .selectAll("text.feature-label")
+      .style("font-weight", CONFIG.interaction.hover.fontWeight)
+      .style("text-shadow", CONFIG.interaction.hover.textShadow);
+  };
+
+  const unhighlightFeature = (featureGroup) => {
+    const feature = featureGroup.datum();
+    const typeConf =
+      feature && feature.type
+        ? CONFIG.featureType[feature.type] || CONFIG.featureType.others
+        : CONFIG.featureType.others;
+    featureGroup
+      .selectAll("rect.box, polygon.arrow-rect")
+      .attr("stroke", typeConf.stroke)
+      .attr("stroke-width", CONFIG.styles.box.strokeWidth);
+    featureGroup
+      .selectAll("text.feature-label")
+      .style("font-weight", CONFIG.interaction.normal.fontWeight)
+      .style("text-shadow", CONFIG.interaction.normal.textShadow);
+  };
+
   const renderFeatureArrow = (
     parent,
     x,
@@ -977,15 +1017,29 @@ const DetailedSequenceViewer = ({
     feature,
   ) => {
     const safeWidth = Math.max(width, 12);
+    const featureGroup = parent
+      .append("g")
+      .attr("class", "feature")
+      .datum(feature);
+
+    const applyHighlightHandlers = (selection) => {
+      selection
+        .on("mousedown", function (event) {
+          if (event.button === 0) highlightFeature(featureGroup);
+        })
+        .on("mouseup", function (event) {
+          if (event.button === 0) unhighlightFeature(featureGroup);
+        })
+        .on("mouseleave", () => unhighlightFeature(featureGroup));
+    };
+
     if (typeConf.shape === "arrow") {
-      // 使用与LinearSequenceRenderer完全相同的箭头参数；保证最小宽度以便 length-1 可见
       const arrowWidth = Math.min(boxHeight * 1.2, safeWidth / 3);
       const arrowNeck = boxHeight * 0.6;
       const rectW = safeWidth - arrowWidth;
 
       let points;
       if (isComplementary) {
-        // 向左箭头
         const leftTop = [x + safeWidth, y];
         const rightTop = [x + arrowWidth, y];
         const neckTop = [
@@ -1009,7 +1063,6 @@ const DetailedSequenceViewer = ({
           leftBottom,
         ];
       } else {
-        // 向右箭头
         const leftTop = [x, y];
         const rightTop = [x + rectW, y];
         const neckTop = [
@@ -1034,7 +1087,7 @@ const DetailedSequenceViewer = ({
         ];
       }
 
-      parent
+      const polygon = featureGroup
         .append("polygon")
         .attr("points", points.map((p) => p.join(",")).join(" "))
         .attr("fill", typeConf.fill)
@@ -1043,19 +1096,16 @@ const DetailedSequenceViewer = ({
         .attr("class", "arrow-rect")
         .style("cursor", CONFIG.interaction.hover.cursor)
         .on("click", () => handleFeatureClick(feature));
+      applyHighlightHandlers(polygon);
 
-      // 添加特征文字标签
       const text =
         feature.information?.gene ||
         feature.information?.product ||
         feature.type;
-
       if (text && safeWidth > 20) {
-        // 只有箭头足够宽时才显示文字
-        const textX = x + safeWidth / 2; // 箭头中心位置
-        const textY = y + boxHeight / 2; // 箭头垂直中心
-
-        parent
+        const textX = x + safeWidth / 2;
+        const textY = y + boxHeight / 2;
+        featureGroup
           .append("text")
           .attr("class", "feature-label")
           .attr("x", textX)
@@ -1065,13 +1115,12 @@ const DetailedSequenceViewer = ({
           .style("font-family", CONFIG.fonts.primary.family)
           .style("font-size", `${Math.min(fontSize, boxHeight * 0.7)}px`)
           .style("fill", CONFIG.styles.annotation.fillDark)
-          .style("pointer-events", "none") // 防止文字阻止箭头点击
-          .style("user-select", "none") // 防止文字被选中
+          .style("pointer-events", "none")
+          .style("user-select", "none")
           .text(text);
       }
     } else {
-      // 绘制矩形（非箭头特征）
-      parent
+      const rect = featureGroup
         .append("rect")
         .attr("class", `box ${feature.type}`)
         .attr("x", x)
@@ -1084,19 +1133,16 @@ const DetailedSequenceViewer = ({
         .attr("fill-opacity", CONFIG.styles.box.fillOpacity)
         .style("cursor", CONFIG.interaction.hover.cursor)
         .on("click", () => handleFeatureClick(feature));
+      applyHighlightHandlers(rect);
 
-      // 添加特征文字标签
       const text =
         feature.information?.gene ||
         feature.information?.product ||
         feature.type;
-
       if (text && width > 20) {
-        // 只有特征足够宽时才显示文字
-        const textX = x + width / 2; // 矩形中心位置
-        const textY = y + boxHeight / 2; // 矩形垂直中心
-
-        parent
+        const textX = x + width / 2;
+        const textY = y + boxHeight / 2;
+        featureGroup
           .append("text")
           .attr("class", "feature-label")
           .attr("x", textX)
@@ -1106,8 +1152,8 @@ const DetailedSequenceViewer = ({
           .style("font-family", CONFIG.fonts.primary.family)
           .style("font-size", `${Math.min(fontSize, boxHeight * 0.7)}px`)
           .style("fill", CONFIG.styles.annotation.fillDark)
-          .style("pointer-events", "none") // 防止文字阻止矩形点击
-          .style("user-select", "none") // 防止文字被选中
+          .style("pointer-events", "none")
+          .style("user-select", "none")
           .text(text);
       }
     }
@@ -1126,10 +1172,11 @@ const DetailedSequenceViewer = ({
 
   const addScrollBehavior = (svg, contentGroup) => {
     const totalRows = Math.ceil(sequence.length / nucleotidesPerRow);
+    const firstRowTopPadding = detailedConfig.firstRowTopPadding ?? 60;
 
-    // 预计算所有行的累积高度，用于滚动计算
+    // 预计算所有行的累积高度（第一行从 firstRowTopPadding 起，为上方酶标签留空间）
     const rowCumulativeHeights = [];
-    let cumulativeHeight = 0;
+    let cumulativeHeight = firstRowTopPadding;
     for (let i = 0; i < totalRows; i++) {
       rowCumulativeHeights[i] = cumulativeHeight;
       cumulativeHeight += calculateRowHeight(i);

@@ -398,6 +398,8 @@ export const CONFIG = {
     lineHeight: 25, // 行高
     fontSize: 14, // 字体大小
     positionWidth: 80, // 位置标记宽度
+    topMargin: 100, // 顶部留白（为顶部按钮等留出空间）
+    firstRowTopPadding: 60, // 第一行上方留白，供限制酶等标签绘制，避免被裁剪
     strandSpacing: 8, // 两条DNA链之间的间距
     rowPadding: 15, // 行与行之间的额外间距
     // 翻译轨道配置
@@ -426,3 +428,112 @@ export const CONFIG = {
     },
   },
 };
+
+/** Deep merge source into target (mutates target). Used for theme switching. */
+function deepMerge(target, source) {
+  if (source == null) return;
+  for (const key of Object.keys(source)) {
+    const t = target[key];
+    const s = source[key];
+    if (s != null && typeof s === "object" && !Array.isArray(s) && typeof t === "object" && t != null && !Array.isArray(t)) {
+      deepMerge(t, s);
+    } else {
+      target[key] = s;
+    }
+  }
+}
+
+/** Dark theme snapshot (same shape as LIGHT_THEME). Restores dark colors when switching from light. */
+export const DARK_THEME = {
+  styles: {
+    box: { stroke: "#000" },
+    axis: {
+      stroke: "rgb(161, 161, 161)",
+      background: { fill: "rgb(30, 30, 30)", stroke: "none" },
+      text: { fill: "#e0e0e0" },
+    },
+    annotation: { fill: "#333", fillDark: "#e0e0e0" },
+    background: { color: "rgb(8, 8, 26)" },
+  },
+  interaction: {
+    hover: {
+      textBackground: {
+        fill: "rgba(58, 58, 58, 0.5)",
+        stroke: "rgb(148, 148, 148)",
+      },
+      leader: { stroke: "#333" },
+    },
+    normal: { leader: { stroke: "#aaa" } },
+  },
+  sequenceViewer: {
+    tooltip: {
+      background: "#282828",
+      color: "#e0e0e0",
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.5)",
+    },
+    loading: { color: "#e0e0e0" },
+    error: { color: "#ff6b6b" },
+    bone: { stroke: "#444" },
+    annotation: { fill: "#ffffff" },
+    annotationBg: {
+      fill: "rgba(50, 50, 50, 0.85)",
+      stroke: "#333",
+    },
+    scrollbar: {
+      track: { background: "#1a1a1a" },
+      thumb: { background: "#333", hover: { background: "#444" } },
+    },
+  },
+  viewModeToggle: {
+    button: { color: "white" },
+    inactive: { backgroundColor: "#666" },
+  },
+  restrictionSiteLabels: {
+    style: {
+      fill: "#e0e0e0",
+      leader: { stroke: "#aaa", strokeWidth: 1 },
+    },
+  },
+  featureType: {
+    source: { fill: "#4A7A6C", stroke: "rgb(142, 209, 189)" },
+    operon: { fill: "#3C6C8C", stroke: "rgb(169, 146, 227)" },
+    CDS: { fill: "#287733", stroke: "rgb(165, 216, 76)" },
+    gene: { fill: "#333377", stroke: "rgb(143, 175, 211)" },
+    tRNA: { fill: "#614D7C", stroke: "rgb(187, 156, 210)" },
+    rRNA: { fill: "#7E4450", stroke: "rgb(213, 112, 112)" },
+    misc_feature: { fill: "#607D8B", stroke: "#405D6B" },
+    regulatory: { fill: "#475A66", stroke: "rgb(98, 195, 255)" },
+    STS: { fill: "rgb(121, 114, 32)", stroke: "rgb(210, 216, 18)" },
+    mRNA: { fill: "#FF9800", stroke: "#DF7800" },
+    exon: { fill: "#9C27B0", stroke: "#7C0790" },
+    intron: { fill: "#E91E63", stroke: "#C90E43" },
+    promoter: { fill: "#FF5722", stroke: "#DF3702" },
+    terminator: { fill: "#F44336", stroke: "#D42326" },
+    variation: { fill: "#00BCD4", stroke: "#009CB4" },
+    gap: { fill: "#9E9E9E", stroke: "#7E7E7E" },
+    others: { fill: "#757575", stroke: "rgb(185, 185, 185)" },
+  },
+  detailedSequenceViewer: {
+    translation: { aminoAcidColor: "#ffffff" },
+    nucleotideColors: {
+      A: "#ff6b6b",
+      T: "#4ecdc4",
+      C: "#45b7d1",
+      G: "#96ceb4",
+      N: "#95a5a6",
+      default: "#e0e0e0",
+    },
+    featurePanel: {
+      backgroundColor: "rgba(30, 30, 30, 0.95)",
+      border: "1px solid #555",
+    },
+  },
+};
+
+/**
+ * Apply a theme overlay to CONFIG (deep merge). Call after switching Dark/Light mode.
+ * @param {Object} overrides - Partial config object (e.g. DARK_THEME or LIGHT_THEME)
+ */
+export function applyTheme(overrides) {
+  if (overrides) deepMerge(CONFIG, overrides);
+}

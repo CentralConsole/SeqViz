@@ -12,8 +12,10 @@ import DetailedSequenceViewer from "./DetailedSequenceRenderer.jsx";
 import ViewModeToggle from "./ViewModeToggle";
 import MetadataPanel from "./MetadataPanel.jsx";
 import FilePickerUI from "./FilePickerUI.jsx";
+import ColorCustomizer from "./ColorCustomizer.jsx";
 import { useGenomeData } from "./useGenomeData";
 import { useContainerDimensions } from "./useContainerDimensions";
+import { CONFIG } from "../../config/config";
 import "./SequenceViewer.css";
 
 /**
@@ -40,6 +42,8 @@ const SequenceViewerInner = ({
 
   const [viewMode, setViewMode] = useState(initialViewMode);
   const [showMeta, setShowMeta] = useState(false);
+  const [showColorCustomizer, setShowColorCustomizer] = useState(false);
+  const [colorVersion, setColorVersion] = useState(0);
 
   // Re-measure after data loads so renderers get correct size
   useEffect(() => {
@@ -88,11 +92,13 @@ const SequenceViewerInner = ({
     return <div className="sv-sequence-container">Loading...</div>;
   }
 
+  const backgroundColor = CONFIG.styles?.background?.color ?? "#242424";
+
   return (
     <div
       ref={containerRef}
       className="sv-sequence-container"
-      style={style}
+      style={{ ...style, backgroundColor }}
     >
       <ViewModeToggle
         currentView={viewMode}
@@ -107,7 +113,20 @@ const SequenceViewerInner = ({
       >
         &#xf449;
       </button>
+      <button
+        type="button"
+        className={`sv-color-button ${showColorCustomizer ? "active" : ""}`}
+        title="Color customization"
+        onClick={() => setShowColorCustomizer((v) => !v)}
+        aria-label="Toggle color customization"
+      >
+        &#xeb5c;
+      </button>
       {showMeta && <MetadataPanel data={genomeData} />}
+      <ColorCustomizer
+        open={showColorCustomizer}
+        onApply={() => setColorVersion((v) => v + 1)}
+      />
       {viewMode === "linear" && (
         <LinearSequenceRenderer
           data={genomeData}
@@ -115,6 +134,7 @@ const SequenceViewerInner = ({
           height={dimensions.height}
           onFeatureClick={onFeatureClick}
           hideInlineMeta={true}
+          colorVersion={colorVersion}
         />
       )}
       {viewMode === "circular" && (
@@ -124,6 +144,7 @@ const SequenceViewerInner = ({
           height={dimensions.height}
           onFeatureClick={onFeatureClick}
           hideInlineMeta={true}
+          colorVersion={colorVersion}
         />
       )}
       {viewMode === "detailed" && (
@@ -133,6 +154,7 @@ const SequenceViewerInner = ({
           height={dimensions.height}
           onFeatureClick={onFeatureClick}
           hideInlineMeta={true}
+          colorVersion={colorVersion}
         />
       )}
     </div>
