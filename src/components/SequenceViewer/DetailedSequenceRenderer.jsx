@@ -29,6 +29,8 @@ const DetailedSequenceViewer = ({
   onFeatureClick,
   hideInlineMeta,
   colorVersion = 0,
+  selection = null,
+  onSelectionEnd,
 }) => {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
@@ -124,9 +126,6 @@ const DetailedSequenceViewer = ({
     if (!svgRef.current || !data || !sequence) return;
 
     const renderDetailedView = () => {
-      // 计算总行数
-      const totalRows = Math.ceil(sequence.length / nucleotidesPerRow);
-
       // 清除之前的渲染内容
       d3.select(svgRef.current).selectAll("*").remove();
 
@@ -161,48 +160,12 @@ const DetailedSequenceViewer = ({
         renderHeader(svg);
       }
 
-      // 第一行上方留白，使限制酶标签不被 clipPath 裁剪（标签在 y - 10 - n*yStep）
-      const firstRowTopPadding = detailedConfig.firstRowTopPadding ?? 60;
-      // 渲染初始序列内容（渲染前几行）
-      const initialRows = Math.min(5, totalRows);
-      for (let i = 0; i < initialRows; i++) {
-        const rowIndex = i;
-        const absoluteY =
-          firstRowTopPadding +
-          (rowIndex === 0 ? 0 : calculateCumulativeHeight(0, rowIndex));
-        const currentY = absoluteY; // 初始时 scrollOffset 为 0
-
-        const startPos = rowIndex * nucleotidesPerRow;
-        const endPos = Math.min(startPos + nucleotidesPerRow, sequence.length);
-        const rowSequence = sequence.slice(startPos, endPos);
-        const rowComplementSequence = complementSequence.slice(
-          startPos,
-          endPos,
-        );
-
-        const rowContainer = contentGroup
-          .append("g")
-          .attr("class", `sequence-row-${rowIndex}`)
-          .attr("transform", `translate(0, ${currentY})`);
-
-        renderDoubleStrandRow(
-          rowContainer,
-          rowIndex,
-          0,
-          startPos,
-          rowSequence,
-          rowComplementSequence,
-        );
-
-        renderRowFeatures(rowContainer, rowIndex);
-      }
-
-      // 添加滚动功能
-      addScrollBehavior(svg, contentGroup);
+      // 添加滚动功能与序列选择
+      addScrollBehavior(svg, contentGroup, { selection, onSelectionEnd });
     };
 
     renderDetailedView();
-  }, [data, width, height, sequence, colorVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, width, height, sequence, colorVersion, selection, onSelectionEnd]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderHeader = (svg) => {
     // 创建固定坐标轴组（移到内容组之后，确保在最上层）
@@ -280,6 +243,7 @@ const DetailedSequenceViewer = ({
       .style("font-family", CONFIG.styles.annotation.fontFamily)
       .style("font-size", "10px")
       .style("fill", CONFIG.styles.axis.text.fill)
+      .style("user-select", "none")
       .text("5'");
 
     rowGroup
@@ -290,6 +254,7 @@ const DetailedSequenceViewer = ({
       .style("font-family", CONFIG.styles.annotation.fontFamily)
       .style("font-size", "10px")
       .style("fill", CONFIG.styles.axis.text.fill)
+      .style("user-select", "none")
       .text("3'");
 
     // 3' to 5' 方向标记（互补链）
@@ -302,6 +267,7 @@ const DetailedSequenceViewer = ({
       .style("font-family", CONFIG.styles.annotation.fontFamily)
       .style("font-size", "10px")
       .style("fill", CONFIG.styles.axis.text.fill)
+      .style("user-select", "none")
       .text("3'");
 
     rowGroup
@@ -312,6 +278,7 @@ const DetailedSequenceViewer = ({
       .style("font-family", CONFIG.styles.annotation.fontFamily)
       .style("font-size", "10px")
       .style("fill", CONFIG.styles.axis.text.fill)
+      .style("user-select", "none")
       .text("5'");
 
     // 位置标记（放在两条链之间）
@@ -324,6 +291,7 @@ const DetailedSequenceViewer = ({
       .style("font-family", CONFIG.styles.annotation.fontFamily)
       .style("font-size", `${fontSize}px`)
       .style("fill", CONFIG.styles.axis.text.fill)
+      .style("user-select", "none")
       .text((startPos + 1).toLocaleString());
 
     // 使用单个text元素渲染整行正链核苷酸
@@ -345,6 +313,7 @@ const DetailedSequenceViewer = ({
       .style("font-family", CONFIG.styles.annotation.fontFamily)
       .style("font-size", `${fontSize}px`)
       .style("font-weight", "normal")
+      .style("user-select", "none")
       .html(topStrandText);
 
     // 每10个核苷酸添加间隔标记（放在两条链之间的右侧）
@@ -360,6 +329,7 @@ const DetailedSequenceViewer = ({
         .style("font-size", "10px")
         .style("fill", CONFIG.styles.axis.text.fill)
         .style("opacity", 0.7)
+        .style("user-select", "none")
         .text(position + 1);
     }
 
@@ -382,6 +352,7 @@ const DetailedSequenceViewer = ({
       .style("font-family", CONFIG.styles.annotation.fontFamily)
       .style("font-size", `${fontSize}px`)
       .style("font-weight", "normal")
+      .style("user-select", "none")
       .html(bottomStrandText);
 
     // 绘制氢键连线（碱基配对）
@@ -853,15 +824,6 @@ const DetailedSequenceViewer = ({
     return totalRowHeight;
   };
 
-  // 计算从startRow到endRow(不包含)的累积高度
-  const calculateCumulativeHeight = (startRow, endRow) => {
-    let totalHeight = 0;
-    for (let i = startRow; i < endRow; i++) {
-      totalHeight += calculateRowHeight(i);
-    }
-    return totalHeight;
-  };
-
   const renderRowFeatures = (rowContainer, rowIndex) => {
     const vSpace = CONFIG.dimensions.vSpace;
     const boxHeight =
@@ -1170,9 +1132,11 @@ const DetailedSequenceViewer = ({
     }
   };
 
-  const addScrollBehavior = (svg, contentGroup) => {
+  const addScrollBehavior = (svg, contentGroup, opts = {}) => {
+    const { selection = null, onSelectionEnd } = opts;
     const totalRows = Math.ceil(sequence.length / nucleotidesPerRow);
     const firstRowTopPadding = detailedConfig.firstRowTopPadding ?? 60;
+    const charWidthPx = 12;
 
     // 预计算所有行的累积高度（第一行从 firstRowTopPadding 起，为上方酶标签留空间）
     const rowCumulativeHeights = [];
@@ -1187,6 +1151,12 @@ const DetailedSequenceViewer = ({
     rowCumulativeHeightsRef.current = rowCumulativeHeights;
 
     let currentScrollOffset = 0;
+    let selectionLayer = null;
+    const selStyle = CONFIG.interaction?.selection ?? {
+      fill: "rgba(30, 144, 255, 0.25)",
+      stroke: "rgba(30, 144, 255, 0.8)",
+      strokeWidth: 1,
+    };
 
     // 根据滚动偏移量查找当前顶部行
     const findTopRowByOffset = (scrollOffset) => {
@@ -1225,7 +1195,7 @@ const DetailedSequenceViewer = ({
       return 0; // 如果所有查找都失败，返回第0行
     };
 
-    // 虚拟化重渲染函数
+    // 虚拟化重渲染函数（只移除行组，保留 selection-layer）
     const updateVisibleContent = (scrollOffset) => {
       const bufferRows = 2;
 
@@ -1240,9 +1210,49 @@ const DetailedSequenceViewer = ({
         endRow = Math.min(totalRows, startRow + 1);
       }
 
-      contentGroup.selectAll("*").remove();
+      contentGroup.selectAll("g[class^='sequence-row-']").remove();
       for (let i = startRow; i < endRow; i++) {
         renderVirtualRow(contentGroup, i, scrollOffset);
+      }
+
+      // Selection layer on top: create or get, then draw selection from prop
+      selectionLayer = contentGroup.select("g.selection-layer");
+      if (selectionLayer.empty()) {
+        selectionLayer = contentGroup.append("g").attr("class", "selection-layer").style("pointer-events", "none");
+        selectionLayer
+          .append("rect")
+          .attr("class", "selection-drag")
+          .attr("fill", selStyle.fill)
+          .attr("stroke", selStyle.stroke)
+          .attr("stroke-width", selStyle.strokeWidth)
+          .style("display", "none");
+      }
+      selectionLayer.selectAll("rect.selection-range").remove();
+      if (selection && selection.start != null && selection.end != null) {
+        for (let i = startRow; i < endRow; i++) {
+          const rowStart = i * nucleotidesPerRow;
+          const rowEnd = Math.min((i + 1) * nucleotidesPerRow, sequence.length);
+          const overlapStart = Math.max(selection.start, rowStart + 1);
+          const overlapEnd = Math.min(selection.end, rowEnd);
+          if (overlapStart <= overlapEnd) {
+            const startCol = overlapStart - 1 - rowStart;
+            const endCol = overlapEnd - 1 - rowStart;
+            const y = rowCumulativeHeights[i] - scrollOffset;
+            const x = startCol * charWidthPx;
+            const w = (endCol - startCol + 1) * charWidthPx;
+            const h = doubleStrandHeight;
+            selectionLayer
+              .append("rect")
+              .attr("class", "selection-range")
+              .attr("x", x)
+              .attr("y", y)
+              .attr("width", w)
+              .attr("height", h)
+              .attr("fill", selStyle.fill)
+              .attr("stroke", selStyle.stroke)
+              .attr("stroke-width", selStyle.strokeWidth);
+          }
+        }
       }
     };
 
@@ -1283,6 +1293,87 @@ const DetailedSequenceViewer = ({
       );
 
       renderRowFeatures(rowContainer, rowIndex);
+
+      // Hit area for sequence range selection (single-row drag) - only over sequence (doubleStrandHeight)
+      const rowHeight = doubleStrandHeight;
+      const rowLen = endPos - startPos;
+      const hitRect = rowContainer
+        .append("rect")
+        .attr("class", "selection-hit")
+        .attr("x", 0)
+        .attr("y", 0)
+        .attr("width", rowLen * charWidthPx)
+        .attr("height", rowHeight)
+        .attr("fill", "transparent")
+        .style("cursor", "crosshair")
+        .style("pointer-events", "all");
+
+      hitRect.on("mousedown", function (event) {
+        if (event.button !== 0 || !onSelectionEnd) return;
+        const [x] = d3.pointer(event, rowContainer.node());
+        let col = Math.floor(x / charWidthPx);
+        col = Math.max(0, Math.min(rowLen - 1, col));
+        const startRowIndex = rowIndex;
+        const startY = currentY;
+        const startH = doubleStrandHeight;
+
+        const dragRect = selectionLayer && !selectionLayer.empty() ? selectionLayer.select("rect.selection-drag") : null;
+        if (dragRect && !dragRect.empty()) {
+          dragRect
+            .attr("x", col * charWidthPx)
+            .attr("y", startY)
+            .attr("width", charWidthPx)
+            .attr("height", startH)
+            .style("display", "block");
+        }
+
+        const move = (e) => {
+          const [gx, gy] = d3.pointer(e, contentGroup.node());
+          let curRow = startRowIndex;
+          for (let r = 0; r < totalRows; r++) {
+            const cy = rowCumulativeHeights[r] - currentScrollOffset;
+            const rh = calculateRowHeight(r);
+            if (gy >= cy && gy < cy + rh) {
+              curRow = r;
+              break;
+            }
+          }
+          if (curRow !== startRowIndex) return;
+          const rStart = startRowIndex * nucleotidesPerRow;
+          const rEnd = Math.min(rStart + nucleotidesPerRow, sequence.length);
+          const rLen = rEnd - rStart;
+          let cCol = Math.floor(gx / charWidthPx);
+          cCol = Math.max(0, Math.min(rLen - 1, cCol));
+          const fromCol = Math.min(col, cCol);
+          const toCol = Math.max(col, cCol);
+          if (dragRect && !dragRect.empty()) {
+            dragRect
+              .attr("x", fromCol * charWidthPx)
+              .attr("y", startY)
+              .attr("width", (toCol - fromCol + 1) * charWidthPx)
+              .attr("height", startH)
+              .style("display", "block");
+          }
+        };
+        const up = (e) => {
+          if (e.button !== 0) return;
+          const [gx] = d3.pointer(e, contentGroup.node());
+          const rStart = startRowIndex * nucleotidesPerRow;
+          const rEnd = Math.min(rStart + nucleotidesPerRow, sequence.length);
+          const rLen = rEnd - rStart;
+          let cCol = Math.floor(gx / charWidthPx);
+          cCol = Math.max(0, Math.min(rLen - 1, cCol));
+          const fromCol = Math.min(col, cCol);
+          const toCol = Math.max(col, cCol);
+          const fromIndex = rStart + fromCol + 1;
+          const toIndex = rStart + toCol + 1;
+          onSelectionEnd(fromIndex, toIndex);
+          if (dragRect && !dragRect.empty()) dragRect.style("display", "none");
+          svg.on(".detailed-selection-drag", null);
+        };
+
+        svg.on("mousemove.detailed-selection-drag", move).on("mouseup.detailed-selection-drag", up).on("mouseleave.detailed-selection-drag", up);
+      });
     };
 
     // 滚动事件处理
@@ -1312,6 +1403,9 @@ const DetailedSequenceViewer = ({
 
     // 禁用D3的zoom行为，使用我们自己的滚动逻辑
     svg.on(".zoom", null);
+
+    // 初始渲染当前视窗内的行与选区
+    updateVisibleContent(currentScrollOffset);
   };
 
   return (

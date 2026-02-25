@@ -102,7 +102,8 @@ function setupSVGAndScales(svgRef, width, height, totalLength) {
     .attr("viewBox", `0 0 ${width} ${height}`)
     .attr("preserveAspectRatio", "xMidYMid meet")
     .style("width", "100%")
-    .style("height", "100%");
+    .style("height", "100%")
+    .style("user-select", "none");
 
   // Create main group
   const mainGroup = svg.append("g");
@@ -144,23 +145,20 @@ function renderRestrictionSites(mainGroup, resSites, angleScale, _outerRadius) {
 
   const resSiteGroup = mainGroup.append("g").attr("class", "restriction-sites");
 
-  const minGapFromOuter =
-    CONFIG.restrictionSiteLabels?.minGapFromOuter ?? 12;
+  const minGapFromOuter = CONFIG.restrictionSiteLabels?.minGapFromOuter ?? 12;
   const radiusStep = CONFIG.restrictionSiteLabels?.radiusStep ?? 8;
   const labelPadding = CONFIG.restrictionSiteLabels?.labelPadding ?? 4;
-  const charWidthApprox =
-    CONFIG.restrictionSiteLabels?.charWidthApprox ?? 5.5;
+  const charWidthApprox = CONFIG.restrictionSiteLabels?.charWidthApprox ?? 5.5;
   const labelStyle = CONFIG.restrictionSiteLabels?.style ?? {};
-  const fontSize =
-    labelStyle.fontSize ?? CONFIG.styles.annotation.fontSize;
+  const fontSize = labelStyle.fontSize ?? CONFIG.styles.annotation.fontSize;
   const fontFamily =
     labelStyle.fontFamily ?? CONFIG.styles.annotation.fontFamily;
-  const labelFill =
-    labelStyle.fill ?? CONFIG.styles.annotation.fillDark;
+  const labelFill = labelStyle.fill ?? CONFIG.styles.annotation.fillDark;
   const leaderStroke =
     labelStyle.leader?.stroke ?? CONFIG.interaction.normal.leader.stroke;
   const leaderStrokeWidth =
-    labelStyle.leader?.strokeWidth ?? CONFIG.interaction.normal.leader.strokeWidth;
+    labelStyle.leader?.strokeWidth ??
+    CONFIG.interaction.normal.leader.strokeWidth;
 
   function marginRadiusForLabel(text) {
     const w = text.length * charWidthApprox;
@@ -404,17 +402,21 @@ function processFeaturesForLayering(features, angleScale) {
           return;
         }
 
-        // Convert position to angle
+        // Convert position to angle (segment arc is the smaller arc between start and stop)
         const startAngle = angleScale(start);
         const stopAngle = angleScale(stop);
+        const segMin = Math.min(startAngle, stopAngle);
+        const segMax = Math.max(startAngle, stopAngle);
 
-        // Add processed segments
+        // Add processed segments with angle range for segment-wise overlap detection
         processedSegments.push({
           start,
           stop,
           isFirst: locIndex === 0,
           isTextSegment: locIndex === 0,
           isReverse,
+          angleMin: segMin,
+          angleMax: segMax,
         });
 
         // Calculate the middle angle of the first segment
@@ -497,58 +499,49 @@ function processFeaturesForLayering(features, angleScale) {
   // Get maximum layer limit from config
   const maxLayers = CONFIG.dimensions.maxLayers || Infinity;
 
+  // True if any segment of current overlaps any segment of prev (segment-wise overlap)
+  const segmentsOverlap = (curr, prev) => {
+    for (const cSeg of curr.segments) {
+      const cMin = cSeg.angleMin;
+      const cMax = cSeg.angleMax;
+      for (const pSeg of prev.segments) {
+        const pMin = pSeg.angleMin;
+        const pMax = pSeg.angleMax;
+        if (cMin <= pMax && cMax >= pMin) return true;
+      }
+    }
+    return false;
+  };
+
   // Calculating the radial-direction position (the layer) of each feature
   for (let i = 0; i < processedFeatures.length; i++) {
     const current = processedFeatures[i];
-    let layer = 0; // try the most inner layer
+    let layer = 0;
     let hasOverlap = true;
 
-    // Try, until no overlap with rendered features or reach max layer
+    // Try each layer until no overlap with already-placed features or we exceed maxLayers
     while (hasOverlap && layer < maxLayers) {
       hasOverlap = false;
-      // Check overlapping
       for (let j = 0; j < i; j++) {
         const prev = processedFeatures[j];
-        if (prev.radialOffset === layer) {
-          // Check overlapping using angle range
-          const currentRange = current.angleRange;
-          const prevRange = prev.angleRange;
-
-          const hasAngleOverlap =
-            // Overlap check of normal conditions
-            (!currentRange.hasCrossZero &&
-              !prevRange.hasCrossZero &&
-              currentRange.min <= prevRange.max &&
-              currentRange.max >= prevRange.min) ||
-            // Handle cross-zero conditions (1): current feature crossing 0, && the previous feature not crossing 0
-            (currentRange.hasCrossZero &&
-              !prevRange.hasCrossZero &&
-              (currentRange.min <= prevRange.max ||
-                currentRange.max >= prevRange.min)) ||
-            // Handle cross-zero conditions (2): the previous feature crossing 0, && the current feature not crossing 0
-            (!currentRange.hasCrossZero &&
-              prevRange.hasCrossZero &&
-              (prevRange.min <= currentRange.max ||
-                prevRange.max >= currentRange.min)) ||
-            // Handle cross-zero conditions (3): the previous feature crossing 0, && the current feature crossing 0
-            (currentRange.hasCrossZero && prevRange.hasCrossZero);
-
-          if (hasAngleOverlap) {
-            hasOverlap = true;
-            break;
-          }
+        if (prev.hidden) continue;
+        if (prev.radialOffset === layer && segmentsOverlap(current, prev)) {
+          hasOverlap = true;
+          break;
         }
       }
-
-      if (hasOverlap) {
-        layer++;
-      }
+      if (hasOverlap) layer++;
     }
-    // Set radial offset of current feature (capped at maxLayers - 1)
-    current.radialOffset = Math.min(layer, maxLayers - 1);
+
+    if (layer >= maxLayers) {
+      current.hidden = true;
+      current.radialOffset = -1;
+    } else {
+      current.hidden = false;
+      current.radialOffset = layer;
+    }
   }
 
-  // Note: layerSpacing is not used in this function, it's used in the rendering phase
   return processedFeatures;
 }
 
@@ -561,10 +554,13 @@ function processFeaturesForLayering(features, angleScale) {
 function calculateLayerRadii(processedFeatures, innerRadius) {
   const layerRadii = new Map();
   const maxLayers = CONFIG.dimensions.maxLayers || Infinity;
-  const maxLayer = Math.min(
-    Math.max(...processedFeatures.map((f) => f.radialOffset), 0),
-    maxLayers - 1,
-  );
+  const visibleOffsets = processedFeatures
+    .filter((f) => !f.hidden && f.radialOffset >= 0)
+    .map((f) => f.radialOffset);
+  const maxLayer =
+    visibleOffsets.length === 0
+      ? 0
+      : Math.min(Math.max(...visibleOffsets, 0), maxLayers - 1);
 
   for (let layer = 0; layer <= maxLayer; layer++) {
     if (layer === 0) {
@@ -630,9 +626,10 @@ function renderFeatures(
         innerRadius + 24 + d.radialOffset * layerSpacing,
     );
 
-  // Group features according to their layers
+  // Group features according to their layers (skip hidden: would exceed maxLayers)
   const featuresByLayer = new Map();
-  processedFeatures.forEach((feature) => {
+  const visibleFeatures = processedFeatures.filter((f) => !f.hidden);
+  visibleFeatures.forEach((feature) => {
     const layer = feature.radialOffset;
     if (!featuresByLayer.has(layer)) {
       featuresByLayer.set(layer, []);
@@ -641,10 +638,13 @@ function renderFeatures(
   });
 
   const maxLayers = CONFIG.dimensions.maxLayers || Infinity;
-  const maxLayer = Math.min(
-    Math.max(...processedFeatures.map((f) => f.radialOffset), 0),
-    maxLayers - 1,
-  );
+  const maxLayer =
+    visibleFeatures.length === 0
+      ? 0
+      : Math.min(
+          Math.max(...visibleFeatures.map((f) => f.radialOffset), 0),
+          maxLayers - 1,
+        );
   let currentLayerMaxRadius = innerRadius + 24; // Initialize radius
   let maxRadius = innerRadius;
 
@@ -1403,6 +1403,148 @@ function renderOuterTicks(mainGroup, totalLength, angleScale, outerRadius) {
 }
 
 /**
+ * Setup sequence range selection: blue arc on ring + drag on inner/outer ring.
+ */
+function setupCircularSelection({
+  mainGroup,
+  svg,
+  innerRadius,
+  maxRadius,
+  angleScale,
+  totalLength,
+  selection,
+  onSelectionEnd,
+}) {
+  const selStyle = CONFIG.interaction?.selection ?? {
+    fill: "rgba(30, 144, 255, 0.25)",
+    stroke: "rgba(30, 144, 255, 0.8)",
+    strokeWidth: 1,
+  };
+
+  const selectionLayer = mainGroup
+    .append("g")
+    .attr("class", "selection-layer")
+    .style("pointer-events", "none");
+
+  const arcGen = d3
+    .arc()
+    .innerRadius(innerRadius - 2)
+    .outerRadius(maxRadius + 2);
+
+  const selectionPath = selectionLayer
+    .append("path")
+    .attr("class", "selection-range")
+    .attr("fill", selStyle.fill)
+    .attr("stroke", selStyle.stroke)
+    .attr("stroke-width", selStyle.strokeWidth);
+
+  function angleTo1Based(angle) {
+    // Align selection with visual ring: shift by -90° so that
+    // the drag position and highlighted arc coincide.
+    let a = angle + Math.PI / 2; // DON'T CHANGE THIS
+    if (a < 0) a += 2 * Math.PI;
+    const pos0 = (a / (2 * Math.PI)) * totalLength;
+    return Math.max(1, Math.min(totalLength, Math.round(pos0) + 1));
+  }
+
+  function updateArc(from1Based, to1Based) {
+    if (from1Based == null || to1Based == null) {
+      selectionPath.style("display", "none");
+      return;
+    }
+    const from = Math.max(1, Math.min(totalLength, from1Based));
+    const to = Math.max(1, Math.min(totalLength, to1Based));
+    const startAngle = angleScale(from - 1);
+    const endAngle = angleScale(to);
+    selectionPath
+      .attr("d", arcGen.startAngle(startAngle).endAngle(endAngle)())
+      .style("display", "block");
+  }
+
+  if (selection && selection.start != null && selection.end != null) {
+    updateArc(selection.start, selection.end);
+  } else {
+    selectionPath.style("display", "none");
+  }
+
+  const bandWidth = 16; // Thin band around inner/outer rings
+  const hitLayer = mainGroup.append("g").attr("class", "selection-hit");
+
+  const innerBand = d3
+    .arc()
+    .innerRadius(Math.max(0, innerRadius - bandWidth / 2))
+    .outerRadius(innerRadius + bandWidth / 2)
+    .startAngle(0)
+    .endAngle(2 * Math.PI);
+
+  const outerBand = d3
+    .arc()
+    .innerRadius(Math.max(0, maxRadius - bandWidth / 2))
+    .outerRadius(maxRadius + bandWidth / 2)
+    .startAngle(0)
+    .endAngle(2 * Math.PI);
+
+  hitLayer
+    .append("path")
+    .attr("d", innerBand())
+    .attr("fill", "transparent")
+    .style("cursor", "crosshair")
+    .style("pointer-events", "all");
+
+  hitLayer
+    .append("path")
+    .attr("d", outerBand())
+    .attr("fill", "transparent")
+    .style("cursor", "crosshair")
+    .style("pointer-events", "all");
+
+  let startIndex = null;
+  let isSelecting = false;
+
+  hitLayer.on("mousedown", function (event) {
+    if (event.button !== 0) return;
+    const [x, y] = d3.pointer(event, mainGroup.node());
+    const r = Math.hypot(x, y);
+    const onInner = Math.abs(r - innerRadius) <= bandWidth / 2;
+    const onOuter = Math.abs(r - maxRadius) <= bandWidth / 2;
+    if (!onInner && !onOuter) return;
+    let angle = Math.atan2(y, x);
+    if (angle < 0) angle += 2 * Math.PI;
+    startIndex = angleTo1Based(angle);
+    isSelecting = true;
+    updateArc(startIndex, startIndex);
+
+    const move = (e) => {
+      if (!isSelecting) return;
+      const [mx, my] = d3.pointer(e, mainGroup.node());
+      let a = Math.atan2(my, mx);
+      if (a < 0) a += 2 * Math.PI;
+      const cur = angleTo1Based(a);
+      const from = Math.min(startIndex, cur);
+      const to = Math.max(startIndex, cur);
+      updateArc(from, to);
+    };
+    const up = (e) => {
+      if (e.button !== 0) return;
+      isSelecting = false;
+      const [ux, uy] = d3.pointer(e, mainGroup.node());
+      let a = Math.atan2(uy, ux);
+      if (a < 0) a += 2 * Math.PI;
+      const cur = angleTo1Based(a);
+      const from = Math.min(startIndex, cur);
+      const to = Math.max(startIndex, cur);
+      if (onSelectionEnd) onSelectionEnd(from, to);
+      svg.on(".selection-drag", null);
+    };
+
+    svg
+      .on("mousemove.selection-drag", move)
+      .on("mouseup.selection-drag", up)
+      .on("mouseleave.selection-drag", up);
+  });
+}
+
+/**
  * Setup zoom functionality
  * @param {d3.Selection} svg - SVG selection
  * @param {d3.Selection} mainGroup - Main group selection
@@ -1467,11 +1609,8 @@ function setupZoom(
  * @param {number} props.width - width of container
  * @param {number} props.height - height of container
  * @param {Function} [props.onFeatureClick] - handle user interactions
- * @param {Object|null} props.selection - Current selection: { type: 'circular', data: {...} } or null
- * @param {boolean} props.isSelecting - Whether currently selecting
- * @param {Function} props.onSelectionStart - Callback when selection starts: (type) => void
- * @param {Function} props.onSelectionUpdate - Callback when selection updates: (type, data) => void
- * @param {Function} props.onSelectionEnd - Callback when selection ends: (type, data) => void
+ * @param {{ start: number, end: number }|null} [props.selection] - Current selection range (1-based)
+ * @param {Function} [props.onSelectionEnd] - Called when drag ends: (start, end) => void
  */
 const CircularSequenceRenderer = ({
   data,
@@ -1480,6 +1619,8 @@ const CircularSequenceRenderer = ({
   onFeatureClick,
   hideInlineMeta,
   colorVersion = 0,
+  selection = null,
+  onSelectionEnd,
 }) => {
   const svgRef = useRef(null);
   const [, setScale] = useState(1);
@@ -1638,6 +1779,17 @@ const CircularSequenceRenderer = ({
     // Render inner ticks
     renderTicks(mainGroup, totalLength, angleScale, innerRadius);
 
+    setupCircularSelection({
+      mainGroup,
+      svg,
+      innerRadius,
+      maxRadius,
+      angleScale,
+      totalLength,
+      selection,
+      onSelectionEnd,
+    });
+
     // Setup zoom
     setupZoom(
       svg,
@@ -1655,7 +1807,16 @@ const CircularSequenceRenderer = ({
       // Event listeners are now handled in separate useEffect
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, width, height, onFeatureClick, hideInlineMeta, colorVersion]);
+  }, [
+    data,
+    width,
+    height,
+    onFeatureClick,
+    hideInlineMeta,
+    colorVersion,
+    selection,
+    onSelectionEnd,
+  ]);
 
   return (
     <div style={sequenceViewer.renderer}>

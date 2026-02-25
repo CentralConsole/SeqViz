@@ -877,6 +877,111 @@ function renderRowTextLabels(
 }
 
 /**
+ * Setup sequence range selection: selection layer (blue rect) + axis drag.
+ * @param {Object} params - layout and callbacks
+ */
+function setupLinearSelection({
+  contentGroup,
+  axisGroup,
+  contentWidth,
+  viewportHeight,
+  lengthScale,
+  totalLength,
+  minVisibleWidth,
+  selection,
+  onSelectionEnd,
+}) {
+  const selStyle = CONFIG.interaction?.selection ?? {
+    fill: "rgba(30, 144, 255, 0.25)",
+    stroke: "rgba(30, 144, 255, 0.8)",
+    strokeWidth: 1,
+  };
+
+  const selectionLayer = contentGroup
+    .append("g")
+    .attr("class", "selection-layer")
+    .style("pointer-events", "none");
+
+  const selectionRect = selectionLayer
+    .append("rect")
+    .attr("class", "selection-range")
+    .attr("y", 0)
+    .attr("height", viewportHeight)
+    .attr("fill", selStyle.fill)
+    .attr("stroke", selStyle.stroke)
+    .attr("stroke-width", selStyle.strokeWidth);
+
+  function updateRect(from1Based, to1Based) {
+    if (from1Based == null || to1Based == null) {
+      selectionRect.style("display", "none");
+      return;
+    }
+    const from = Math.max(1, Math.min(totalLength, from1Based));
+    const to = Math.max(1, Math.min(totalLength, to1Based));
+    const x0 = lengthScale(from - 1);
+    const x1 = lengthScale(to);
+    selectionRect
+      .attr("x", x0)
+      .attr("width", Math.max(minVisibleWidth, x1 - x0))
+      .style("display", "block");
+  }
+
+  if (selection && selection.start != null && selection.end != null) {
+    updateRect(selection.start, selection.end);
+  } else {
+    selectionRect.style("display", "none");
+  }
+
+  const axisHit = axisGroup
+    .append("g")
+    .attr("class", "axis-selection-hit")
+    .append("rect")
+    .attr("x", 0)
+    .attr("y", -100)
+    .attr("width", contentWidth)
+    .attr("height", 120)
+    .attr("fill", "transparent")
+    .style("cursor", "crosshair")
+    .style("pointer-events", "all");
+
+  function xToIndex1Based(x) {
+    const val = lengthScale.invert(x);
+    return Math.max(1, Math.min(totalLength, Math.round(val) || 1));
+  }
+
+  let dragStartIndex = null;
+
+  const dragBehavior = d3
+    .drag()
+    .on("start", (event) => {
+      const src = event.sourceEvent;
+      if (src && src.button !== 0) return; // Only left button
+      const [x] = d3.pointer(event, axisGroup.node());
+      dragStartIndex = xToIndex1Based(x);
+      updateRect(dragStartIndex, dragStartIndex);
+    })
+    .on("drag", (event) => {
+      if (dragStartIndex == null) return;
+      const [x] = d3.pointer(event, axisGroup.node());
+      const cur = xToIndex1Based(x);
+      const from = Math.min(dragStartIndex, cur);
+      const to = Math.max(dragStartIndex, cur);
+      updateRect(from, to);
+    })
+    .on("end", (event) => {
+      if (dragStartIndex == null) return;
+      const [x] = d3.pointer(event, axisGroup.node());
+      const cur = xToIndex1Based(x);
+      const from = Math.min(dragStartIndex, cur);
+      const to = Math.max(dragStartIndex, cur);
+      dragStartIndex = null;
+      if (onSelectionEnd) onSelectionEnd(from, to);
+    });
+
+  d3.select(axisHit.node()).call(dragBehavior);
+}
+
+/**
  * Setup scroll functionality (axis and content move together with wheel)
  * limitedY > 0: content moves down → see more above (restriction labels)
  * limitedY < 0: content moves up → see more below (features)
@@ -932,6 +1037,8 @@ function setupScroll(
  * @param {number} props.width - Render area width
  * @param {number} props.height - Render area height
  * @param {Function} [props.onFeatureClick] - Feature click event handler
+ * @param {{ start: number, end: number }|null} [props.selection] - Current selection range (1-based)
+ * @param {Function} [props.onSelectionEnd] - Called when drag ends: (start, end) => void
  */
 const LinearSequenceRenderer = ({
   data,
@@ -940,6 +1047,8 @@ const LinearSequenceRenderer = ({
   onFeatureClick,
   hideInlineMeta,
   colorVersion = 0,
+  selection = null,
+  onSelectionEnd,
 }) => {
   const svgRef = useRef(null);
   const { sequenceViewer } = CONFIG;
@@ -967,6 +1076,7 @@ const LinearSequenceRenderer = ({
       axisGroup,
       margin,
       lengthScale,
+      contentWidth,
       viewportHeight,
       fontSize,
       boxHeight,
@@ -1015,7 +1125,19 @@ const LinearSequenceRenderer = ({
       viewportHeight,
       textBuffer,
     );
-  }, [data, width, height, onFeatureClick, hideInlineMeta, colorVersion]);
+
+    setupLinearSelection({
+      contentGroup,
+      axisGroup,
+      contentWidth,
+      viewportHeight,
+      lengthScale,
+      totalLength,
+      minVisibleWidth,
+      selection,
+      onSelectionEnd,
+    });
+  }, [data, width, height, onFeatureClick, hideInlineMeta, colorVersion, selection, onSelectionEnd]);
 
   return (
     <div style={sequenceViewer.renderer}>

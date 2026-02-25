@@ -44,6 +44,8 @@ const SequenceViewerInner = ({
   const [showMeta, setShowMeta] = useState(false);
   const [showColorCustomizer, setShowColorCustomizer] = useState(false);
   const [colorVersion, setColorVersion] = useState(0);
+  // Unified sequence range selection: { start, end } (1-based) or null
+  const [selection, setSelection] = useState(null);
 
   // Re-measure after data loads so renderers get correct size
   useEffect(() => {
@@ -122,7 +124,7 @@ const SequenceViewerInner = ({
       >
         &#xeb5c;
       </button>
-      {showMeta && <MetadataPanel data={genomeData} />}
+      {showMeta && <MetadataPanel data={genomeData} selection={selection} />}
       <ColorCustomizer
         open={showColorCustomizer}
         onApply={() => setColorVersion((v) => v + 1)}
@@ -135,6 +137,8 @@ const SequenceViewerInner = ({
           onFeatureClick={onFeatureClick}
           hideInlineMeta={true}
           colorVersion={colorVersion}
+          selection={selection}
+          onSelectionEnd={(start, end) => setSelection(start != null && end != null ? { start, end } : null)}
         />
       )}
       {viewMode === "circular" && (
@@ -145,6 +149,8 @@ const SequenceViewerInner = ({
           onFeatureClick={onFeatureClick}
           hideInlineMeta={true}
           colorVersion={colorVersion}
+          selection={selection}
+          onSelectionEnd={(start, end) => setSelection(start != null && end != null ? { start, end } : null)}
         />
       )}
       {viewMode === "detailed" && (
@@ -155,6 +161,8 @@ const SequenceViewerInner = ({
           onFeatureClick={onFeatureClick}
           hideInlineMeta={true}
           colorVersion={colorVersion}
+          selection={selection}
+          onSelectionEnd={(start, end) => setSelection(start != null && end != null ? { start, end } : null)}
         />
       )}
     </div>

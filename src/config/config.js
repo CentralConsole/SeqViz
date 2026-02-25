@@ -12,7 +12,7 @@ export const CONFIG = {
     fontSizeMultiplier: 1.4,
     vSpace: 5,
     safetyMargin: 20,
-    maxLayers: 3, // Maximum number of feature layers in circular view
+    maxLayers: 6, // Maximum number of feature layers in circular view (segment-wise overlap may need more layers)
   },
   styles: {
     box: {
@@ -208,6 +208,12 @@ export const CONFIG = {
         strokeWidth: 1, // 引导线默认宽度
       },
       fontWeight: "normal", // 文本正常粗细
+    },
+    // Sequence range selection (drag on axis / ring / sequence area)
+    selection: {
+      fill: "rgba(30, 144, 255, 0.25)",
+      stroke: "rgba(30, 144, 255, 0.8)",
+      strokeWidth: 1,
     },
   },
   animation: {

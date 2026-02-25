@@ -5,8 +5,9 @@ import { CONFIG } from "../../config/config";
  * MetadataPanel - small-font, top overlay panel to show sequence metadata
  * Props:
  * - data: genome object
+ * - selection: { start, end } | null
  */
-const MetadataPanel = ({ data }) => {
+const MetadataPanel = ({ data, selection }) => {
   if (!data) return null;
 
   const lengthText = `${
@@ -14,6 +15,18 @@ const MetadataPanel = ({ data }) => {
   } bp`;
   const typeText = data.locus?.moleculeType || "";
   const divisionText = data.locus?.division || "";
+
+  let selectionLine = null;
+  if (
+    selection &&
+    typeof selection.start === "number" &&
+    typeof selection.end === "number"
+  ) {
+    const s = Math.min(selection.start, selection.end);
+    const e = Math.max(selection.start, selection.end);
+    const len = Math.max(0, e - s + 1);
+    selectionLine = `Selection: ${s.toLocaleString()} – ${e.toLocaleString()} (${len.toLocaleString()})`;
+  }
 
   const containerStyle = {
     position: "absolute",
@@ -66,6 +79,7 @@ const MetadataPanel = ({ data }) => {
       <div style={descStyle}>
         Length: {lengthText} | Type: {typeText} | Division: {divisionText}
       </div>
+      {selectionLine && <div style={descStyle}>{selectionLine}</div>}
     </div>
   );
 };
